@@ -18,7 +18,8 @@ argument_specs:
     description: |
       Installs MySQL, creates databases and users, optionally configures
       primary/replica replication based on the db_role host variable.
-      Supports Tier 1 platforms: Ubuntu 20.04+, Rocky Linux 9+.
+      Tier 1 (tested): Ubuntu 20.04+.
+      RedHat-compatible support is Tier 2 (skeleton exists, not yet implemented or tested).
     author: platform-team
 
     options:

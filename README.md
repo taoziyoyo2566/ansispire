@@ -9,7 +9,8 @@
 | 层级 | 平台 | CI/Molecule | 说明 |
 |------|------|:-----------:|------|
 | **Tier 1** | Ubuntu 20.04 / 22.04 | ✅ | 默认测试目标 |
-| **Tier 1** | Rocky Linux 9 / AlmaLinux 9 | ✅ | common 场景测试 |
+| **Tier 1** | Rocky Linux 9 | ✅ | molecule/common 已验证 |
+| **Tier 2** | AlmaLinux 9 | ⚠ | 预期兼容，未纳入 CI |
 | **Tier 2** | Debian 11 / 12 | 未测试 | 有代码骨架，预期兼容 |
 | **Tier 2** | AlmaLinux 8 / CentOS Stream 9 | 未测试 | 有代码骨架 |
 | **Tier 3** | Alpine / 无 systemd / 无 Python | ❌ | 需额外 bootstrap，见 `examples/` |

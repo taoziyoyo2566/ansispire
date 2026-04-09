@@ -6,15 +6,21 @@ galaxy_info:
   license: MIT
   min_ansible_version: "2.14"
   platforms:
+    # Tier 1 — CI 验证
     - name: Ubuntu
       versions:
         - focal      # 20.04
         - jammy      # 22.04
         - noble      # 24.04
+    # Tier 2 — 有代码骨架，预期兼容
     - name: Debian
       versions:
         - bullseye   # 11
         - bookworm   # 12
+    # Tier 1 — molecule/common Rocky 9 场景验证
+    - name: EL
+      versions:
+        - "9"        # Rocky Linux 9 / AlmaLinux 9（Rocky 已验证，Alma 预期兼容）
   galaxy_tags:
     - base
     - common
