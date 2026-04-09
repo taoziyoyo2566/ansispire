@@ -1,0 +1,50 @@
+# molecule/webserver/verify.yml — 验证测试结果
+
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Check Nginx is running
+      ansible.builtin.service_facts:
+
+    - name: Assert Nginx is active
+      ansible.builtin.assert:
+        that:
+          - "'nginx' in services"
+          - "services['nginx'].state == 'running'"
+        fail_msg: "Nginx is not running!"
+
+    - name: Check Nginx config syntax
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+    - name: Verify HTTP response on port 80
+      ansible.builtin.uri:
+        url: http://localhost/
+        status_code: [200, 301, 302]
+      register: http_response
+
+    - name: Assert HTTP response received
+      ansible.builtin.assert:
+        that: http_response.status in [200, 301, 302]
+
+    - name: Verify default index file exists
+      ansible.builtin.stat:
+        path: /var/www/html/index.html
+      register: index_file
+
+    - name: Assert index file deployed
+      ansible.builtin.assert:
+        that: index_file.stat.exists
+
+    - name: Check vhost config deployed
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-available/test.local.conf
+      register: vhost_conf
+
+    - name: Assert vhost config exists
+      ansible.builtin.assert:
+        that: vhost_conf.stat.exists

@@ -1,0 +1,12 @@
+# roles/common/vars/os/RedHat.yml
+
+---
+_common__os_packages:
+  - epel-release
+  - dnf-utils
+  - policycoreutils-python-utils
+
+_common__service_manager: systemd
+_common__pkg_mgr: dnf
+_common__ssh_service: sshd
+_common__cron_service: crond

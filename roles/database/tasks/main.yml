@@ -1,0 +1,8 @@
+---
+- name: Install MySQL
+  ansible.builtin.import_tasks: install.yml
+  tags: [mysql, install]
+
+- name: Configure MySQL
+  ansible.builtin.import_tasks: configure.yml
+  tags: [mysql, configure]

@@ -1,0 +1,90 @@
+# roles/database/meta/argument_specs.yml
+
+---
+argument_specs:
+  main:
+    short_description: Install and configure MySQL with optional replication
+    author: platform-team
+
+    options:
+      database__mysql_root_password:
+        type: str
+        required: true
+        no_log: true
+        description: MySQL root password (reference vault variable)
+
+      database__mysql_bind_address:
+        type: str
+        required: false
+        default: "127.0.0.1"
+        description: >
+          MySQL bind address. Use 0.0.0.0 to allow remote connections
+          (ensure firewall rules are in place).
+
+      database__mysql_port:
+        type: int
+        required: false
+        default: 3306
+        description: MySQL listen port
+
+      database__mysql_innodb_buffer_pool_size:
+        type: str
+        required: false
+        default: "512M"
+        description: >
+          InnoDB buffer pool size. Rule of thumb: 70-80% of RAM for
+          dedicated DB servers.
+
+      database__mysql_max_connections:
+        type: int
+        required: false
+        default: 150
+        description: max_connections value
+
+      database__databases:
+        type: list
+        elements: dict
+        required: false
+        default: []
+        description: Databases to create
+        options:
+          name:
+            type: str
+            required: true
+          encoding:
+            type: str
+            required: false
+            default: utf8mb4
+          collation:
+            type: str
+            required: false
+            default: utf8mb4_unicode_ci
+
+      database__users:
+        type: list
+        elements: dict
+        required: false
+        default: []
+        description: MySQL users to create
+        options:
+          name:
+            type: str
+            required: true
+          password:
+            type: str
+            required: true
+            no_log: true
+          priv:
+            type: str
+            required: true
+            description: "Privilege string, e.g. 'mydb.*:ALL'"
+          host:
+            type: str
+            required: false
+            default: "%"
+
+      database__backup_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Enable automated MySQL backups via cron

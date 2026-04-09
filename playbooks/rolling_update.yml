@@ -1,0 +1,77 @@
+# playbooks/rolling_update.yml — 滚动更新示例
+# 展示: serial、max_fail_percentage、delegate_to、run_once
+
+---
+- name: Rolling update of web servers
+  hosts: webservers
+  become: true
+  gather_facts: true
+
+  # 滚动策略: 每次只更新 1 台，任意主机失败立即停止
+  serial: 1
+  max_fail_percentage: 0
+
+  pre_tasks:
+    # 更新前：从负载均衡器摘除该主机
+    - name: Remove host from load balancer
+      community.general.haproxy:
+        state: disabled
+        host: "{{ inventory_hostname }}"
+        socket: /var/run/haproxy/admin.sock
+      # delegate_to: 在另一台主机上执行该 task
+      delegate_to: lb01.example.com
+      tags: [lb]
+
+    # 等待连接排空（优雅下线）
+    - name: Wait for connections to drain
+      ansible.builtin.wait_for:
+        timeout: 30
+      delegate_to: localhost  # 在控制机上等待
+
+  tasks:
+    - name: Pull latest app code
+      ansible.builtin.git:
+        repo: https://github.com/example/myapp.git
+        dest: "{{ app_base_dir }}/myapp"
+        version: "{{ app_version | default('main') }}"
+      notify: Restart app service
+
+    - name: Install Python dependencies
+      ansible.builtin.pip:
+        requirements: "{{ app_base_dir }}/myapp/requirements.txt"
+        virtualenv: "{{ app_base_dir }}/myapp/.venv"
+
+    - name: Run database migrations
+      ansible.builtin.command:
+        cmd: "{{ app_base_dir }}/myapp/.venv/bin/python manage.py migrate --noinput"
+        chdir: "{{ app_base_dir }}/myapp"
+      # run_once: 整个 play 中只在第一台主机执行一次
+      run_once: true
+      # 但在指定主机上执行
+      delegate_to: "{{ groups['webservers'][0] }}"
+
+  handlers:
+    - name: Restart app service
+      ansible.builtin.systemd:
+        name: myapp
+        state: restarted
+
+  post_tasks:
+    # 等待应用健康检查通过
+    - name: Wait for app to be healthy
+      ansible.builtin.uri:
+        url: "http://{{ ansible_host }}/health"
+        status_code: 200
+      register: health_check
+      until: health_check.status == 200
+      retries: 10       # 最多重试 10 次
+      delay: 5          # 每次间隔 5 秒
+
+    # 重新加入负载均衡器
+    - name: Re-add host to load balancer
+      community.general.haproxy:
+        state: enabled
+        host: "{{ inventory_hostname }}"
+        socket: /var/run/haproxy/admin.sock
+      delegate_to: lb01.example.com
+      tags: [lb]

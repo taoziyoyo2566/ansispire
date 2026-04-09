@@ -1,0 +1,29 @@
+# .yamllint — YAML 格式规范
+# 与 ansible-lint 协同工作
+
+---
+extends: default
+
+rules:
+  line-length:
+    max: 160               # 行长放宽（Ansible task 名称常较长）
+    level: warning
+
+  truthy:
+    allowed-values:
+      - "true"
+      - "false"
+      - "yes"
+      - "no"               # Ansible 历史上大量用 yes/no，允许
+    check-keys: false
+
+  comments:
+    min-spaces-from-content: 1
+
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  octal-values:
+    forbid-implicit-octal: true   # 禁止隐式八进制（文件权限必须加引号）
+    forbid-explicit-octal: false

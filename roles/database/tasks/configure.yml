@@ -1,0 +1,69 @@
+# 展示: no_log、community 模块、条件变量、敏感数据处理
+
+---
+- name: Deploy MySQL configuration
+  ansible.builtin.template:
+    src: my.cnf.j2
+    dest: /etc/mysql/mysql.conf.d/mysqld.cnf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart MySQL
+
+# no_log: true — 含密码的 task，隐藏所有输出（安全必备）
+- name: Set MySQL root password
+  community.mysql.mysql_user:
+    name: root
+    password: "{{ database__mysql_root_password }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    state: present
+  no_log: true                    # 隐藏任务输出，防止密码泄露至日志
+  tags: [mysql, security]
+
+- name: Create application databases
+  community.mysql.mysql_db:
+    name: "{{ item.name }}"
+    encoding: "{{ item.encoding | default('utf8mb4') }}"
+    collation: "{{ item.collation | default('utf8mb4_unicode_ci') }}"
+    state: present
+    login_user: root
+    login_password: "{{ database__mysql_root_password }}"
+  loop: "{{ mysql_databases | default(database__databases) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Create MySQL users
+  community.mysql.mysql_user:
+    name: "{{ item.name }}"
+    password: "{{ item.password }}"
+    priv: "{{ item.priv }}"
+    host: "{{ item.host | default('%') }}"
+    state: present
+    login_user: root
+    login_password: "{{ database__mysql_root_password }}"
+  loop: "{{ mysql_users | default(database__users) }}"
+  loop_control:
+    label: "{{ item.name }}@{{ item.host | default('%') }}"
+  no_log: true
+  tags: [mysql, users]
+
+# 备份脚本（条件部署）
+- name: Deploy MySQL backup script
+  ansible.builtin.template:
+    src: backup.sh.j2
+    dest: /usr/local/bin/mysql-backup.sh
+    mode: "0750"
+  when: mysql_backup_enabled | default(database__backup_enabled)
+  tags: [mysql, backup]
+
+- name: Schedule MySQL backup cron job
+  ansible.builtin.cron:
+    name: MySQL daily backup
+    user: root
+    minute: "0"
+    hour: "2"
+    job: /usr/local/bin/mysql-backup.sh >> /var/log/mysql-backup.log 2>&1
+    state: present
+  when: mysql_backup_enabled | default(database__backup_enabled)
+  tags: [mysql, backup]

@@ -1,0 +1,55 @@
+# inventory/dynamic/aws_ec2.yml — AWS EC2 动态 Inventory 插件配置
+# 插件文档: https://docs.ansible.com/ansible/latest/collections/amazon/aws/aws_ec2_inventory.html
+# 启用: ansible.cfg 中 inventory = inventory/production:inventory/dynamic
+# 前提: pip install boto3 && ansible-galaxy collection install amazon.aws
+
+---
+plugin: amazon.aws.aws_ec2
+
+# ── 扫描区域 ──────────────────────────────────────────────────────────────────
+regions:
+  - us-east-1
+  - ap-southeast-1
+
+# ── 过滤条件（只返回符合 tag 的实例）────────────────────────────────────────
+filters:
+  tag:Environment: production
+  instance-state-name: running
+
+# ── 主机名格式 ────────────────────────────────────────────────────────────────
+# 可选: ip-address / dns-name / tag:Name / private-ip-address
+hostnames:
+  - tag:Name              # 优先用 Name tag 作为主机名
+  - private-ip-address    # 无 Name tag 时回退到私有 IP
+
+# ── 自动分组 ──────────────────────────────────────────────────────────────────
+# keyed_groups: 按 EC2 属性自动创建 Ansible 组
+keyed_groups:
+  # 按 tag:Role 分组: Role=webserver → 组名 role_webserver
+  - key: tags.Role
+    prefix: role
+    separator: "_"
+
+  # 按 instance type 分组: t3.medium → 组名 type_t3_medium
+  - key: instance_type
+    prefix: type
+
+  # 按 AZ 分组: us-east-1a → 组名 az_us_east_1a
+  - key: placement.availability_zone
+    prefix: az
+
+# ── 组合过滤（条件组）────────────────────────────────────────────────────────
+groups:
+  # 名称包含 "web" 的实例加入 webservers 组
+  webservers: "'web' in tags.Role | default('')"
+  # 名称包含 "db" 的实例加入 dbservers 组
+  dbservers: "'db' in tags.Role | default('')"
+
+# ── 附加变量（从 EC2 元数据提取变量）────────────────────────────────────────
+compose:
+  # 用私有 IP 作为 ansible_host
+  ansible_host: private_ip_address
+  # 从 tag 读取 env 变量
+  env: tags.Environment | default('unknown')
+  # 从 tag 读取 db_role
+  db_role: tags.DBRole | default(omit)

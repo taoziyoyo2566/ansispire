@@ -1,0 +1,43 @@
+# .ansible-lint — ansible-lint 配置
+# 文档: https://ansible.readthedocs.io/projects/lint/configuring/
+# 安装: pip install ansible-lint
+# 运行: ansible-lint  或  ansible-lint playbooks/site.yml
+
+---
+# profile 决定启用哪些规则集（从宽松到严格）
+# min → basic → moderate → safety → shared → production
+profile: production
+
+# 排除路径
+exclude_paths:
+  - .git/
+  - molecule/
+  - .cache/
+
+# 始终跳过的规则（尽量少，只跳过确实无意义的）
+warn_list:
+  - experimental        # 实验性规则降为警告而非报错
+
+skip_list: []            # 生产 profile 下不跳过任何规则
+
+# 允许使用非 FQCN 的模块白名单（空列表 = 全部必须 FQCN）
+use_default_rules: true
+
+# 检查 YAML 格式
+yaml:
+  document-start: enable   # 要求文件以 --- 开头
+
+# mock_modules: 不在本地安装但需要 lint 通过的模块
+mock_modules:
+  - community.general.haproxy
+
+# mock_roles: 不在本地安装但需要 lint 通过的 role
+mock_roles:
+  - geerlingguy.docker
+
+# 自定义规则目录
+# rulesdir:
+#   - .ansible-lint-rules/
+
+# 变量名格式检查（Ansible 命名约定）
+var_naming_pattern: "^[a-z_][a-z0-9_]*$"

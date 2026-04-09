@@ -1,0 +1,13 @@
+---
+galaxy_info:
+  author: platform-team
+  description: Install and configure MySQL 8.0 with replication support
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Ubuntu
+      versions: [focal, jammy, noble]
+  galaxy_tags: [mysql, database]
+
+dependencies:
+  - role: common

@@ -1,0 +1,25 @@
+---
+galaxy_info:
+  author: platform-team
+  description: Common baseline configuration for all servers
+  company: Example Corp
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - focal      # 20.04
+        - jammy      # 22.04
+        - noble      # 24.04
+    - name: Debian
+      versions:
+        - bullseye   # 11
+        - bookworm   # 12
+  galaxy_tags:
+    - base
+    - common
+    - security
+    - hardening
+
+# 声明依赖的其他 role（执行本 role 前自动执行依赖 role）
+dependencies: []

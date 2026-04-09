@@ -1,0 +1,49 @@
+# 展示: loop with dict、条件模板、symlink 管理
+
+---
+# 为每个 vhost 生成配置文件
+- name: Deploy virtual host configurations
+  ansible.builtin.template:
+    src: vhost.conf.j2
+    dest: "{{ _webserver__nginx_sites_available }}/{{ item.name }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: nginx -t -c %s
+  loop: "{{ nginx_vhosts | default(webserver__vhosts) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Reload Nginx
+  tags: [vhosts]
+
+# 启用 vhost（创建 symlink）
+- name: Enable virtual hosts
+  ansible.builtin.file:
+    src: "{{ _webserver__nginx_sites_available }}/{{ item.name }}.conf"
+    dest: "{{ _webserver__nginx_sites_enabled }}/{{ item.name }}.conf"
+    state: link
+  loop: "{{ nginx_vhosts | default(webserver__vhosts) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Reload Nginx
+  tags: [vhosts]
+
+# 找出所有已有的 vhost 配置，删除不在列表中的（资源清理）
+- name: Find existing vhost configs
+  ansible.builtin.find:
+    paths: "{{ _webserver__nginx_sites_available }}"
+    patterns: "*.conf"
+  register: existing_vhosts
+
+- name: Remove obsolete vhost configs
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ existing_vhosts.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: >
+    (item.path | basename | replace('.conf', ''))
+    not in (nginx_vhosts | default(webserver__vhosts) | map(attribute='name') | list)
+  notify: Reload Nginx
+  tags: [vhosts, cleanup]

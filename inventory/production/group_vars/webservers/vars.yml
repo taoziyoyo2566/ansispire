@@ -1,0 +1,37 @@
+# group_vars/webservers/vars.yml — 仅对 webservers 组生效
+
+---
+# ── Nginx 配置 ────────────────────────────────────────────────────────────────
+nginx_version: "1.24"
+nginx_worker_processes: auto
+nginx_worker_connections: 1024
+nginx_keepalive_timeout: 65
+nginx_client_max_body_size: "64m"
+
+# ── 虚拟主机列表（将被 loop 遍历）────────────────────────────────────────────
+nginx_vhosts:
+  - name: app.example.com
+    root: /var/www/app
+    ssl: true
+    ssl_cert: /etc/ssl/certs/app.example.com.crt
+    ssl_key: /etc/ssl/private/app.example.com.key
+    php_fpm: true
+    php_fpm_socket: /run/php/php8.2-fpm.sock
+
+  - name: static.example.com
+    root: /var/www/static
+    ssl: true
+    ssl_cert: /etc/ssl/certs/static.example.com.crt
+    ssl_key: /etc/ssl/private/static.example.com.key
+    php_fpm: false
+
+# ── 日志配置 ──────────────────────────────────────────────────────────────────
+nginx_access_log: /var/log/nginx/access.log
+nginx_error_log: /var/log/nginx/error.log
+nginx_log_format: combined
+
+# ── 防火墙规则（webservers 专用）─────────────────────────────────────────────
+firewall_allowed_tcp_ports:
+  - 22
+  - 80
+  - 443

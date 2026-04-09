@@ -1,0 +1,39 @@
+# group_vars/all/vars.yml
+# 作用于所有主机的公共变量（明文部分）
+# 技巧: all/ 是目录，Ansible 会合并目录下所有 .yml 文件
+#       vault.yml 放加密变量，vars.yml 放明文变量，两者分离
+
+---
+# ── 环境标识 ──────────────────────────────────────────────────────────────────
+env: production
+datacenter: us-east-1
+
+# ── 时区 & NTP ────────────────────────────────────────────────────────────────
+system_timezone: Asia/Shanghai
+ntp_servers:
+  - ntp1.example.com
+  - ntp2.example.com
+
+# ── 通用包列表 ────────────────────────────────────────────────────────────────
+common_packages:
+  - curl
+  - wget
+  - vim
+  - htop
+  - net-tools
+  - ca-certificates
+
+# ── SSH 安全配置 ──────────────────────────────────────────────────────────────
+ssh_permit_root_login: "no"
+ssh_password_auth: "no"
+ssh_allowed_users:
+  - deploy
+  - ansible
+
+# ── 日志保留策略 ──────────────────────────────────────────────────────────────
+log_retention_days: 30
+
+# ── 应用部署目录 ──────────────────────────────────────────────────────────────
+app_base_dir: /opt/apps
+app_user: appuser
+app_group: appgroup

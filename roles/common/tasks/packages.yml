@@ -1,0 +1,133 @@
+# roles/common/tasks/packages.yml
+# 展示: package_facts、loop 技巧、block/rescue/always、subelements、omit
+
+---
+# ── 收集已安装包信息（用于后续幂等判断）───────────────────────────────────────
+- name: Gather installed package facts
+  ansible.builtin.package_facts:
+    manager: auto   # 自动识别 apt/dnf/yum
+  tags: [packages]
+
+# ── OS 特定包（从 vars/os/ 加载）+ 通用包 ────────────────────────────────────
+- name: Install OS-specific and common packages
+  ansible.builtin.package:
+    name: "{{ (_common__os_packages + common_packages + common__extra_packages) | unique }}"
+    state: present
+  tags: [packages]
+
+# ── 设置时区 ──────────────────────────────────────────────────────────────────
+- name: Set system timezone
+  community.general.timezone:
+    name: "{{ system_timezone | default(common__timezone) }}"
+  notify: Restart cron service
+  tags: [timezone]
+
+# ── 用户管理：block/rescue/always 完整示例 ───────────────────────────────────
+- name: Manage application user and directory
+  block:
+    - name: Ensure app group exists
+      ansible.builtin.group:
+        name: "{{ app_group }}"
+        system: true
+        state: present
+
+    - name: Ensure app user exists
+      ansible.builtin.user:
+        name: "{{ app_user }}"
+        group: "{{ app_group }}"
+        system: true
+        shell: /usr/sbin/nologin
+        home: "{{ app_base_dir }}"
+        create_home: false
+        state: present
+
+    - name: Create app base directory
+      ansible.builtin.file:
+        path: "{{ app_base_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0755"
+
+  rescue:
+    - name: Notify failure via syslog
+      ansible.builtin.syslogger:
+        msg: >
+          [ansible] Failed to create app user/dir on {{ inventory_hostname }}.
+          Error: {{ ansible_failed_result.msg | default('unknown') }}
+        priority: err
+
+    - name: Re-raise the original failure
+      ansible.builtin.fail:
+        msg: "App user setup failed: {{ ansible_failed_result.msg | default('unknown') }}"
+
+  always:
+    - name: Verify app user exists
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ app_user }}"
+      register: app_user_check
+      failed_when: false
+
+    - name: Report user check result
+      ansible.builtin.debug:
+        msg: "App user '{{ app_user }}': {{ 'exists' if app_user_check.ansible_facts is defined else 'MISSING' }}"
+        verbosity: 1    # verbosity: 只在 -v 时显示，减少正常运行噪音
+  tags: [users, appdir]
+
+# ── 创建 deploy 用户（loop + loop_control）───────────────────────────────────
+- name: Create deploy users
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    uid: "{{ item.uid | default(omit) }}"       # omit: 不传参数，模块用默认值
+    groups: "{{ item.groups | default([]) }}"
+    append: true                                 # 追加组，不替换现有组
+    shell: /bin/bash
+    create_home: true
+    state: present
+  loop: "{{ common__deploy_users }}"
+  loop_control:
+    label: "{{ item.name }}"                     # 只显示 name，简化输出
+    pause: 0                                     # loop 间暂停秒数（调试用）
+  when: common__deploy_users | length > 0
+  tags: [users]
+
+# ── 部署 SSH 公钥（subelements 展开嵌套列表）────────────────────────────────
+- name: Add authorized SSH keys for deploy users
+  ansible.posix.authorized_key:
+    user: "{{ item.0.name }}"
+    key: "{{ item.1 }}"
+    state: present
+    exclusive: false    # 追加，不删除已有 key
+  # subelements(list, 'field', skip_missing=True):
+  #   item.0 = 外层对象（用户），item.1 = 内层元素（单个 key）
+  loop: "{{ common__deploy_users | subelements('authorized_keys', skip_missing=True) }}"
+  loop_control:
+    label: "{{ item.0.name }}"
+  no_log: true    # SSH 公钥不算敏感，但 authorized_keys 内容较长，隐藏减少噪音
+  tags: [users, ssh]
+
+# ── sysctl 调优（dict2items 转 loop）────────────────────────────────────────
+- name: Apply sysctl performance tuning
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value | string }}"
+    sysctl_set: true
+    state: present
+    reload: true
+  # dict2items: 将 {key: value} 字典转为 [{key:..., value:...}] 列表
+  loop: "{{ common__sysctl_settings | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}={{ item.value }}"
+  tags: [sysctl, tuning]
+
+# ── 部署 MOTD ─────────────────────────────────────────────────────────────────
+- name: Deploy MOTD
+  ansible.builtin.template:
+    src: motd.j2
+    dest: /etc/motd
+    owner: root
+    group: root
+    mode: "0644"
+  when: common__motd_enabled | bool
+  tags: [motd]

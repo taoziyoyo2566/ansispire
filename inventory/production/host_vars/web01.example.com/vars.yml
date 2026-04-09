@@ -1,0 +1,19 @@
+# host_vars/web01.example.com/vars.yml
+# 主机级变量，优先级高于 group_vars
+# 仅对 web01.example.com 生效
+
+---
+# web01 是主 LB 节点，额外承担 Let's Encrypt 证书申请任务
+certbot_primary_node: true
+
+# 主机特定的额外 vhost（覆盖/扩展 group_vars 不够用的场景）
+nginx_extra_vhosts:
+  - name: admin.example.com
+    root: /var/www/admin
+    ssl: true
+    allowed_ips:
+      - 10.0.0.0/8
+      - 192.168.1.0/24
+
+# 覆盖组级变量——该主机内存更大，调高并发
+nginx_worker_connections: 4096

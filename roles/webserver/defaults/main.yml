@@ -1,0 +1,37 @@
+# roles/webserver/defaults/main.yml — 最低优先级，可被任何地方覆盖
+
+---
+# ── Nginx ─────────────────────────────────────────────────────────────────────
+webserver__nginx_version: "*"           # 安装最新版，或指定如 "1.24.*"
+webserver__nginx_user: www-data
+webserver__nginx_group: www-data
+webserver__nginx_pid: /run/nginx.pid
+
+webserver__worker_processes: auto
+webserver__worker_connections: 1024
+webserver__keepalive_timeout: 65
+webserver__client_max_body_size: "16m"
+webserver__server_tokens: "off"        # 隐藏 Nginx 版本号（安全加固）
+
+# ── 虚拟主机 ──────────────────────────────────────────────────────────────────
+webserver__vhosts: []                   # 由 group_vars/webservers 覆盖
+webserver__default_vhost_enabled: true
+
+# ── SSL/TLS ───────────────────────────────────────────────────────────────────
+webserver__ssl_protocols: "TLSv1.2 TLSv1.3"
+webserver__ssl_ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
+webserver__ssl_prefer_server_ciphers: "off"
+
+# ── 日志 ──────────────────────────────────────────────────────────────────────
+webserver__log_dir: /var/log/nginx
+webserver__access_log_format: combined
+
+# ── Gzip 压缩 ────────────────────────────────────────────────────────────────
+webserver__gzip_enabled: true
+webserver__gzip_types:
+  - text/plain
+  - text/css
+  - application/json
+  - application/javascript
+  - text/xml
+  - application/xml

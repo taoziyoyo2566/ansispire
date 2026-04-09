@@ -1,0 +1,38 @@
+# 展示: 包安装、服务管理、文件操作
+
+---
+- name: Install Nginx package
+  ansible.builtin.package:
+    name: "{{ _webserver__nginx_packages[ansible_os_family] }}"
+    state: present
+  notify: systemd daemon reload
+
+- name: Ensure Nginx is enabled and started
+  ansible.builtin.systemd:
+    name: "{{ _webserver__nginx_service }}"
+    enabled: true
+    state: started
+
+# 创建目录树
+- name: Create Nginx config directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ _webserver__nginx_conf_dir }}/conf.d"
+    - "{{ _webserver__nginx_sites_available }}"
+    - "{{ _webserver__nginx_sites_enabled }}"
+    - "{{ webserver__log_dir }}"
+
+# copy 模块：复制 files/ 目录下的静态文件
+- name: Deploy default index page
+  ansible.builtin.copy:
+    src: default_index.html      # 相对 roles/webserver/files/
+    dest: /var/www/html/index.html
+    owner: "{{ webserver__nginx_user }}"
+    group: "{{ webserver__nginx_group }}"
+    mode: "0644"
+  tags: [static]

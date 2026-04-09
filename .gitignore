@@ -1,0 +1,28 @@
+# Vault 密码文件 — 绝对不能提交
+.vault_pass
+*.vault_pass
+
+# Ansible 运行产物
+*.retry
+/tmp/
+
+# fact 缓存
+.facts/
+fact_cache/
+
+# 日志
+*.log
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Molecule 产物
+.molecule/

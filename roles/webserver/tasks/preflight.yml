@@ -1,0 +1,33 @@
+# roles/webserver/tasks/preflight.yml — Webserver role 前置检查
+
+---
+- name: Preflight | Assert required variables for vhosts
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.root is defined
+      # SSL 启用时必须提供证书路径
+      - not (item.ssl | default(false)) or (item.ssl_cert is defined and item.ssl_key is defined)
+      # PHP-FPM 启用时必须提供 socket
+      - not (item.php_fpm | default(false)) or item.php_fpm_socket is defined
+    fail_msg: >
+      vhost '{{ item.name | default('unknown') }}' is misconfigured.
+      ssl={{ item.ssl | default(false) }},
+      php_fpm={{ item.php_fpm | default(false) }}.
+  loop: "{{ nginx_vhosts | default(webserver__vhosts) }}"
+  loop_control:
+    label: "{{ item.name | default('unknown') }}"
+  tags: [always, preflight]
+
+- name: Preflight | Assert Nginx not already managed by another tool
+  ansible.builtin.stat:
+    path: /etc/nginx/.not-ansible-managed
+  register: nginx_conflict_marker
+
+- name: Preflight | Fail if conflict marker found
+  ansible.builtin.fail:
+    msg: >
+      Found /etc/nginx/.not-ansible-managed — Nginx appears to be managed by
+      another tool. Remove this file to allow Ansible to manage Nginx.
+  when: nginx_conflict_marker.stat.exists
+  tags: [always, preflight]

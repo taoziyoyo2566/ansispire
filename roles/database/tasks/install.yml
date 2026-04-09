@@ -1,0 +1,14 @@
+---
+- name: Install MySQL server
+  ansible.builtin.package:
+    name:
+      - mysql-server
+      - mysql-client
+      - python3-mysqldb     # community.mysql 模块依赖
+    state: present
+
+- name: Ensure MySQL is started and enabled
+  ansible.builtin.systemd:
+    name: mysql
+    state: started
+    enabled: true

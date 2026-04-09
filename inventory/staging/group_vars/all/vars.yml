@@ -1,0 +1,14 @@
+# staging 覆盖部分 production 默认值
+
+---
+env: staging
+
+# Staging 不需要严格安全
+ssh_permit_root_login: "yes"
+ssh_password_auth: "yes"
+
+# 更短的日志保留
+log_retention_days: 7
+
+# 调试模式
+app_debug: true

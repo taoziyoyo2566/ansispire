@@ -1,0 +1,19 @@
+---
+database__mysql_version: "8.0"
+database__mysql_port: 3306
+database__mysql_bind_address: "127.0.0.1"
+database__mysql_datadir: /var/lib/mysql
+database__mysql_log_dir: /var/log/mysql
+
+# 密码引用 vault 变量（通过 group_vars 传入）
+database__mysql_root_password: "{{ vault_db_root_password }}"
+
+database__mysql_innodb_buffer_pool_size: "512M"
+database__mysql_max_connections: 150
+
+database__databases: []
+database__users: []
+
+database__backup_enabled: false
+database__backup_dir: /backups/mysql
+database__backup_retention_days: 7

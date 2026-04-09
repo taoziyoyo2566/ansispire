@@ -1,0 +1,93 @@
+# roles/webserver/tasks/configure.yml
+# 展示: template validate、lookup、check_mode 感知、条件 notify
+
+---
+# ── 主配置文件 ────────────────────────────────────────────────────────────────
+- name: Deploy Nginx main configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: "{{ _webserver__nginx_conf_dir }}/nginx.conf"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: nginx -t -c %s    # 写入磁盘前校验语法，失败则不覆盖
+    backup: true                 # 保留 .bak 备份
+  notify: Reload Nginx
+  tags: [nginx, config]
+
+# ── stat 幂等检查：配置是否已经存在 ──────────────────────────────────────────
+- name: Check for existing SSL DH parameters
+  ansible.builtin.stat:
+    path: /etc/nginx/dhparam.pem
+  register: dhparam_stat
+  tags: [nginx, ssl]
+
+# 只在文件不存在时生成（openssl dhparam 耗时较长）
+- name: Generate DH parameters (2048 bit, runs once)
+  ansible.builtin.command:
+    cmd: openssl dhparam -out /etc/nginx/dhparam.pem 2048
+    creates: /etc/nginx/dhparam.pem   # creates: 文件存在则跳过（等同幂等）
+  notify: Reload Nginx
+  # throttle: 多台主机同时 openssl 会耗尽 CPU，限制并发
+  throttle: 1
+  tags: [nginx, ssl]
+
+# ── blockinfile: 在文件特定位置插入/更新内容块 ───────────────────────────────
+- name: Add security headers to nginx.conf
+  ansible.builtin.blockinfile:
+    path: "{{ _webserver__nginx_conf_dir }}/conf.d/security-headers.conf"
+    create: true
+    mode: "0644"
+    # marker 标记 Ansible 管理的块，使操作幂等
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - security headers"
+    block: |
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+  notify: Reload Nginx
+  tags: [nginx, security]
+
+# ── replace: 精确替换文件中的模式（比 lineinfile 更精确）────────────────────
+- name: Disable server_tokens in existing config
+  ansible.builtin.replace:
+    path: "{{ _webserver__nginx_conf_dir }}/nginx.conf"
+    regexp: '^(\s*)#?\s*server_tokens\s+on;'
+    replace: '\1server_tokens off;'
+  notify: Reload Nginx
+  tags: [nginx, hardening]
+
+# ── 配置验证（不触发 changed）────────────────────────────────────────────────
+- name: Verify Nginx configuration syntax
+  ansible.builtin.command: nginx -t
+  changed_when: false    # 验证命令不产生变更
+  register: nginx_test_result
+  tags: [nginx, verify]
+
+- name: Show nginx -t output on failure
+  ansible.builtin.debug:
+    msg: "{{ nginx_test_result.stderr_lines }}"
+  when: nginx_test_result.rc != 0
+  tags: [nginx, verify]
+
+# ── logrotate 配置 ────────────────────────────────────────────────────────────
+- name: Configure Nginx log rotation
+  ansible.builtin.copy:
+    content: |
+      {{ ansible_managed | comment }}
+      /var/log/nginx/*.log {
+          daily
+          missingok
+          rotate {{ log_retention_days | default(30) }}
+          compress
+          delaycompress
+          notifempty
+          create 0640 www-data adm
+          sharedscripts
+          postrotate
+              nginx -s reopen
+          endscript
+      }
+    dest: /etc/logrotate.d/nginx
+    mode: "0644"
+  tags: [nginx, logrotate]

@@ -1,0 +1,16 @@
+---
+- name: Run webserver preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+  tags: [nginx, preflight, always]
+
+- name: Install Nginx
+  ansible.builtin.import_tasks: install.yml
+  tags: [nginx, install]
+
+- name: Configure Nginx
+  ansible.builtin.import_tasks: configure.yml
+  tags: [nginx, configure]
+
+- name: Configure virtual hosts
+  ansible.builtin.import_tasks: vhosts.yml
+  tags: [nginx, vhosts]

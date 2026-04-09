@@ -1,0 +1,19 @@
+# molecule/webserver/converge.yml — 测试中执行的 Playbook
+
+---
+- name: Converge
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    # 测试用 vhosts，不需要真实证书
+    nginx_vhosts:
+      - name: test.local
+        root: /var/www/test
+        ssl: false
+        php_fpm: false
+
+  roles:
+    - role: common
+    - role: webserver

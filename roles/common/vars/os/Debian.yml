@@ -1,0 +1,14 @@
+# roles/common/vars/os/Debian.yml
+# OS 特定变量 — 由 tasks/main.yml 中的 include_vars + with_first_found 自动加载
+
+---
+_common__os_packages:
+  - apt-transport-https
+  - gnupg2
+  - lsb-release
+  - software-properties-common
+
+_common__service_manager: systemd
+_common__pkg_mgr: apt
+_common__ssh_service: ssh          # Debian/Ubuntu 叫 ssh，不叫 sshd
+_common__cron_service: cron        # Debian 叫 cron，RedHat 叫 crond

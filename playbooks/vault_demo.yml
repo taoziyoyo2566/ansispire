@@ -1,0 +1,71 @@
+# playbooks/vault_demo.yml — Ansible Vault 完整工作流演示
+#
+# Vault 核心命令速查:
+#
+#   # 加密整个文件
+#   ansible-vault encrypt group_vars/all/vault.yml
+#
+#   # 解密文件（覆盖）
+#   ansible-vault decrypt group_vars/all/vault.yml
+#
+#   # 查看加密文件（不解密到磁盘）
+#   ansible-vault view group_vars/all/vault.yml
+#
+#   # 编辑加密文件
+#   ansible-vault edit group_vars/all/vault.yml
+#
+#   # 修改 vault 密码
+#   ansible-vault rekey group_vars/all/vault.yml
+#
+#   # 加密单个字符串（嵌入 vars.yml 中）
+#   ansible-vault encrypt_string 'MySecret123' --name 'db_password'
+#   # 输出:
+#   # db_password: !vault |
+#   #   $ANSIBLE_VAULT;1.1;AES256
+#   #   66...
+#
+#   # 运行时提供 vault 密码（3种方式）:
+#   ansible-playbook site.yml --ask-vault-pass              # 交互输入
+#   ansible-playbook site.yml --vault-password-file .vault_pass  # 密码文件
+#   ansible-playbook site.yml --vault-id prod@.vault_pass   # 多 vault ID
+
+---
+- name: Vault workflow demonstration
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # 明文变量引用 vault 变量（最佳实践: vault_ 前缀区分来源）
+    # vault_db_root_password 在 group_vars/all/vault.yml 中定义（已加密）
+    db_password: "{{ vault_db_root_password }}"
+    api_key: "{{ vault_api_secret_key }}"
+
+    # 单行加密变量示例（直接嵌入 playbook，实际放 vars 文件）
+    # inline_secret: !vault |
+    #   $ANSIBLE_VAULT;1.1;AES256
+    #   33343637...
+
+  tasks:
+    - name: Show that vault variables are accessible (masked in no_log tasks)
+      ansible.builtin.debug:
+        msg: "DB password length: {{ db_password | length }} chars"
+
+    # no_log: true — 含敏感变量的 task，隐藏所有输出
+    - name: Task using secret (no_log prevents exposure)
+      ansible.builtin.command: echo "connecting with password"
+      environment:
+        DB_PASSWORD: "{{ db_password }}"
+      no_log: true
+      changed_when: false
+
+    # 多 vault ID 场景（生产 + 开发使用不同密码）
+    # ansible-playbook site.yml \
+    #   --vault-id prod@prod_vault_pass \
+    #   --vault-id dev@dev_vault_pass
+    - name: Explain multi-vault-id usage
+      ansible.builtin.debug:
+        msg: |
+          Multi-vault-id allows different passwords per environment.
+          Each encrypted value carries its vault-id label:
+            $ANSIBLE_VAULT;1.2;AES256;prod
+          This way staging and prod secrets use separate passwords.

@@ -1,0 +1,34 @@
+# roles/common/handlers/main.yml
+#
+# Handler 三大原则（官方 + 社区共识）:
+#   1. 只做服务操作（restart/reload/start/stop），不写复杂逻辑
+#   2. 用 listen 别名代替直接 name 引用，解耦 task 与 handler
+#   3. 全部使用 FQCN 模块名
+#
+# listen vs name:
+#   - notify: "Restart SSH service" 直接匹配 name
+#   - notify: "ssh changed"         匹配所有 listen: "ssh changed" 的 handler
+#   listen 的优势: 多个 handler 监听同一事件，task 侧只写一个 notify
+
+---
+# ── SSH ───────────────────────────────────────────────────────────────────────
+- name: Restart ssh service
+  ansible.builtin.systemd:
+    name: "{{ _common__ssh_service | default('ssh') }}"
+    state: restarted
+  # listen 让 task 用语义名触发，handler 名不重要
+  listen: "Restart {{ _common__ssh_service | default('ssh') }} service"
+
+# ── Cron ─────────────────────────────────────────────────────────────────────
+- name: Restart cron service
+  ansible.builtin.systemd:
+    name: "{{ _common__cron_service | default('cron') }}"
+    state: restarted
+  listen: Restart cron service
+
+# ── systemd daemon-reload（多个 task 触发同一事件的场景）────────────────────
+# 任何安装了 systemd unit 的 task 只需 notify: systemd daemon reload
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+  listen: systemd daemon reload

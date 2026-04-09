@@ -1,0 +1,104 @@
+# roles/common/meta/argument_specs.yml
+# Role Argument Validation — Ansible 2.11+ 官方特性
+# 在 role 执行前自动校验调用方传入的变量类型/必填/取值范围
+# 文档: https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_reuse_roles.html#role-argument-validation
+
+---
+argument_specs:
+
+  # main 对应 tasks/main.yml 入口
+  main:
+    short_description: Apply common baseline to all servers
+    description: |
+      Installs common packages, configures timezone, hardens SSH,
+      manages deploy users, and applies sysctl tuning.
+    author: platform-team
+
+    options:
+      system_timezone:
+        type: str
+        required: false
+        default: "UTC"
+        description: IANA timezone name (e.g. Asia/Shanghai)
+
+      common_packages:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Additional OS packages to install on all hosts
+
+      common__extra_packages:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Extra packages appended on top of common_packages
+
+      common__motd_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to deploy /etc/motd
+
+      common__motd_message:
+        type: str
+        required: false
+        default: "This server is managed by Ansible."
+        description: Message text shown in MOTD
+
+      common__deploy_users:
+        type: list
+        elements: dict
+        required: false
+        default: []
+        description: List of deploy users to create
+        options:
+          name:
+            type: str
+            required: true
+            description: UNIX username
+          uid:
+            type: int
+            required: false
+            description: Explicit UID (omit to let OS assign)
+          groups:
+            type: list
+            elements: str
+            required: false
+            default: []
+            description: Supplementary groups
+          authorized_keys:
+            type: list
+            elements: str
+            required: false
+            default: []
+            description: SSH public keys
+
+      common__sysctl_settings:
+        type: dict
+        required: false
+        description: >
+          sysctl key/value pairs to apply.
+          Example: {net.ipv4.ip_forward: 0, vm.swappiness: 10}
+
+      ssh_permit_root_login:
+        type: str
+        required: false
+        default: "no"
+        choices: ["yes", "no", "prohibit-password", "forced-commands-only"]
+        description: PermitRootLogin value in sshd_config
+
+      ssh_password_auth:
+        type: str
+        required: false
+        default: "no"
+        choices: ["yes", "no"]
+        description: PasswordAuthentication value in sshd_config
+
+      firewall_allowed_tcp_ports:
+        type: list
+        elements: int
+        required: false
+        default: [22]
+        description: TCP ports to allow through UFW

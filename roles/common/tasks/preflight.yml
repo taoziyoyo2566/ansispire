@@ -1,0 +1,74 @@
+# roles/common/tasks/preflight.yml
+# Pre-flight 检查 — role 执行前的前置条件校验
+# 社区最佳实践: 在 role 最开始运行，快速失败，给出清晰错误信息
+# 参考: geerlingguy、dev-sec 等知名 role 的设计模式
+
+---
+# ── OS 支持检查 ───────────────────────────────────────────────────────────────
+- name: Preflight | Assert supported OS
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family in ['Debian', 'RedHat']
+      - ansible_distribution_major_version | int >= 20  # Ubuntu 20+ / RHEL 8+
+    fail_msg: >
+      Unsupported OS: {{ ansible_distribution }} {{ ansible_distribution_version }}.
+      Supported: Ubuntu 20.04+, Debian 11+, RHEL 8+, Rocky 8+.
+    success_msg: "OS check passed: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+  tags: [always, preflight]
+
+# ── Ansible 版本检查 ──────────────────────────────────────────────────────────
+- name: Preflight | Assert minimum Ansible version
+  ansible.builtin.assert:
+    that:
+      - ansible_version.full is version('2.14', '>=')
+    fail_msg: "Ansible >= 2.14 required, found {{ ansible_version.full }}"
+  tags: [always, preflight]
+
+# ── 必填变量检查 ──────────────────────────────────────────────────────────────
+# `mandatory` 过滤器：变量未定义时立即报错并显示提示信息
+- name: Preflight | Assert mandatory variables are set
+  ansible.builtin.assert:
+    that:
+      - system_timezone is defined
+      - system_timezone | length > 0
+    fail_msg: "system_timezone must be set (e.g. Asia/Shanghai)"
+  tags: [always, preflight]
+
+# ── 磁盘空间检查 ──────────────────────────────────────────────────────────────
+- name: Preflight | Gather disk facts
+  ansible.builtin.setup:
+    gather_subset:
+      - hardware     # 收集硬件信息（包含磁盘）
+  tags: [always, preflight]
+
+- name: Preflight | Assert sufficient disk space on /
+  ansible.builtin.assert:
+    that:
+      - (ansible_mounts | selectattr('mount', 'equalto', '/') | list | first).size_available > 1073741824
+    fail_msg: "Less than 1GB free on /. Available: {{ (ansible_mounts | selectattr('mount', 'equalto', '/') | list | first).size_available | human_readable }}"
+  tags: [always, preflight]
+
+# ── 网络连通性检查 ────────────────────────────────────────────────────────────
+- name: Preflight | Check internet connectivity (for package downloads)
+  ansible.builtin.uri:
+    url: https://archive.ubuntu.com
+    method: HEAD
+    timeout: 10
+  register: internet_check
+  failed_when: false
+  changed_when: false
+  tags: [always, preflight]
+
+- name: Preflight | Warn if no internet access
+  ansible.builtin.debug:
+    msg: "WARNING: No internet access detected. Package installation may fail."
+  when: internet_check.status is not defined or internet_check.status != 200
+  tags: [always, preflight]
+
+# ── Python 解释器检查 ─────────────────────────────────────────────────────────
+- name: Preflight | Assert Python 3 is available
+  ansible.builtin.assert:
+    that:
+      - ansible_python_version is version('3.6', '>=')
+    fail_msg: "Python 3.6+ required on target host, found {{ ansible_python_version }}"
+  tags: [always, preflight]

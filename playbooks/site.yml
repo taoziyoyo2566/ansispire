@@ -1,0 +1,84 @@
+# playbooks/site.yml — 主 Playbook
+#
+# 常用运行方式:
+#   ansible-playbook playbooks/site.yml                           # 全部
+#   ansible-playbook playbooks/site.yml --tags nginx              # 指定标签
+#   ansible-playbook playbooks/site.yml --limit webservers        # 指定组
+#   ansible-playbook playbooks/site.yml --check --diff            # Dry-run
+#   ansible-playbook playbooks/site.yml -e "env=staging"          # 覆盖变量
+#   ansible-playbook playbooks/site.yml -i inventory/staging      # 切换环境
+
+---
+# ── Play 1: 所有主机基础配置 ──────────────────────────────────────────────────
+- name: Apply common baseline to all hosts
+  hosts: all
+  become: true
+
+  # gather_subset: 只收集需要的 facts，提升速度
+  # min: 最少信息 / hardware: 硬件 / network: 网络 / virtual: 虚拟化
+  gather_facts: true
+  gather_subset:
+    - min          # 始终包含: os, python, platform
+    - hardware     # 需要: ansible_processor_vcpus, ansible_mounts
+    - network      # 需要: ansible_default_ipv4, ansible_interfaces
+
+  # any_errors_fatal: 任意一台主机失败 → 立即停止整个 play（不继续其他主机）
+  # 适合: 数据库迁移等不能部分成功的场景
+  any_errors_fatal: false   # 默认 false；关键操作可设 true
+
+  # 忽略无法访问的主机（SSH 超时等），不视为失败
+  ignore_unreachable: false
+
+  pre_tasks:
+    - name: Update apt cache (Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600   # 1小时内不重复更新
+      when: ansible_os_family == "Debian"
+      tags: [packages, always]
+
+  roles:
+    - role: common
+      tags: [common, base]
+
+  post_tasks:
+    - name: Verify timezone configured correctly
+      ansible.builtin.assert:
+        that:
+          - ansible_date_time.tz is defined
+        fail_msg: "Timezone check failed"
+      tags: [verify]
+
+
+# ── Play 2: Web 服务器（滚动更新）────────────────────────────────────────────
+- name: Configure web servers
+  hosts: webservers
+  become: true
+  gather_facts: true
+
+  # serial: 滚动更新控制
+  #   数字 1          → 每次处理 1 台
+  #   百分比 "30%"    → 每次处理 30% 的主机
+  #   列表 [1, 2, 5%] → 第一批1台，第二批2台，其余每批5%（灰度发布）
+  serial: "{{ webserver_serial | default('100%') }}"
+
+  # strategy: 任务调度策略
+  #   linear (默认): 所有主机同步执行，一个 task 完成后再到下一个
+  #   free:          每台主机独立推进，不等待其他主机
+  strategy: linear
+
+  roles:
+    - role: webserver
+      tags: [webserver, nginx]
+
+
+# ── Play 3: 数据库服务器 ──────────────────────────────────────────────────────
+- name: Configure database servers
+  hosts: dbservers
+  become: true
+  gather_facts: true
+  any_errors_fatal: true    # DB 变更必须全部成功
+
+  roles:
+    - role: database
+      tags: [database, mysql]

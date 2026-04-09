@@ -1,0 +1,90 @@
+# roles/webserver/meta/argument_specs.yml
+
+---
+argument_specs:
+  main:
+    short_description: Install and configure Nginx with virtual hosts
+    author: platform-team
+
+    options:
+      webserver__nginx_version:
+        type: str
+        required: false
+        default: "*"
+        description: >
+          Nginx package version constraint.
+          Use "*" for latest, or "1.24.*" to pin minor version.
+
+      webserver__worker_processes:
+        type: raw          # auto 或整数，用 raw 兼容两者
+        required: false
+        default: auto
+        description: worker_processes directive (auto or integer)
+
+      webserver__worker_connections:
+        type: int
+        required: false
+        default: 1024
+        description: events.worker_connections value
+
+      webserver__client_max_body_size:
+        type: str
+        required: false
+        default: "16m"
+        description: client_max_body_size directive (e.g. "16m", "1g")
+
+      webserver__server_tokens:
+        type: str
+        required: false
+        default: "off"
+        choices: ["on", "off"]
+        description: Whether to expose Nginx version in headers
+
+      webserver__gzip_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Enable gzip compression
+
+      webserver__vhosts:
+        type: list
+        elements: dict
+        required: false
+        default: []
+        description: Virtual host definitions
+        options:
+          name:
+            type: str
+            required: true
+            description: Server name (e.g. app.example.com)
+          root:
+            type: str
+            required: true
+            description: Document root path
+          ssl:
+            type: bool
+            required: false
+            default: false
+            description: Enable HTTPS
+          ssl_cert:
+            type: str
+            required: false
+            description: Path to SSL certificate (required if ssl=true)
+          ssl_key:
+            type: str
+            required: false
+            description: Path to SSL private key (required if ssl=true)
+          php_fpm:
+            type: bool
+            required: false
+            default: false
+            description: Enable PHP-FPM proxying
+          php_fpm_socket:
+            type: str
+            required: false
+            description: PHP-FPM socket path (required if php_fpm=true)
+          allowed_ips:
+            type: list
+            elements: str
+            required: false
+            description: IP/CIDR whitelist (empty = allow all)
