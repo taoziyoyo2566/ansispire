@@ -1,4 +1,6 @@
 # roles/common/vars/os/RedHat.yml
+# Tier 1 支持平台: Rocky Linux 9+, AlmaLinux 9+
+# Tier 2 支持平台: AlmaLinux 8, CentOS Stream 9
 
 ---
 _common__os_packages:
@@ -10,3 +12,5 @@ _common__service_manager: systemd
 _common__pkg_mgr: dnf
 _common__ssh_service: sshd
 _common__cron_service: crond
+_common__firewall_pkg: firewalld
+_common__firewall_service: firewalld

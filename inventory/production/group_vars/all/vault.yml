@@ -1,19 +1,21 @@
-# group_vars/all/vault.yml
-# 用 ansible-vault 加密整个文件:
+# vault.yml — 此文件应使用 ansible-vault 加密后提交
+#
+# 加密命令:
 #   ansible-vault encrypt inventory/production/group_vars/all/vault.yml
 #
-# 加密后文件内容形如:
+# 加密后内容格式示例 (真实加密后你会看到类似以下内容，而非明文):
 #   $ANSIBLE_VAULT;1.1;AES256
-#   66386439...
+#   66386439313132303565623831333933393533376661386235373337363163663439
+#   ...
 #
-# 在 vars.yml 中引用加密变量:
-#   db_password: "{{ vault_db_password }}"
+# 参考未加密的结构说明，请查看 vault.example.yml
 #
-# 命名约定: vault_ 前缀标识来自 vault 的变量
+# 本文件当前为明文占位（开发环境使用）
+# 生产部署前务必执行加密
 
 ---
-vault_db_root_password: "SuperSecretRoot123!"
-vault_db_app_password: "AppDBPass456!"
-vault_api_secret_key: "a1b2c3d4e5f6789012345678"
-vault_smtp_password: "SMTPPass789!"
-vault_grafana_admin_password: "GrafanaAdmin!"
+vault_db_root_password: "CHANGE_ME_before_encrypting"
+vault_db_app_password: "CHANGE_ME_before_encrypting"
+vault_api_secret_key: "CHANGE_ME_before_encrypting"
+vault_smtp_password: "CHANGE_ME_before_encrypting"
+vault_grafana_admin_password: "CHANGE_ME_before_encrypting"

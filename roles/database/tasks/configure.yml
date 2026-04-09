@@ -1,4 +1,5 @@
-# 展示: no_log、community 模块、条件变量、敏感数据处理
+# roles/database/tasks/configure.yml
+# 展示: no_log、community.mysql 模块、cron 备份
 
 ---
 - name: Deploy MySQL configuration
@@ -10,14 +11,13 @@
     mode: "0644"
   notify: Restart MySQL
 
-# no_log: true — 含密码的 task，隐藏所有输出（安全必备）
 - name: Set MySQL root password
   community.mysql.mysql_user:
     name: root
     password: "{{ database__mysql_root_password }}"
     login_unix_socket: /var/run/mysqld/mysqld.sock
     state: present
-  no_log: true                    # 隐藏任务输出，防止密码泄露至日志
+  no_log: true
   tags: [mysql, security]
 
 - name: Create application databases
@@ -28,7 +28,7 @@
     state: present
     login_user: root
     login_password: "{{ database__mysql_root_password }}"
-  loop: "{{ mysql_databases | default(database__databases) }}"
+  loop: "{{ database__databases }}"
   loop_control:
     label: "{{ item.name }}"
   no_log: true
@@ -42,19 +42,31 @@
     state: present
     login_user: root
     login_password: "{{ database__mysql_root_password }}"
-  loop: "{{ mysql_users | default(database__users) }}"
+  loop: "{{ database__users }}"
   loop_control:
     label: "{{ item.name }}@{{ item.host | default('%') }}"
   no_log: true
   tags: [mysql, users]
 
-# 备份脚本（条件部署）
+# ── 备份（条件部署）──────────────────────────────────────────────────────────
+- name: Ensure backup directory exists
+  ansible.builtin.file:
+    path: "{{ database__backup_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  when: database__backup_enabled | bool
+  tags: [mysql, backup]
+
 - name: Deploy MySQL backup script
   ansible.builtin.template:
     src: backup.sh.j2
     dest: /usr/local/bin/mysql-backup.sh
     mode: "0750"
-  when: mysql_backup_enabled | default(database__backup_enabled)
+    owner: root
+    group: root
+  when: database__backup_enabled | bool
   tags: [mysql, backup]
 
 - name: Schedule MySQL backup cron job
@@ -65,5 +77,5 @@
     hour: "2"
     job: /usr/local/bin/mysql-backup.sh >> /var/log/mysql-backup.log 2>&1
     state: present
-  when: mysql_backup_enabled | default(database__backup_enabled)
+  when: database__backup_enabled | bool
   tags: [mysql, backup]

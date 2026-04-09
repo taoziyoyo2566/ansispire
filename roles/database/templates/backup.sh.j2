@@ -1,0 +1,43 @@
+#!/bin/bash
+{{ ansible_managed | comment }}
+# MySQL 自动备份脚本
+# 由 roles/database/tasks/configure.yml 部署
+# 调度: 每日 02:00 通过 cron 运行
+
+set -euo pipefail
+
+BACKUP_DIR="{{ database__backup_dir }}"
+RETENTION_DAYS="{{ database__backup_retention_days }}"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+LOGFILE="/var/log/mysql-backup.log"
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "${LOGFILE}"
+}
+
+log "Starting MySQL backup"
+
+# 获取所有数据库列表（排除系统库）
+DATABASES=$(mysql -u root --socket=/var/run/mysqld/mysqld.sock \
+    -e "SHOW DATABASES;" 2>/dev/null \
+    | grep -Ev "(Database|information_schema|performance_schema|sys|mysql)")
+
+for DB in ${DATABASES}; do
+    BACKUP_FILE="${BACKUP_DIR}/${DB}_${TIMESTAMP}.sql.gz"
+    log "Backing up database: ${DB} → ${BACKUP_FILE}"
+
+    mysqldump -u root --socket=/var/run/mysqld/mysqld.sock \
+        --single-transaction \
+        --routines \
+        --triggers \
+        --events \
+        "${DB}" | gzip > "${BACKUP_FILE}"
+
+    log "Completed: ${DB} ($(du -sh "${BACKUP_FILE}" | cut -f1))"
+done
+
+# 清理过期备份
+log "Removing backups older than ${RETENTION_DAYS} days"
+find "${BACKUP_DIR}" -name "*.sql.gz" -mtime "+${RETENTION_DAYS}" -delete
+
+log "Backup completed successfully"

@@ -1,7 +1,11 @@
-# 展示: loop with dict、条件模板、symlink 管理
+# roles/webserver/tasks/vhosts.yml
+#
+# 注意: 不对单个 vhost 配置片段使用 validate: nginx -t -c %s
+# 因为 vhost 文件是 server{} 片段，不是完整的 nginx 主配置文件，
+# nginx -c 会将它当作主入口文件处理，导致校验错误。
+# 正确做法: 部署完所有 vhost 后，用独立 task 运行 nginx -t 验证整体配置。
 
 ---
-# 为每个 vhost 生成配置文件
 - name: Deploy virtual host configurations
   ansible.builtin.template:
     src: vhost.conf.j2
@@ -9,31 +13,31 @@
     owner: root
     group: root
     mode: "0644"
-    validate: nginx -t -c %s
-  loop: "{{ nginx_vhosts | default(webserver__vhosts) }}"
+  loop: "{{ webserver__vhosts }}"
   loop_control:
     label: "{{ item.name }}"
   notify: Reload Nginx
-  tags: [vhosts]
+  tags: [nginx, vhosts]
 
-# 启用 vhost（创建 symlink）
-- name: Enable virtual hosts
+- name: Enable virtual hosts (create symlinks)
   ansible.builtin.file:
     src: "{{ _webserver__nginx_sites_available }}/{{ item.name }}.conf"
     dest: "{{ _webserver__nginx_sites_enabled }}/{{ item.name }}.conf"
     state: link
-  loop: "{{ nginx_vhosts | default(webserver__vhosts) }}"
+  loop: "{{ webserver__vhosts }}"
   loop_control:
     label: "{{ item.name }}"
   notify: Reload Nginx
-  tags: [vhosts]
+  tags: [nginx, vhosts]
 
-# 找出所有已有的 vhost 配置，删除不在列表中的（资源清理）
+# 找出已有的 vhost 配置，清理不在列表中的（资源幂等清理）
 - name: Find existing vhost configs
   ansible.builtin.find:
     paths: "{{ _webserver__nginx_sites_available }}"
     patterns: "*.conf"
+    excludes: "default.conf"
   register: existing_vhosts
+  tags: [nginx, vhosts, cleanup]
 
 - name: Remove obsolete vhost configs
   ansible.builtin.file:
@@ -44,6 +48,14 @@
     label: "{{ item.path | basename }}"
   when: >
     (item.path | basename | replace('.conf', ''))
-    not in (nginx_vhosts | default(webserver__vhosts) | map(attribute='name') | list)
+    not in (webserver__vhosts | map(attribute='name') | list)
   notify: Reload Nginx
-  tags: [vhosts, cleanup]
+  tags: [nginx, vhosts, cleanup]
+
+# 所有 vhost 部署完成后，统一校验 nginx 完整配置
+- name: Validate complete Nginx configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+  register: nginx_validate_result
+  failed_when: nginx_validate_result.rc != 0
+  tags: [nginx, vhosts, verify]

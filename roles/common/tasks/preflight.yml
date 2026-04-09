@@ -1,19 +1,45 @@
 # roles/common/tasks/preflight.yml
 # Pre-flight 检查 — role 执行前的前置条件校验
-# 社区最佳实践: 在 role 最开始运行，快速失败，给出清晰错误信息
-# 参考: geerlingguy、dev-sec 等知名 role 的设计模式
+#
+# 平台支持分层（详见 docs/reviews/platform-support-addendum-2026-04-09.md）:
+#   Tier 1 — 默认支持并持续 CI 验证:
+#             Ubuntu 20.04+ / Rocky Linux 9+ / AlmaLinux 9+
+#   Tier 2 — 有代码骨架，未纳入 CI:
+#             Debian 11+  / AlmaLinux 8 / CentOS Stream 9
+#   Tier 3 — 需额外 bootstrap，不在默认路径承诺范围:
+#             Alpine / 最小化镜像 / 无 Python 主机
 
 ---
-# ── OS 支持检查 ───────────────────────────────────────────────────────────────
-- name: Preflight | Assert supported OS
+# ── OS 支持检查（Tier 1 + Tier 2）────────────────────────────────────────────
+- name: Preflight | Assert supported OS family
   ansible.builtin.assert:
     that:
       - ansible_os_family in ['Debian', 'RedHat']
-      - ansible_distribution_major_version | int >= 20  # Ubuntu 20+ / RHEL 8+
     fail_msg: >
-      Unsupported OS: {{ ansible_distribution }} {{ ansible_distribution_version }}.
-      Supported: Ubuntu 20.04+, Debian 11+, RHEL 8+, Rocky 8+.
-    success_msg: "OS check passed: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      Unsupported OS family: {{ ansible_os_family }}
+      ({{ ansible_distribution }} {{ ansible_distribution_version }}).
+      Supported families: Debian (Ubuntu/Debian), RedHat (Rocky/Alma/RHEL/CentOS Stream).
+    success_msg: "OS family check passed: {{ ansible_os_family }}"
+  tags: [always, preflight]
+
+# ── Tier 1 版本检查（警告而非硬失败，允许 Tier 2 继续运行）────────────────────
+- name: Preflight | Check if running on Tier 1 tested platform
+  ansible.builtin.set_fact:
+    _preflight_tier1: >-
+      {{
+        (ansible_distribution == 'Ubuntu' and ansible_distribution_major_version | int >= 20) or
+        (ansible_distribution in ['Rocky', 'AlmaLinux'] and ansible_distribution_major_version | int >= 9)
+      }}
+  tags: [always, preflight]
+
+- name: Preflight | Warn if not on Tier 1 platform
+  ansible.builtin.debug:
+    msg: >
+      WARNING: {{ ansible_distribution }} {{ ansible_distribution_version }} is
+      not a Tier 1 tested platform for this demo.
+      Tier 1 = Ubuntu 20.04+, Rocky 9+, AlmaLinux 9+.
+      You may encounter untested behavior. See docs/reviews/platform-support-addendum-2026-04-09.md
+  when: not _preflight_tier1
   tags: [always, preflight]
 
 # ── Ansible 版本检查 ──────────────────────────────────────────────────────────
@@ -25,7 +51,6 @@
   tags: [always, preflight]
 
 # ── 必填变量检查 ──────────────────────────────────────────────────────────────
-# `mandatory` 过滤器：变量未定义时立即报错并显示提示信息
 - name: Preflight | Assert mandatory variables are set
   ansible.builtin.assert:
     that:
@@ -35,23 +60,25 @@
   tags: [always, preflight]
 
 # ── 磁盘空间检查 ──────────────────────────────────────────────────────────────
-- name: Preflight | Gather disk facts
+- name: Preflight | Gather hardware facts for disk check
   ansible.builtin.setup:
     gather_subset:
-      - hardware     # 收集硬件信息（包含磁盘）
+      - hardware
   tags: [always, preflight]
 
 - name: Preflight | Assert sufficient disk space on /
   ansible.builtin.assert:
     that:
       - (ansible_mounts | selectattr('mount', 'equalto', '/') | list | first).size_available > 1073741824
-    fail_msg: "Less than 1GB free on /. Available: {{ (ansible_mounts | selectattr('mount', 'equalto', '/') | list | first).size_available | human_readable }}"
+    fail_msg: >
+      Less than 1GB free on /.
+      Available: {{ (ansible_mounts | selectattr('mount', 'equalto', '/') | list | first).size_available | human_readable }}
   tags: [always, preflight]
 
-# ── 网络连通性检查 ────────────────────────────────────────────────────────────
-- name: Preflight | Check internet connectivity (for package downloads)
+# ── 网络连通性检查（警告而非硬失败，内网环境可能无公网访问）────────────────
+- name: Preflight | Check internet connectivity
   ansible.builtin.uri:
-    url: https://archive.ubuntu.com
+    url: https://{{ 'archive.ubuntu.com' if ansible_os_family == 'Debian' else 'dl.rockylinux.org' }}
     method: HEAD
     timeout: 10
   register: internet_check
@@ -61,7 +88,7 @@
 
 - name: Preflight | Warn if no internet access
   ansible.builtin.debug:
-    msg: "WARNING: No internet access detected. Package installation may fail."
+    msg: "WARNING: No internet access detected. Package installation may fail if not using a local mirror."
   when: internet_check.status is not defined or internet_check.status != 200
   tags: [always, preflight]
 

@@ -1,0 +1,43 @@
+# execution-environment.yml — Ansible 执行环境定义
+#
+# 执行环境（EE）固化 Ansible Controller 侧的依赖，确保 CI、AWX/AAP、本地运行一致。
+#
+# 构建: ansible-builder build -t ansible-demo-ee:latest -f execution-environment.yml
+# 运行: ansible-navigator run playbooks/site.yml --eei ansible-demo-ee:latest
+# 文档: https://ansible.readthedocs.io/projects/builder/
+
+---
+version: 3
+
+images:
+  base_image:
+    name: ghcr.io/ansible/community-ee-base:latest
+
+dependencies:
+  python:
+    - boto3>=1.28
+    - botocore>=1.31
+    - jmespath>=1.0        # community.general.json_query 过滤器需要
+    - netaddr>=0.9         # ansible.utils.ipaddr 过滤器需要
+    - pymysql>=1.1         # community.mysql 模块需要
+    - ansible-lint>=24.9   # EE 内置 lint（用于 append_final 验证）
+
+  galaxy:
+    collections:
+      - name: community.general
+        version: ">=8.0.0"
+      - name: community.mysql
+        version: ">=3.0.0"
+      - name: ansible.posix
+        version: ">=1.5.0"
+      - name: amazon.aws
+        version: ">=7.0.0"
+
+  system:
+    - openssh-clients [platform:rpm]
+    - openssh-client [platform:dpkg]
+
+additional_build_steps:
+  append_final:
+    - RUN ansible --version
+    - RUN ansible-lint --version  # ansible-lint 已在 python dependencies 中声明

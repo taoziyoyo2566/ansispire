@@ -1,20 +1,20 @@
-# group_vars/dbservers/vars.yml — 仅对 dbservers 组生效
+# group_vars/dbservers/vars.yml
+# 变量命名约定: 统一使用 database__ 前缀，与 roles/database/defaults 一致
 
 ---
-# ── MySQL 配置 ────────────────────────────────────────────────────────────────
-mysql_version: "8.0"
-mysql_port: 3306
-mysql_bind_address: "0.0.0.0"
-mysql_datadir: /var/lib/mysql
+# ── MySQL 配置（覆盖 roles/database/defaults/main.yml）──────────────────────
+database__mysql_version: "8.0"
+database__mysql_port: 3306
+database__mysql_bind_address: "0.0.0.0"
+database__mysql_datadir: /var/lib/mysql
 
-# ── 性能调优 ──────────────────────────────────────────────────────────────────
-mysql_innodb_buffer_pool_size: "2G"
-mysql_innodb_log_file_size: "256M"
-mysql_max_connections: 300
-mysql_query_cache_size: 0          # MySQL 8.0 已废弃 query cache
+# ── 性能调优（覆盖 role defaults）────────────────────────────────────────────
+database__mysql_innodb_buffer_pool_size: "2G"
+database__mysql_innodb_log_file_size: "256M"
+database__mysql_max_connections: 300
 
-# ── 数据库 & 用户列表 ──────────────────────────────────────────────────────────
-mysql_databases:
+# ── 数据库列表（被 roles/database/tasks/configure.yml 消费）──────────────────
+database__databases:
   - name: appdb
     encoding: utf8mb4
     collation: utf8mb4_unicode_ci
@@ -22,22 +22,23 @@ mysql_databases:
     encoding: utf8mb4
     collation: utf8mb4_unicode_ci
 
-mysql_users:
+# ── 用户列表 ──────────────────────────────────────────────────────────────────
+database__users:
   - name: appuser
-    password: "{{ vault_db_app_password }}"   # 引用 vault 变量
+    password: "{{ vault_db_app_password }}"
     priv: "appdb.*:ALL"
-    host: "10.0.1.%"                          # 仅允许 webservers 网段
+    host: "10.0.1.%"
   - name: readonly
     password: "{{ vault_db_app_password }}"
     priv: "appdb.*:SELECT"
     host: "%"
 
-# ── 备份配置 ──────────────────────────────────────────────────────────────────
-mysql_backup_enabled: true
-mysql_backup_dir: /backups/mysql
-mysql_backup_retention_days: 7
+# ── 备份 ──────────────────────────────────────────────────────────────────────
+database__backup_enabled: true
+database__backup_dir: /backups/mysql
+database__backup_retention_days: 7
 
-# ── 防火墙 ────────────────────────────────────────────────────────────────────
+# ── 公共变量 ──────────────────────────────────────────────────────────────────
 firewall_allowed_tcp_ports:
   - 22
   - 3306

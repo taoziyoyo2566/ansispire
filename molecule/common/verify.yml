@@ -1,0 +1,49 @@
+---
+- name: Verify common role
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Verify timezone is UTC
+      ansible.builtin.assert:
+        that:
+          - ansible_date_time.tz in ['UTC', 'Etc/UTC']
+        fail_msg: "Expected UTC timezone, got {{ ansible_date_time.tz }}"
+
+    - name: Verify common packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert curl is installed
+      ansible.builtin.assert:
+        that: "'curl' in ansible_facts.packages"
+
+    - name: Verify MOTD deployed
+      ansible.builtin.stat:
+        path: /etc/motd
+      register: motd_stat
+
+    - name: Assert MOTD exists
+      ansible.builtin.assert:
+        that: motd_stat.stat.exists
+
+    - name: Verify MOTD content is Ansible-managed
+      ansible.builtin.command: grep -q "Ansible" /etc/motd
+      changed_when: false
+
+    - name: Verify app base directory exists
+      ansible.builtin.stat:
+        path: /opt/apps
+      register: app_dir_stat
+
+    - name: Assert app directory created
+      ansible.builtin.assert:
+        that:
+          - app_dir_stat.stat.exists
+          - app_dir_stat.stat.isdir
+
+    - name: Verify app user exists
+      ansible.builtin.getent:
+        database: passwd
+        key: appuser

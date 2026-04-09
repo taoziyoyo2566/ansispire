@@ -1,0 +1,46 @@
+---
+- name: Verify database role
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Verify MySQL is running
+      ansible.builtin.service_facts:
+
+    - name: Assert MySQL service is active
+      ansible.builtin.assert:
+        that:
+          - "'mysql' in services or 'mysqld' in services"
+        fail_msg: "MySQL service not found"
+
+    - name: Verify MySQL port is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 3306
+        timeout: 10
+        state: started
+
+    - name: Verify testdb exists
+      ansible.builtin.command: >
+        mysql -u root --socket=/var/run/mysqld/mysqld.sock
+        -e "SHOW DATABASES LIKE 'testdb';"
+      register: db_check
+      changed_when: false
+
+    - name: Assert testdb was created
+      ansible.builtin.assert:
+        that: "'testdb' in db_check.stdout"
+
+    - name: Verify my.cnf deployed
+      ansible.builtin.stat:
+        path: /etc/mysql/mysql.conf.d/mysqld.cnf
+      register: mycnf_stat
+
+    - name: Assert my.cnf exists
+      ansible.builtin.assert:
+        that: mycnf_stat.stat.exists
+
+    - name: Verify my.cnf is Ansible-managed
+      ansible.builtin.command: grep -q "Ansible" /etc/mysql/mysql.conf.d/mysqld.cnf
+      changed_when: false

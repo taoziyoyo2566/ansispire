@@ -1,5 +1,5 @@
-# requirements.yml — 声明外部依赖的 Role 和 Collection
-# 安装命令:
+# requirements.yml — 外部依赖声明
+# 安装:
 #   ansible-galaxy role install -r requirements.yml
 #   ansible-galaxy collection install -r requirements.yml
 
@@ -9,11 +9,12 @@ roles:
   - name: geerlingguy.docker
     version: "7.0.0"
 
-  # 从 Git 仓库安装（支持 branch/tag/commit）
-  - name: my_company.base_hardening
-    src: https://github.com/example/ansible-hardening.git
-    version: v2.1.0
-    scm: git
+  # 占位示例（私有 Git 仓库）— 已注释，make install 时不会安装
+  # 取消注释并替换为真实 URL 再使用
+  # - name: my_company.base_hardening
+  #   src: https://github.com/YOUR_ORG/ansible-hardening.git
+  #   version: v2.1.0
+  #   scm: git
 
 collections:
   - name: community.general
@@ -25,6 +26,6 @@ collections:
   - name: ansible.posix
     version: ">=1.5.0"
 
-  # 从私有 Automation Hub 安装
-  # - name: my_org.internal_collection
-  #   source: https://hub.example.com/api/galaxy/
+  # AWS EC2 动态 inventory 插件（仅在使用 inventory/dynamic/aws_ec2.yml 时需要）
+  # - name: amazon.aws
+  #   version: ">=7.0.0"

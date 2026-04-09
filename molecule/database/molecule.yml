@@ -1,0 +1,57 @@
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: requirements.yml
+
+driver:
+  name: docker
+
+platforms:
+  - name: ubuntu22-database
+    image: geerlingguy/docker-ubuntu2204-ansible:latest
+    pre_build_image: true
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    command: /lib/systemd/systemd
+
+provisioner:
+  name: ansible
+  inventory:
+    host_vars:
+      ubuntu22-database:
+        db_role: primary
+    group_vars:
+      all:
+        env: testing
+        system_timezone: UTC
+        common_packages: [curl]
+        common__extra_packages: []
+        common__deploy_users: []
+        common__motd_enabled: false
+        common__sysctl_settings: {}
+        app_base_dir: /opt/apps
+        app_user: appuser
+        app_group: appgroup
+        ssh_allowed_users: [root]
+        ssh_permit_root_login: "yes"
+        ssh_password_auth: "yes"
+        firewall_allowed_tcp_ports: [22, 3306]
+        database__mysql_root_password: "TestRootPass123!"
+        database__mysql_bind_address: "127.0.0.1"
+        database__mysql_innodb_buffer_pool_size: "128M"
+        database__mysql_max_connections: 50
+        database__databases:
+          - name: testdb
+            encoding: utf8mb4
+        database__users:
+          - name: testuser
+            password: "TestUserPass456!"
+            priv: "testdb.*:ALL"
+            host: "localhost"
+        database__backup_enabled: false
+
+verifier:
+  name: ansible

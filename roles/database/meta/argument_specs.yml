@@ -1,9 +1,24 @@
 # roles/database/meta/argument_specs.yml
+#
+# 关于 database__mysql_root_password 的设计说明:
+#   - argument_specs 中标记为 required: true
+#   - defaults/main.yml 中不设默认值（已移除）
+#   - 调用方必须通过 group_vars + vault 显式注入
+#
+#   为什么不在 defaults 里给默认值?
+#   如果在 defaults/main.yml 写 `database__mysql_root_password: "{{ vault_db_root_password }}"`
+#   当 vault 未解密或 vault_db_root_password 未定义时，defaults 中的 Jinja2
+#   会解析为字面字符串（未展开），通过 required 校验但在实际使用时报错。
+#   移除 defaults 中的赋值后，required: true 会在 role 执行前立即报错，错误信息更清晰。
 
 ---
 argument_specs:
   main:
     short_description: Install and configure MySQL with optional replication
+    description: |
+      Installs MySQL, creates databases and users, optionally configures
+      primary/replica replication based on the db_role host variable.
+      Supports Tier 1 platforms: Ubuntu 20.04+, Rocky Linux 9+.
     author: platform-team
 
     options:
@@ -11,7 +26,11 @@ argument_specs:
         type: str
         required: true
         no_log: true
-        description: MySQL root password (reference vault variable)
+        description: >
+          MySQL root password. Must be provided by the caller via vault.
+          No default is set intentionally — see file header for explanation.
+          Example: set vault_db_root_password in group_vars/all/vault.yml
+          and reference it as: database__mysql_root_password: "{{ vault_db_root_password }}"
 
       database__mysql_bind_address:
         type: str
@@ -19,7 +38,7 @@ argument_specs:
         default: "127.0.0.1"
         description: >
           MySQL bind address. Use 0.0.0.0 to allow remote connections
-          (ensure firewall rules are in place).
+          (ensure firewall rules are in place first).
 
       database__mysql_port:
         type: int
@@ -33,7 +52,7 @@ argument_specs:
         default: "512M"
         description: >
           InnoDB buffer pool size. Rule of thumb: 70-80% of RAM for
-          dedicated DB servers.
+          dedicated DB servers (e.g. "2G" for 3GB RAM host).
 
       database__mysql_max_connections:
         type: int
@@ -88,3 +107,15 @@ argument_specs:
         required: false
         default: false
         description: Enable automated MySQL backups via cron
+
+      database__backup_dir:
+        type: str
+        required: false
+        default: /backups/mysql
+        description: Directory for backup files
+
+      database__backup_retention_days:
+        type: int
+        required: false
+        default: 7
+        description: Days to retain backup files

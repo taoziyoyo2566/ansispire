@@ -1,0 +1,66 @@
+# molecule/common/molecule.yml
+# 测试平台: Tier 1
+#   - Ubuntu 22.04 (Debian family)
+#   - Rocky Linux 9 (RedHat family)
+
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: requirements.yml
+
+driver:
+  name: docker
+
+platforms:
+  # Tier 1 — Debian family
+  - name: ubuntu22-common
+    image: geerlingguy/docker-ubuntu2204-ansible:latest
+    pre_build_image: true
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    command: /lib/systemd/systemd
+    groups: [tier1_debian]
+
+  # Tier 1 — RedHat family
+  - name: rocky9-common
+    image: geerlingguy/docker-rockylinux9-ansible:latest
+    pre_build_image: true
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    command: /lib/systemd/systemd
+    groups: [tier1_redhat]
+
+provisioner:
+  name: ansible
+  inventory:
+    group_vars:
+      all:
+        env: testing
+        system_timezone: UTC
+        common_packages: [curl, vim]
+        common__extra_packages: []
+        common__deploy_users: []
+        common__motd_enabled: true
+        common__motd_message: "Test environment"
+        common__sysctl_settings:
+          vm.swappiness: 10
+        app_base_dir: /opt/apps
+        app_user: appuser
+        app_group: appgroup
+        ssh_allowed_users: [root]
+        ssh_permit_root_login: "yes"
+        ssh_password_auth: "yes"
+        firewall_allowed_tcp_ports: [22]
+
+verifier:
+  name: ansible
+
+lint: |
+  set -e
+  yamllint .
+  ansible-lint

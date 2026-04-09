@@ -1,15 +1,17 @@
-# group_vars/webservers/vars.yml — 仅对 webservers 组生效
+# group_vars/webservers/vars.yml
+# 变量命名约定: 统一使用 webserver__ 前缀，与 roles/webserver/defaults 一致
+# 这样可以确保 group_vars 中的值真实覆盖 role defaults
 
 ---
-# ── Nginx 配置 ────────────────────────────────────────────────────────────────
-nginx_version: "1.24"
-nginx_worker_processes: auto
-nginx_worker_connections: 1024
-nginx_keepalive_timeout: 65
-nginx_client_max_body_size: "64m"
+# ── Nginx 配置（覆盖 roles/webserver/defaults/main.yml 中的默认值）────────────
+webserver__nginx_version: "1.24"
+webserver__worker_processes: auto
+webserver__worker_connections: 1024
+webserver__keepalive_timeout: 65
+webserver__client_max_body_size: "64m"
 
-# ── 虚拟主机列表（将被 loop 遍历）────────────────────────────────────────────
-nginx_vhosts:
+# ── 虚拟主机列表（被 roles/webserver/tasks/vhosts.yml 的 loop 消费）──────────
+webserver__vhosts:
   - name: app.example.com
     root: /var/www/app
     ssl: true
@@ -25,12 +27,7 @@ nginx_vhosts:
     ssl_key: /etc/ssl/private/static.example.com.key
     php_fpm: false
 
-# ── 日志配置 ──────────────────────────────────────────────────────────────────
-nginx_access_log: /var/log/nginx/access.log
-nginx_error_log: /var/log/nginx/error.log
-nginx_log_format: combined
-
-# ── 防火墙规则（webservers 专用）─────────────────────────────────────────────
+# ── 公共变量（无 role 前缀，跨 role 共用）────────────────────────────────────
 firewall_allowed_tcp_ports:
   - 22
   - 80
