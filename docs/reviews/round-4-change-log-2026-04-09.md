@@ -77,13 +77,21 @@ tags: [never, example]
 - 未新增更多平台实现
 - 未继续扩展 RedHat database/webserver 支持
 
-## 当前未提交改动
+## 当时未提交改动（现已提交）
 
-本轮结束时，工作树中预期存在以下未提交改动：
+本节记录的是 Codex Round 4 结束当时的工作树状态。
+这些改动后续已由 Claude 在 `review(round-4): finish low-priority items, close current review phase`
+中提交，当前不再作为未提交变更存在。
+
+当时的工作树中预期存在以下未提交改动：
 
 - `examples/advanced_patterns.yml`
 - `molecule/common/verify.yml`
 - `roles/database/meta/argument_specs.yml`
 - `docs/reviews/codex-review-round-4-2026-04-09.md`
 - `docs/reviews/round-4-change-log-2026-04-09.md`
+
+当前状态:
+- 上述变更已提交
+- 当前 review 阶段已进入结项状态
 
