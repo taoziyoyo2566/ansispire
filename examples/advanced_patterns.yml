@@ -316,7 +316,7 @@
         timeout: 60          # 最多等 60 秒
         delay: 5             # 首次检查前等 5 秒
         state: started       # 等待端口打开（stopped = 等关闭）
-      when: false            # 示例，不实际运行
+      tags: [never, example]   # 示例，默认不执行
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -341,7 +341,7 @@
       ansible.builtin.script:
         cmd: "../scripts/bootstrap.sh --env {{ env | default('production') }}"
         creates: /etc/ansible-bootstrapped    # 文件存在则跳过（幂等）
-      when: false   # 示例
+      tags: [never, example]   # 示例，默认不执行
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -362,7 +362,7 @@
     - name: Apply platform-specific role dynamically
       ansible.builtin.include_role:
         name: "platform_{{ ansible_os_family | lower }}"
-      when: false   # 示例
+      tags: [never, example]   # 示例，默认不执行
 
     # include_role with vars: 临时覆盖 role 变量
     - name: Apply webserver role with custom vars
@@ -382,7 +382,7 @@
         - { role: database }
       loop_control:
         label: "{{ item.role }}"
-      when: false   # 示例
+      tags: [never, example]   # 示例，默认不执行
 
 
 # ════════════════════════════════════════════════════════════════════════════

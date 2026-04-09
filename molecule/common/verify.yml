@@ -15,9 +15,32 @@
       ansible.builtin.package_facts:
         manager: auto
 
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
     - name: Assert curl is installed
       ansible.builtin.assert:
         that: "'curl' in ansible_facts.packages"
+
+    - name: Assert UFW is installed on Debian family
+      ansible.builtin.assert:
+        that: "'ufw' in ansible_facts.packages"
+        fail_msg: "Expected ufw package on Debian family hosts"
+      when: ansible_os_family == 'Debian'
+
+    - name: Assert firewalld is installed on RedHat family
+      ansible.builtin.assert:
+        that: "'firewalld' in ansible_facts.packages"
+        fail_msg: "Expected firewalld package on RedHat family hosts"
+      when: ansible_os_family == 'RedHat'
+
+    - name: Assert firewalld service is running on RedHat family
+      ansible.builtin.assert:
+        that:
+          - "'firewalld.service' in services"
+          - services['firewalld.service'].state == 'running'
+        fail_msg: "Expected firewalld service to be running on RedHat family hosts"
+      when: ansible_os_family == 'RedHat'
 
     - name: Verify MOTD deployed
       ansible.builtin.stat:

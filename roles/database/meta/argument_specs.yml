@@ -30,7 +30,8 @@ argument_specs:
         description: >
           MySQL root password. Must be provided by the caller via vault.
           No default is set intentionally — see file header for explanation.
-          Example: set vault_db_root_password in group_vars/all/vault.yml
+          Example: set vault_db_root_password in
+          inventory/production/group_vars/all/vault.yml
           and reference it as: database__mysql_root_password: "{{ vault_db_root_password }}"
 
       database__mysql_bind_address:
