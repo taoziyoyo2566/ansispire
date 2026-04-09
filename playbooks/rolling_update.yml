@@ -1,5 +1,13 @@
-# playbooks/rolling_update.yml — 滚动更新示例
-# 展示: serial、max_fail_percentage、delegate_to、run_once
+# playbooks/rolling_update.yml — 滚动更新参考模板
+#
+# ⚠ 这是参考流程模板，不是开箱即用的 playbook。
+#   使用前需要替换以下占位变量（通过 group_vars 或 -e 传入）:
+#     lb_host     — 负载均衡器主机名（必须存在于 inventory 中）
+#     app_repo    — 应用代码仓库 URL
+#     app_version — 部署的 git 分支/tag/commit
+#
+# 展示的 Ansible 模式:
+#   serial、max_fail_percentage、delegate_to、run_once、until/retries
 
 ---
 - name: Rolling update of web servers
@@ -7,33 +15,44 @@
   become: true
   gather_facts: true
 
-  # 滚动策略: 每次只更新 1 台，任意主机失败立即停止
-  serial: 1
-  max_fail_percentage: 0
+  vars:
+    # 从 inventory 动态取第一台 LB，不存在时 fail 前给出清晰错误
+    lb_host: "{{ groups['loadbalancers'] | first | default('') }}"
+    app_repo: "https://github.com/YOUR_ORG/YOUR_APP.git"
+    app_version: "{{ deploy_version | default('main') }}"
 
   pre_tasks:
+    - name: Assert lb_host is configured
+      ansible.builtin.assert:
+        that:
+          - lb_host | length > 0
+          - lb_host in hostvars
+        fail_msg: >
+          lb_host is not set or not in inventory.
+          Add a [loadbalancers] group to your inventory, or pass -e lb_host=<hostname>.
+      tags: [lb]
+
     # 更新前：从负载均衡器摘除该主机
     - name: Remove host from load balancer
       community.general.haproxy:
         state: disabled
         host: "{{ inventory_hostname }}"
         socket: /var/run/haproxy/admin.sock
-      # delegate_to: 在另一台主机上执行该 task
-      delegate_to: lb01.example.com
+      delegate_to: "{{ lb_host }}"   # 在 LB 主机上执行
       tags: [lb]
 
     # 等待连接排空（优雅下线）
     - name: Wait for connections to drain
       ansible.builtin.wait_for:
         timeout: 30
-      delegate_to: localhost  # 在控制机上等待
+      delegate_to: localhost
 
   tasks:
     - name: Pull latest app code
       ansible.builtin.git:
-        repo: https://github.com/example/myapp.git
+        repo: "{{ app_repo }}"
         dest: "{{ app_base_dir }}/myapp"
-        version: "{{ app_version | default('main') }}"
+        version: "{{ app_version }}"
       notify: Restart app service
 
     - name: Install Python dependencies
@@ -41,13 +60,12 @@
         requirements: "{{ app_base_dir }}/myapp/requirements.txt"
         virtualenv: "{{ app_base_dir }}/myapp/.venv"
 
-    - name: Run database migrations
+    # run_once + delegate_to: 只在第一台主机执行数据库迁移
+    - name: Run database migrations (once per deployment)
       ansible.builtin.command:
         cmd: "{{ app_base_dir }}/myapp/.venv/bin/python manage.py migrate --noinput"
         chdir: "{{ app_base_dir }}/myapp"
-      # run_once: 整个 play 中只在第一台主机执行一次
       run_once: true
-      # 但在指定主机上执行
       delegate_to: "{{ groups['webservers'][0] }}"
 
   handlers:
@@ -57,21 +75,20 @@
         state: restarted
 
   post_tasks:
-    # 等待应用健康检查通过
-    - name: Wait for app to be healthy
+    # 等待健康检查通过，再加回 LB
+    - name: Wait for app health check
       ansible.builtin.uri:
-        url: "http://{{ ansible_host }}/health"
+        url: "http://{{ ansible_host }}:{{ app_port | default(8080) }}/health"
         status_code: 200
       register: health_check
       until: health_check.status == 200
-      retries: 10       # 最多重试 10 次
-      delay: 5          # 每次间隔 5 秒
+      retries: 10
+      delay: 5
 
-    # 重新加入负载均衡器
     - name: Re-add host to load balancer
       community.general.haproxy:
         state: enabled
         host: "{{ inventory_hostname }}"
         socket: /var/run/haproxy/admin.sock
-      delegate_to: lb01.example.com
+      delegate_to: "{{ lb_host }}"
       tags: [lb]

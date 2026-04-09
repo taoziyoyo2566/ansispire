@@ -1,37 +1,38 @@
 {# motd.j2
-   {{ ansible_managed }} 展示了 ansible_managed 的正确用法:
-   它会被替换为 "Ansible managed" 字符串，提醒管理员不要手动修改。
-   可在 ansible.cfg 中自定义格式:
-     ansible_managed = Managed by Ansible on {date} by {user} - DO NOT EDIT
-#}
+   {{ ansible_managed }} — 此文件由 Ansible 管理，请勿手动修改
+   使用内置 Jinja2 特性（不依赖自定义 filter_plugins），确保 role 可独立复用 #}
 {{ ansible_managed }}
+
+{# 内联定义环境标签映射，无需外部过滤器 #}
+{%- set _env_badges = {
+  'production':  '[PROD]',
+  'staging':     '[STAGING]',
+  'development': '[DEV]',
+  'testing':     '[TEST]'
+} -%}
+{%- set _env_label = _env_badges[env] if env is defined and env in _env_badges
+    else '[' + (env | default('UNKNOWN') | upper) + ']' -%}
 
 ╔══════════════════════════════════════════════════════════╗
 ║  {{ common__motd_message | truncate(54, True) | center(54) }}  ║
 ╠══════════════════════════════════════════════════════════╣
 ║                                                          ║
 ║  Hostname   : {{ inventory_hostname | truncate(42) | ljust(42) }}║
-║  Environment: {{ env | default('unknown') | env_badge | ljust(42) }}║
+║  Environment: {{ _env_label | ljust(42) }}║
 ║  OS         : {{ (ansible_distribution + ' ' + ansible_distribution_version) | truncate(42) | ljust(42) }}║
 ║  IPv4       : {{ ansible_default_ipv4.address | default('N/A') | ljust(42) }}║
 ║  Ansible    : {{ ansible_version.full | ljust(42) }}║
 ║                                                          ║
 ╚══════════════════════════════════════════════════════════╝
 
-{# if/elif/else 示例 #}
 {% if env | default('') == 'production' %}
 ⚠  PRODUCTION — Unauthorized access is strictly prohibited.
-   All activity is monitored and logged.
 {% elif env | default('') == 'staging' %}
-ℹ  STAGING — For testing only. Not for sensitive data.
+ℹ  STAGING — For testing only.
 {% else %}
-ℹ  Environment: {{ env | default('unknown') }}
+ℹ  Environment: {{ _env_label }}
 {% endif %}
 
-{# for 循环 + loop 变量 #}
-{% if ssh_allowed_users | default([]) | length > 0 %}
-Authorized users: {% for user in ssh_allowed_users %}{{ user }}{% if not loop.last %}, {% endif %}{% endfor %}
-
+{%- if ssh_allowed_users | default([]) | length > 0 %}
+Authorized users: {{ ssh_allowed_users | join(', ') }}
 {% endif %}
-{# 使用自定义过滤器 env_badge #}
-Server tag: {{ env | default('unknown') | env_badge('emoji') }} {{ env | default('unknown') | env_badge }}

@@ -1,12 +1,15 @@
+# roles/database/defaults/main.yml
+#
+# 注意: database__mysql_root_password 不在此处设置默认值。
+# 原因见 meta/argument_specs.yml 文件头注释。
+# 调用方必须通过 vault 显式提供该变量。
+
 ---
 database__mysql_version: "8.0"
 database__mysql_port: 3306
 database__mysql_bind_address: "127.0.0.1"
 database__mysql_datadir: /var/lib/mysql
 database__mysql_log_dir: /var/log/mysql
-
-# 密码引用 vault 变量（通过 group_vars 传入）
-database__mysql_root_password: "{{ vault_db_root_password }}"
 
 database__mysql_innodb_buffer_pool_size: "512M"
 database__mysql_max_connections: 150

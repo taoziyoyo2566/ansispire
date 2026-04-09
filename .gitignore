@@ -2,13 +2,17 @@
 .vault_pass
 *.vault_pass
 
+# vault.yml 明文文件 — 必须加密后才能提交，建议直接排除
+# 如果你决定提交加密后的 vault.yml，删除下面这行
+inventory/**/vault.yml
+
 # Ansible 运行产物
 *.retry
-/tmp/
 
 # fact 缓存
 .facts/
 fact_cache/
+/tmp/ansible_facts_cache/
 
 # 日志
 *.log

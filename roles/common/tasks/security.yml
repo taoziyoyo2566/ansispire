@@ -1,15 +1,21 @@
 # roles/common/tasks/security.yml
 # 展示: register/changed_when/failed_when、async/poll、set_fact、check_mode 感知
+#
+# 跨平台策略:
+#   - SSH 加固: 通用（所有平台）
+#   - 防火墙: UFW (Debian) / firewalld (RedHat) 各自条件执行
+#   - fail2ban: 用 package_facts 检查，跨平台（不用 dpkg-query）
+#   - async 升级: 按 OS 家族调用不同包管理器
 
 ---
-# ── SSH 配置加固 ──────────────────────────────────────────────────────────────
+# ── SSH 配置加固（所有平台通用）──────────────────────────────────────────────
 - name: Configure SSH hardening
   ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
     regexp: "^#?{{ item.key }}\\s"
     line: "{{ item.key }} {{ item.value }}"
-    validate: "/usr/sbin/sshd -t -f %s"    # 写入前用 sshd 验证，失败则不写
-    backup: true                             # 保留原文件备份
+    validate: "/usr/sbin/sshd -t -f %s"
+    backup: true
   loop:
     - { key: PermitRootLogin,        value: "{{ ssh_permit_root_login }}" }
     - { key: PasswordAuthentication, value: "{{ ssh_password_auth }}" }
@@ -18,58 +24,85 @@
     - { key: ClientAliveInterval,    value: "300" }
     - { key: ClientAliveCountMax,    value: "2" }
     - { key: LoginGraceTime,         value: "60" }
-  notify: "Restart {{ _common__ssh_service }} service"   # 引用 OS 特定变量
+  notify: "Restart {{ _common__ssh_service }} service"
   tags: [ssh, hardening]
 
-# ── UFW 防火墙 ────────────────────────────────────────────────────────────────
-- name: Reset UFW to defaults
-  community.general.ufw:
-    state: reset
-  changed_when: false    # reset 总是"执行"但视为 no change
+# ── 防火墙: UFW（Debian/Ubuntu 专用）─────────────────────────────────────────
+- name: Install UFW (Debian)
+  ansible.builtin.package:
+    name: ufw
+    state: present
+  when: ansible_os_family == 'Debian'
   tags: [firewall]
 
-- name: Set UFW default incoming policy to deny
+- name: Set UFW default incoming policy to deny (Debian)
   community.general.ufw:
     default: deny
     direction: incoming
+  when: ansible_os_family == 'Debian'
   tags: [firewall]
 
-- name: Allow defined TCP ports
+- name: Allow defined TCP ports via UFW (Debian)
   community.general.ufw:
     rule: allow
     port: "{{ item | string }}"
     proto: tcp
   loop: "{{ firewall_allowed_tcp_ports | default([22]) }}"
+  when: ansible_os_family == 'Debian'
   tags: [firewall]
 
-- name: Enable UFW
+- name: Enable UFW (Debian)
   community.general.ufw:
     state: enabled
+  when: ansible_os_family == 'Debian'
   tags: [firewall]
 
-# ── register + changed_when + failed_when ────────────────────────────────────
-- name: Check if fail2ban is installed
-  ansible.builtin.command: dpkg-query -W -f='${Status}' fail2ban
-  register: fail2ban_status
-  changed_when: false       # 查询命令永远不是 changed
-  failed_when: false        # 未安装时 rc != 0，但不视为失败
+# ── 防火墙: firewalld（RedHat/Rocky/Alma 专用）───────────────────────────────
+- name: Install firewalld (RedHat)
+  ansible.builtin.package:
+    name: firewalld
+    state: present
+  when: ansible_os_family == 'RedHat'
+  tags: [firewall]
+
+- name: Start and enable firewalld (RedHat)
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: true
+  when: ansible_os_family == 'RedHat'
+  tags: [firewall]
+
+- name: Allow defined TCP ports via firewalld (RedHat)
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    permanent: true
+    state: enabled
+    immediate: true
+  loop: "{{ firewall_allowed_tcp_ports | default([22]) }}"
+  when: ansible_os_family == 'RedHat'
+  tags: [firewall]
+
+# ── fail2ban: 用 package_facts 检查（跨平台，不依赖 dpkg-query）─────────────
+- name: Gather installed package facts for fail2ban check
+  ansible.builtin.package_facts:
+    manager: auto
   tags: [fail2ban]
 
 - name: Install fail2ban if not present
   ansible.builtin.package:
     name: fail2ban
     state: present
-  # 只有在没安装或安装有问题时才执行
-  when: fail2ban_status.rc != 0 or 'ok installed' not in (fail2ban_status.stdout | default(''))
+  when: "'fail2ban' not in ansible_facts.packages"
   tags: [fail2ban]
 
-# ── stat + 条件判断（先检查再操作，保证幂等）─────────────────────────────────
+# ── limits.conf（通用）──────────────────────────────────────────────────────
 - name: Check if custom limits.conf exists
   ansible.builtin.stat:
     path: /etc/security/limits.d/99-ansible.conf
   register: limits_conf_stat
 
-- name: Deploy limits.conf (only if not already tuned)
+- name: Deploy limits.conf
   ansible.builtin.copy:
     content: |
       # Managed by Ansible
@@ -82,60 +115,65 @@
   when: not limits_conf_stat.stat.exists
   tags: [limits]
 
-# ── set_fact: 计算并暴露派生变量 ─────────────────────────────────────────────
+# ── set_fact: 计算派生变量 ────────────────────────────────────────────────────
 - name: Compute host identity facts
   ansible.builtin.set_fact:
-    # ternary: condition | ternary(true_val, false_val)
     host_role: "{{ 'primary' if db_role is defined and db_role == 'primary' else 'secondary' }}"
-    # ansible_facts 魔法变量
     os_label: "{{ ansible_distribution }}-{{ ansible_distribution_major_version }}"
-    # 用 | default 提供回退值，防止未定义变量报错
     deploy_env: "{{ env | default('unknown') }}"
   tags: [facts]
 
-- name: Show computed facts (debug verbosity=1)
+- name: Show computed facts
   ansible.builtin.debug:
     msg:
       - "Host role: {{ host_role }}"
-      - "OS: {{ os_label }}"
+      - "OS: {{ os_label }} (Tier 1: {{ _preflight_tier1 | default(false) }})"
       - "Environment: {{ deploy_env }}"
-    verbosity: 1   # 只在 ansible-playbook -v 时显示
+    verbosity: 1
   tags: [facts]
 
-# ── async 异步任务 ────────────────────────────────────────────────────────────
-# 场景: 长时间运行的任务（dist-upgrade、大文件下载）防止 SSH 超时
-- name: Run full OS upgrade (async, fire-and-forget)
+# ── async 异步升级（标记 never，需显式 --tags upgrade 才执行）──────────────
+- name: Run full OS upgrade (async, Debian)
   ansible.builtin.apt:
     upgrade: dist
     update_cache: true
-  async: 900          # 最多等 900 秒
-  poll: 0             # 立即返回，不阻塞（fire and forget）
-  register: upgrade_job
-  when: ansible_os_family == "Debian"
-  # tags: [never] 意味着默认不运行，必须显式 --tags upgrade 才执行
+  async: 900
+  poll: 0
+  register: upgrade_job_debian
+  when: ansible_os_family == 'Debian'
+  tags: [upgrade, never]
+
+- name: Run full OS upgrade (async, RedHat)
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+  async: 900
+  poll: 0
+  register: upgrade_job_redhat
+  when: ansible_os_family == 'RedHat'
   tags: [upgrade, never]
 
 - name: Wait for OS upgrade to complete
   ansible.builtin.async_status:
-    jid: "{{ upgrade_job.ansible_job_id }}"
+    jid: >-
+      {{ upgrade_job_debian.ansible_job_id
+         if ansible_os_family == 'Debian'
+         else upgrade_job_redhat.ansible_job_id }}
   register: upgrade_result
   until: upgrade_result.finished
   retries: 90
   delay: 10
   when:
-    - ansible_os_family == "Debian"
-    - upgrade_job is defined
-    - upgrade_job.ansible_job_id is defined
+    - (upgrade_job_debian is defined and upgrade_job_debian.ansible_job_id is defined) or
+      (upgrade_job_redhat is defined and upgrade_job_redhat.ansible_job_id is defined)
   tags: [upgrade, never]
 
 # ── check_mode 感知 ───────────────────────────────────────────────────────────
-# 某些 task 在 --check 模式下没有意义或会报错，用 check_mode: false 强制跳过
-- name: Force-run service status even in check mode
+- name: Collect service facts (safe in check mode)
   ansible.builtin.service_facts:
-  check_mode: false    # 即使 --check 也执行（只读操作，安全）
+  check_mode: false
   tags: [facts, always]
 
-# ansible_check_mode 变量：可在模板/任务中感知当前是否处于 dry-run
 - name: Show check-mode warning
   ansible.builtin.debug:
     msg: "Running in CHECK MODE — no changes will be made"
