@@ -1,0 +1,57 @@
+# Semaphore control-plane minimal deployment (SQLite backend)
+#
+# Purpose:      learn Ansible control-plane concepts (project / inventory / template / job)
+# Resources:    ~200 MB RAM, single process
+# Upgrade path: see controller/README.md
+#
+# Start: make controller-up   (or docker compose --env-file .env up -d)
+# Stop:  make controller-down
+# Logs:  make controller-logs
+---
+services:
+  semaphore:
+    image: semaphoreui/semaphore:v2.10.34
+    container_name: ansible-demo-semaphore
+    restart: unless-stopped
+    ports:
+      - "${SEMAPHORE_PORT:-3000}:3000"
+    environment:
+      # Database: SQLite (zero external dependencies)
+      SEMAPHORE_DB_DIALECT: bolt
+      SEMAPHORE_DB_PATH: /var/lib/semaphore/database.boltdb
+
+      # Admin account (created on first boot)
+      SEMAPHORE_ADMIN: "${SEMAPHORE_ADMIN:-admin}"
+      SEMAPHORE_ADMIN_NAME: "${SEMAPHORE_ADMIN_NAME:-Administrator}"
+      SEMAPHORE_ADMIN_EMAIL: "${SEMAPHORE_ADMIN_EMAIL:-admin@localhost}"
+      SEMAPHORE_ADMIN_PASSWORD: "${SEMAPHORE_ADMIN_PASSWORD:?set in .env}"
+
+      # Web root (change this when served behind a reverse proxy)
+      SEMAPHORE_WEB_ROOT: "${SEMAPHORE_WEB_ROOT:-}"
+
+      # Timezone
+      TZ: "${TZ:-UTC}"
+
+      # Ansible-related
+      ANSIBLE_HOST_KEY_CHECKING: "False"
+    volumes:
+      # Control-plane state (database, uploaded vault keys, tmp)
+      - semaphore-data:/var/lib/semaphore
+      - semaphore-config:/etc/semaphore
+      - semaphore-tmp:/tmp/semaphore
+
+      # Mount this repo read-only as the project source
+      # Note: Semaphore can also git-clone, but bind-mounting makes repo edits
+      # immediately visible during learning sessions.
+      - ../..:/workspace:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  semaphore-data:
+  semaphore-config:
+  semaphore-tmp:

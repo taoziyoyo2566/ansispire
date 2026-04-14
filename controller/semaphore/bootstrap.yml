@@ -1,0 +1,256 @@
+---
+# Semaphore first-run bootstrap
+#
+# Purpose:
+#   Use the Semaphore REST API to create a minimal working project / repo /
+#   inventory / template so that a learner who just logged in can run a job
+#   immediately, without having to click through the configuration UI first.
+#
+# Usage:
+#   ansible-playbook controller/semaphore/bootstrap.yml \
+#     -e semaphore_url=http://localhost:3000 \
+#     -e semaphore_user=admin \
+#     -e semaphore_password=<admin-password>
+#
+# Idempotency:
+#   - If a project/repo/inventory/template with the same name already exists,
+#     creation is skipped (guarded by failed_when)
+#   - Re-running after a successful first run does not produce duplicates
+#
+# API docs: https://docs.semaphoreui.com/administration-guide/api/
+
+- name: Bootstrap Semaphore with a minimal ansible-demo project
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    semaphore_url: "http://localhost:3000"
+    semaphore_user: "admin"
+    # semaphore_password: pass via -e; no default value to avoid accidental use
+    project_name: "ansible-demo"
+    repo_name: "local-workspace"
+    inventory_name: "production"
+    template_name: "site.yml (check mode)"
+    # Mount path inside the container
+    repo_path_in_container: "/workspace"
+    inventory_path_in_repo: "inventory/production/hosts.ini"
+    playbook_path_in_repo: "playbooks/site.yml"
+
+  tasks:
+    - name: Assert required variables are provided
+      ansible.builtin.assert:
+        that:
+          - semaphore_password is defined
+          - semaphore_password | length > 0
+        fail_msg: >
+          Password must be provided via -e semaphore_password=<admin-password>.
+          The password can be read from controller/semaphore/.env.
+
+    - name: Log in to Semaphore and capture session cookie
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/auth/login"
+        method: POST
+        body_format: json
+        body:
+          auth: "{{ semaphore_user }}"
+          password: "{{ semaphore_password }}"
+        status_code: [204, 200]
+      register: login_response
+      no_log: true
+
+    - name: Extract session cookie
+      ansible.builtin.set_fact:
+        semaphore_cookie: "{{ login_response.cookies_string }}"
+      no_log: true
+
+    - name: List existing projects
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/projects"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: projects_list
+
+    - name: Find matching project by name
+      ansible.builtin.set_fact:
+        existing_project: "{{ projects_list.json | selectattr('name', 'equalto', project_name) | list | first | default({}) }}"
+
+    - name: Create project '{{ project_name }}' if missing
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/projects"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          name: "{{ project_name }}"
+          alert: false
+          max_parallel_tasks: 0
+        status_code: [201]
+        return_content: true
+      register: created_project
+      when: existing_project == {}
+
+    - name: Resolve project id
+      ansible.builtin.set_fact:
+        project_id: "{{ (created_project.json.id | default(existing_project.id)) | int }}"
+
+    - name: Ensure local key (empty; used for local workspace mount)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/keys"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          name: "none"
+          type: "none"
+          project_id: "{{ project_id | int }}"
+        status_code: [201, 204, 400]
+      register: key_create
+      failed_when: >
+        key_create.status not in [201, 204]
+        and 'already exists' not in (key_create.content | default(''))
+
+    - name: List keys to find 'none' key id
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/keys"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: keys_list
+
+    - name: Resolve none-key id
+      ansible.builtin.set_fact:
+        none_key_id: "{{ (keys_list.json | selectattr('name', 'equalto', 'none') | list | first).id }}"
+
+    - name: Create repository '{{ repo_name }}' pointing to /workspace
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/repositories"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          name: "{{ repo_name }}"
+          project_id: "{{ project_id | int }}"
+          git_url: "{{ repo_path_in_container }}"
+          git_branch: "master"
+          ssh_key_id: "{{ none_key_id | int }}"
+        status_code: [201, 204, 400]
+      register: repo_create
+      failed_when: >
+        repo_create.status not in [201, 204]
+        and 'already exists' not in (repo_create.content | default(''))
+
+    - name: List repositories
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/repositories"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: repos_list
+
+    - name: Resolve repo id
+      ansible.builtin.set_fact:
+        repo_id: "{{ (repos_list.json | selectattr('name', 'equalto', repo_name) | list | first).id }}"
+
+    - name: Create inventory '{{ inventory_name }}'
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/inventory"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          name: "{{ inventory_name }}"
+          project_id: "{{ project_id | int }}"
+          inventory: "{{ inventory_path_in_repo }}"
+          type: "file"
+          ssh_key_id: "{{ none_key_id | int }}"
+        status_code: [201, 204, 400]
+      register: inv_create
+      failed_when: >
+        inv_create.status not in [201, 204]
+        and 'already exists' not in (inv_create.content | default(''))
+
+    - name: List inventories
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/inventory"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: invs_list
+
+    - name: Resolve inventory id
+      ansible.builtin.set_fact:
+        inventory_id: "{{ (invs_list.json | selectattr('name', 'equalto', inventory_name) | list | first).id }}"
+
+    - name: Create empty environment (no extra vars)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/environment"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          name: "default"
+          project_id: "{{ project_id | int }}"
+          json: "{}"
+        status_code: [201, 204, 400]
+      register: env_create
+      failed_when: >
+        env_create.status not in [201, 204]
+        and 'already exists' not in (env_create.content | default(''))
+
+    - name: List environments
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/environment"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: envs_list
+
+    - name: Resolve environment id
+      ansible.builtin.set_fact:
+        environment_id: "{{ (envs_list.json | selectattr('name', 'equalto', 'default') | list | first).id }}"
+
+    - name: Create job template '{{ template_name }}' (dry-run)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          project_id: "{{ project_id | int }}"
+          inventory_id: "{{ inventory_id | int }}"
+          repository_id: "{{ repo_id | int }}"
+          environment_id: "{{ environment_id | int }}"
+          name: "{{ template_name }}"
+          playbook: "{{ playbook_path_in_repo }}"
+          arguments: '["--check", "--diff"]'
+          allow_override_args_in_task: false
+          description: "Round 7 bootstrap: runs site.yml in check mode"
+          app: "ansible"
+        status_code: [201, 204, 400]
+      register: tpl_create
+      failed_when: >
+        tpl_create.status not in [201, 204]
+        and 'already exists' not in (tpl_create.content | default(''))
+
+    - name: Bootstrap complete
+      ansible.builtin.debug:
+        msg:
+          - "Semaphore bootstrap done."
+          - "Project:    {{ project_name }} (id {{ project_id }})"
+          - "Repository: {{ repo_name }} → {{ repo_path_in_container }}"
+          - "Inventory:  {{ inventory_name }} → {{ inventory_path_in_repo }}"
+          - "Template:   {{ template_name }}"
+          - "Open {{ semaphore_url }} and trigger '{{ template_name }}' to see it run."

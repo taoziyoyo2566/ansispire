@@ -1,0 +1,92 @@
+# molecule/full-stack/molecule.yml
+#
+# Integration test scenario: verify common → webserver → database work end-to-end on a single host.
+# Goals:
+#   1. Confirm the three roles execute in order without conflicts
+#   2. Confirm idempotency (two consecutive converges produce the same result)
+#   3. Confirm Nginx and MySQL run side-by-side without interfering
+#
+# Run:   molecule test -s full-stack
+# Debug: molecule converge -s full-stack && molecule verify -s full-stack
+
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: requirements.yml
+
+driver:
+  name: docker
+
+platforms:
+  # Single-host full-stack: Ubuntu 22.04 (most common production distribution)
+  - name: fullstack-ubuntu22
+    image: geerlingguy/docker-ubuntu2204-ansible:latest
+    pre_build_image: true
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    command: /lib/systemd/systemd
+    # Expose ports so the local verify stage can reach them directly
+    published_ports:
+      - "0.0.0.0:8080:80"
+      - "0.0.0.0:33060:3306"
+
+provisioner:
+  name: ansible
+  inventory:
+    host_vars:
+      fullstack-ubuntu22:
+        db_role: primary
+    group_vars:
+      all:
+        # Environment marker
+        env: testing
+
+        # Base configuration (common role)
+        system_timezone: UTC
+        common_packages: [curl, vim, net-tools]
+        common__extra_packages: []
+        common__deploy_users: []
+        common__motd_enabled: true
+        common__motd_message: "Full-stack integration test"
+        common__sysctl_settings:
+          vm.swappiness: 10
+        app_base_dir: /opt/apps
+        app_user: appuser
+        app_group: appgroup
+        ssh_allowed_users: [root]
+        ssh_permit_root_login: "yes"
+        ssh_password_auth: "yes"
+        # Need to allow both web and db ports
+        firewall_allowed_tcp_ports: [22, 80, 443, 3306]
+
+        # Webserver role
+        nginx_vhosts:
+          - name: fullstack-test.local
+            root: /var/www/fullstack
+            ssl: false
+            php_fpm: false
+
+        # Database role
+        database__mysql_root_password: "IntegrationTestRoot123!"
+        database__mysql_bind_address: "127.0.0.1"
+        database__mysql_innodb_buffer_pool_size: "128M"
+        database__mysql_max_connections: 50
+        database__databases:
+          - name: appdb
+            encoding: utf8mb4
+        database__users:
+          - name: appuser
+            password: "IntegrationTestApp456!"
+            priv: "appdb.*:ALL"
+            host: "localhost"
+        database__backup_enabled: false
+
+verifier:
+  name: ansible
+
+lint: |
+  set -e
+  ansible-lint

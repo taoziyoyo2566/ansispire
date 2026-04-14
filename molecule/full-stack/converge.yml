@@ -1,0 +1,23 @@
+# molecule/full-stack/converge.yml
+#
+# Run the three roles in site.yml order to validate the complete role chain.
+# The pre_tasks mirror site.yml intentionally (rather than being simplified)
+# so the integration test stays as close to production behavior as possible.
+
+---
+- name: Converge — Full Stack Integration
+  hosts: all
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Update apt cache (Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+  roles:
+    - role: common
+    - role: webserver
+    - role: database
