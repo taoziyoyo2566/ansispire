@@ -1,116 +1,117 @@
 # Review Iteration Charter
 
-日期: 2026-04-09
-适用范围:
-- `docs/reviews/` 下后续所有 Round 文档
-- Codex / Claude 对本仓库的持续审查与修订讨论
+Date: 2026-04-09 (last updated 2026-04-14)
+Applies to:
+- All subsequent Round documents under `docs/reviews/`
+- Continuing review and revision discussions between Codex / Claude and this repository
 
-## 原始目的
+> Chinese reference snapshot: `docs/reference-cn/snapshot-2026-04-14/docs/reviews/review-iteration-charter.zh.md`
 
-这个仓库的原始目的不是“做一个最强、最全、最生产化的 Ansible 仓库”，而是:
+## Original Purpose
 
-1. 做一个适合学习和理解 Ansible 的 demo 项目。
-2. 覆盖核心功能、常见模式、官方推荐组织方式和社区常见实践。
-3. 在保留教学价值的前提下，让默认主路径尽量自洽、可运行、可验证。
+The original purpose of this repository is NOT "the most powerful, most comprehensive, most production-grade Ansible repo". It is:
 
-换句话说，后续迭代的目标是:
-- 提升教学正确性
-- 提升默认路径的一致性和可执行性
-- 减少“看起来像最佳实践，实际跑不通/有误导”的内容
+1. A demo project suitable for learning and understanding Ansible.
+2. Coverage of core features, common patterns, official recommended organization, and common community practice.
+3. With educational value preserved, keep the default main path self-consistent, runnable, and verifiable.
 
-不是:
-- 为了“更像生产”而无限引入复杂度
-- 为了追求覆盖面而牺牲默认体验
-- 在没有明确收益时把 demo 改造成企业内部平台模板
+In other words, the goal of subsequent iterations is:
+- Improve educational correctness.
+- Improve consistency and runnability of the default path.
+- Reduce content that "looks like best practice but is broken or misleading".
 
-## 评审优先级
+It is NOT:
+- Unbounded complexity in the name of "looking more production-grade".
+- Sacrificing the default experience in the name of coverage.
+- Turning the demo into an enterprise internal platform template without clear benefit.
 
-每轮优先按以下顺序评估问题:
+## Review Priorities
 
-1. 会直接失败的问题
-2. 会误导学习者的问题
-3. 默认路径与文档不一致的问题
-4. 安全工作流不正确的问题
-5. 工具链 / 测试链条不闭环的问题
-6. 低优先级优化、美化、扩展性问题
+Each round evaluates issues in this order:
 
-## 平台支持策略
+1. Issues that fail outright.
+2. Issues that mislead learners.
+3. Default path inconsistent with documentation.
+4. Incorrect security workflows.
+5. Tooling / test chain not closed loop.
+6. Low-priority optimizations, cosmetics, scalability.
 
-这个仓库的定位是“学习 Ansible 的 demo”，不是只面向单一 Linux 发行版的业务项目。
+## Platform Support Strategy
 
-因此默认规则是:
+This repository is positioned as "a demo for learning Ansible", not a business project targeting a single Linux distribution.
 
-1. 不得在未获得用户明确同意前，擅自把平台支持范围从“多发行版学习场景”收窄为单发行版或单家族。
-2. 如果发现代码与支持声明不一致，优先方案不是立即删除某个平台，而是先提出“支持分层”方案。
-3. 平台支持必须分成 3 层表述，避免把“可参考”“已适配”“已测试”混为一谈。
+Default rules:
 
-建议分层:
+1. Must NOT narrow platform support from "multi-distro learning scenarios" to a single distro or family without explicit user consent.
+2. When code and support claims diverge, the preferred solution is NOT immediate deletion of a platform — propose a "support tiering" plan first.
+3. Platform support must be expressed in 3 tiers to avoid conflating "referenceable", "adapted", and "tested".
 
-- Tier 1: 明确支持且持续测试
-  - 至少包含一个 Debian 系平台
-  - 至少包含一个 RHEL-compatible 平台
-- Tier 2: 有代码骨架/有文档说明，但未纳入当前 CI 或 Molecule
-  - 例如 Debian 其他版本、AlmaLinux/Rocky 的扩展版本
-- Tier 3: 仅作为学习讨论对象，不承诺默认可运行
-  - 例如极简 Linux、容器专用镜像、缺少 Python/systemd 的发行版
+Recommended tiering:
 
-默认判断:
+- **Tier 1**: Explicitly supported, continuously tested
+  - At least one Debian-family platform
+  - At least one RHEL-compatible platform
+- **Tier 2**: Code skeleton / documentation exists but not yet in CI or Molecule
+  - E.g. other Debian versions, extended AlmaLinux/Rocky versions
+- **Tier 3**: For learning discussion only; default runnability not promised
+  - E.g. minimal Linux, container-only images, distributions lacking Python / systemd
 
-- “企业常见平台”不应只用 Ubuntu/Debian 代表
-- “极简 Linux 存在”不等于必须纳入默认主路径支持
-- 如果一个平台缺少测试，不代表要删除它；可以先降为 Tier 2
+Default judgments:
+- "Common enterprise platforms" should NOT be represented by Ubuntu/Debian alone.
+- "Minimal Linux exists" does NOT imply it must be in the default main path.
+- If a platform lacks testing, that is not a reason to delete it — it can be demoted to Tier 2 first.
 
-## 修复结论规则
+## Fix-Conclusion Rules
 
-后续所有 Round 文档中，不允许直接把“方向判断正确”写成“已修复”。
+Subsequent Round documents MUST NOT directly write "direction judgment correct" as "fixed".
 
-每个问题必须使用以下三档状态之一:
+Every issue must use one of these three status labels:
 
-- 已落地
-- 已部分落地
-- 方向确认，尚未收口
+- Landed
+- Partially landed
+- Direction confirmed, not yet closed
 
-判定为“已落地”前，必须同时满足:
+Before labeling "Landed" the following FOUR conditions must all hold:
 
-1. 代码已修改
-2. 与之相关的文档已同步
-3. 相关支持声明已同步
-4. 没有明显的自洽性冲突
+1. Code is modified.
+2. Related documentation is synchronized.
+3. Related support claims are synchronized.
+4. No obvious self-consistency conflict.
 
-如果以上 4 项缺一，则不得标记为“已落地”。
+If any one of the four is missing, "Landed" MUST NOT be claimed.
 
-## 证据要求
+## Evidence Requirements
 
-每轮在宣称某项“已修复”或“已收窄支持范围”前，必须做最小证据核对。
+Before claiming an item is "fixed" or "support scope narrowed" in a round, minimal evidence cross-checking is required.
 
-至少检查以下对应项:
+Check at least the following:
 
-- 代码实现
+- Code implementation
 - README / docs
 - role meta / argument_specs
 - preflight / runtime guard
-- 测试或验证路径
+- Test or verification path
 
-建议写成简表:
+Suggested as a short table:
 
-| 项目 | 已核对文件 | 结论 |
-|------|------------|------|
-| 平台支持 | ... | 已同步 / 未同步 |
-| 文档路径 | ... | 已同步 / 未同步 |
-| EE/CI | ... | 自洽 / 不自洽 |
+| Item | Files checked | Conclusion |
+|------|---------------|-----------|
+| Platform support | ... | Synced / Not synced |
+| Doc paths | ... | Synced / Not synced |
+| EE/CI | ... | Self-consistent / Not |
 
-## 防止方向跑偏的强制问题
+## Mandatory Questions Before "Large Change" Directions
 
-每轮在提出“大改方向”前，必须先回答:
+Before proposing a "large change" direction in any round, first answer:
 
-1. 这是不是在修正错误，还是在重定义项目范围？
-2. 如果是在重定义范围，是否已经得到用户明确授权？
-3. 这个改动对“学习 Ansible”是增加清晰度，还是只是减少维护成本？
-4. 是否存在更温和的做法，例如“支持分层”而不是“直接删除支持”？
+1. Is this correcting an error, or redefining project scope?
+2. If redefining scope, has explicit user authorization been obtained?
+3. Does this change add clarity for "learning Ansible", or merely reduce maintenance cost?
+4. Is there a gentler approach — e.g. "support tiering" instead of "delete support"?
 
-## 固定边界
+## Fixed Boundaries
 
-默认主路径指:
+The default main path refers to:
 - `README.md`
 - `ansible.cfg`
 - `requirements.yml`
@@ -123,63 +124,103 @@
 - `execution-environment.yml`
 - `.github/workflows/ci.yml`
 
-教学扩展示例指:
+Educational extension examples refers to:
 - `examples/`
-- 自定义插件示例
-- 非默认运行路径下的演示文件
+- Custom plugin examples
+- Demo files outside the default execution path
 
-默认要求:
-- 默认主路径应尽量可运行
-- 教学扩展示例可以更宽松，但必须明确标注“示例/非默认执行路径”
+Default requirements:
+- The default main path should be as runnable as possible.
+- Educational extension examples may be more permissive but MUST be clearly labeled "example / non-default execution path".
 
-## 每轮开始前必须写明的内容
+## Mandatory Content at the Start of Every Round
 
-每一轮文档开头必须先写下面 4 项:
+The first section of every round document must state the following four items:
 
-1. 原始目的
-2. 本轮关注范围
-3. 本轮不展开的内容
-4. 判断标准
+1. Original purpose
+2. Scope of this round
+3. Out of scope this round
+4. Judgment criteria
 
-建议模板:
+Suggested template:
 
 ```md
-## 原始目的
-本仓库用于学习 Ansible 功能、特性与最佳实践；本轮继续围绕“教学正确、默认路径可运行、文档与实现一致”推进。
+## Original Purpose
+This repository is for learning Ansible features and best practices; this round continues under "educational correctness, runnable default path, docs-implementation alignment".
 
-## 本轮关注范围
+## Scope of This Round
 - ...
 
-## 本轮不展开
+## Out of Scope
 - ...
 
-## 判断标准
-- 是否减少误导
-- 是否让默认路径更自洽
-- 是否引入了不必要复杂度
+## Judgment Criteria
+- Does it reduce misleading content?
+- Does it make the default path more self-consistent?
+- Does it introduce unnecessary complexity?
 ```
 
-## 每轮结束前必须回答的问题
+## Mandatory Questions at the End of Every Round
 
-1. 这轮修改是否更贴近原始目的？
-2. 这轮是否把“教学示例”和“默认路径”分得更清楚？
-3. 是否产生了新的文档漂移？
-4. 是否引入了新的环境依赖？
-5. 是否还有未关闭的前置矛盾？
+1. Is this round's modification closer to the original purpose?
+2. Does it separate "educational examples" from "default path" more clearly?
+3. Did it introduce new documentation drift?
+4. Did it introduce new environmental dependencies?
+5. Are there any unresolved prerequisite conflicts?
 
-## 当前已知高优先级尾项
+## Known High-Priority Open Items
 
-- `roles/database/meta/argument_specs.yml` 与 `roles/database/defaults/main.yml` 的必填/默认值冲突
-- `roles/common/tasks/preflight.yml`、role meta、README 之间的平台支持声明尚未统一
-- `README.md` 尚未同步 `examples/advanced_patterns.yml`、新增 Molecule 场景、CI、EE 等变更
-- `playbooks/rolling_update.yml` 仍硬编码 `lb01.example.com`
-- `roles/common/templates/motd.j2` 仍依赖项目根级 `filter_plugins/`
-- `execution-environment.yml` 与实际依赖声明尚未完全自洽
+- `roles/database/meta/argument_specs.yml` vs `roles/database/defaults/main.yml` required/default-value conflict
+- Platform support claims in `roles/common/tasks/preflight.yml`, role meta, and README are not yet unified
+- `README.md` has not synced `examples/advanced_patterns.yml`, new Molecule scenarios, CI, or EE changes
+- `playbooks/rolling_update.yml` still hardcodes `lb01.example.com`
+- `roles/common/templates/motd.j2` still depends on the project-root `filter_plugins/`
+- `execution-environment.yml` is not yet fully self-consistent with actual dependency declarations
 
-## 建议命名约定
+## Suggested Naming Conventions
 
-后续文件建议使用:
+Subsequent files should use:
 
 - `codex-review-round-N-YYYY-MM-DD.md`
 - `claude-review-round-N-YYYY-MM-DD.md`
 - `round-N-change-log-YYYY-MM-DD.md`
+
+---
+
+## Mandatory Documentation Requirements (added 2026-04-14)
+
+**Every round's changes must produce two file types — both required** (this rule is also written into the project-root `CLAUDE.md`):
+
+### A. Plan / Review Document
+
+Location: `docs/reviews/claude-review-round-N-YYYY-MM-DD.md`
+
+Timing: Created **before or at the start of** changes (write the plan first, then execute).
+
+Must contain:
+1. Original purpose
+2. Scope of this round
+3. Out of scope
+4. Judgment criteria
+5. Architectural rationale for each change
+
+### B. Change Log
+
+Location: `docs/reviews/round-N-change-log-YYYY-MM-DD.md`
+
+Timing: Created **after all changes are complete**.
+
+Must contain:
+- `Reference:` field linking to the corresponding plan doc
+- Change manifest (table: file | change type | summary)
+- Intent per change category
+- What was explicitly NOT done (boundaries)
+- Self-check results (syntax, consistency, critical-file presence)
+
+### Landing Criteria
+
+Before claiming a round is "done", ALL of the following must hold:
+1. Code is modified and self-check passes
+2. Plan doc created
+3. Change log created, with bidirectional link to the plan doc
+4. Self-check results in the change log contain no errors
