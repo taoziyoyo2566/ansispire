@@ -1,16 +1,16 @@
 # group_vars/webservers/vars.yml
-# 变量命名约定: 统一使用 webserver__ 前缀，与 roles/webserver/defaults 一致
-# 这样可以确保 group_vars 中的值真实覆盖 role defaults
+# Variable naming: use the webserver__ prefix consistently, matching roles/webserver/defaults.
+# This guarantees group_vars actually override role defaults.
 
 ---
-# ── Nginx 配置（覆盖 roles/webserver/defaults/main.yml 中的默认值）────────────
+# ── Nginx config (overrides defaults in roles/webserver/defaults/main.yml) ──
 webserver__nginx_version: "1.24"
 webserver__worker_processes: auto
 webserver__worker_connections: 1024
 webserver__keepalive_timeout: 65
 webserver__client_max_body_size: "64m"
 
-# ── 虚拟主机列表（被 roles/webserver/tasks/vhosts.yml 的 loop 消费）──────────
+# ── Virtual hosts (consumed by the loop in roles/webserver/tasks/vhosts.yml) ──
 webserver__vhosts:
   - name: app.example.com
     root: /var/www/app
@@ -27,7 +27,7 @@ webserver__vhosts:
     ssl_key: /etc/ssl/private/static.example.com.key
     php_fpm: false
 
-# ── 公共变量（无 role 前缀，跨 role 共用）────────────────────────────────────
+# ── Shared variables (no role prefix; cross-role use) ───────────────────────
 firewall_allowed_tcp_ports:
   - 22
   - 80

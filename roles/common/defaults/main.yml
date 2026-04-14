@@ -1,27 +1,27 @@
 # roles/common/defaults/main.yml
-# defaults/ — 优先级最低的变量，可被任何地方覆盖
-# 约定：所有 role 变量加 role 名称前缀，防止命名冲突
+# defaults/ — lowest-priority variables; can be overridden anywhere.
+# Convention: prefix every role variable with the role name to avoid naming collisions.
 
 ---
-# ── 系统包 ────────────────────────────────────────────────────────────────────
-common__extra_packages: []          # 允许外部追加包，默认空列表
+# ── System packages ─────────────────────────────────────────────────────────
+common__extra_packages: []          # lets callers append extra packages; empty by default
 
-# ── 时区 ──────────────────────────────────────────────────────────────────────
-common__timezone: "UTC"             # 将被 group_vars 的 system_timezone 覆盖
+# ── Timezone ────────────────────────────────────────────────────────────────
+common__timezone: "UTC"             # overridden by system_timezone in group_vars
 
-# ── MOTD ──────────────────────────────────────────────────────────────────────
+# ── MOTD ────────────────────────────────────────────────────────────────────
 common__motd_enabled: true
 common__motd_message: "This server is managed by Ansible."
 
-# ── Sysctl 调优 ───────────────────────────────────────────────────────────────
+# ── sysctl tuning ───────────────────────────────────────────────────────────
 common__sysctl_settings:
   net.ipv4.ip_forward: 0
   net.core.somaxconn: 1024
   vm.swappiness: 10
 
-# ── 用户管理 ──────────────────────────────────────────────────────────────────
+# ── User management ─────────────────────────────────────────────────────────
 common__deploy_users: []
-# 示例:
+# Example:
 # common__deploy_users:
 #   - name: deploy
 #     uid: 1001

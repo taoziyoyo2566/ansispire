@@ -6,26 +6,26 @@ galaxy_info:
   license: MIT
   min_ansible_version: "2.14"
   platforms:
-    # Tier 1 — CI 验证
+    # Tier 1 — CI-verified
     - name: Ubuntu
       versions:
         - focal      # 20.04
         - jammy      # 22.04
         - noble      # 24.04
-    # Tier 2 — 有代码骨架，预期兼容
+    # Tier 2 — code skeleton present, expected to work
     - name: Debian
       versions:
         - bullseye   # 11
         - bookworm   # 12
-    # Tier 1 — molecule/common Rocky 9 场景验证
+    # Tier 1 — validated by the molecule/common Rocky 9 scenario
     - name: EL
       versions:
-        - "9"        # Rocky Linux 9 / AlmaLinux 9（Rocky 已验证，Alma 预期兼容）
+        - "9"        # Rocky Linux 9 / AlmaLinux 9 (Rocky validated, Alma expected-compatible)
   galaxy_tags:
     - base
     - common
     - security
     - hardening
 
-# 声明依赖的其他 role（执行本 role 前自动执行依赖 role）
+# Declare dependencies on other roles (they run automatically before this role).
 dependencies: []

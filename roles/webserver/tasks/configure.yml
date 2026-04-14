@@ -1,8 +1,8 @@
 # roles/webserver/tasks/configure.yml
-# 展示: template validate、lookup、check_mode 感知、条件 notify
+# Demonstrates: template validate, lookup, check_mode awareness, conditional notify
 
 ---
-# ── 主配置文件 ────────────────────────────────────────────────────────────────
+# ── Main config file ────────────────────────────────────────────────────────
 - name: Deploy Nginx main configuration
   ansible.builtin.template:
     src: nginx.conf.j2
@@ -10,35 +10,35 @@
     owner: root
     group: root
     mode: "0644"
-    validate: nginx -t -c %s    # 写入磁盘前校验语法，失败则不覆盖
-    backup: true                 # 保留 .bak 备份
+    validate: nginx -t -c %s    # validate syntax before writing; never overwrite on failure
+    backup: true                 # keep a .bak backup
   notify: Reload Nginx
   tags: [nginx, config]
 
-# ── stat 幂等检查：配置是否已经存在 ──────────────────────────────────────────
+# ── stat-based idempotency: does the config already exist? ──────────────────
 - name: Check for existing SSL DH parameters
   ansible.builtin.stat:
     path: /etc/nginx/dhparam.pem
   register: dhparam_stat
   tags: [nginx, ssl]
 
-# 只在文件不存在时生成（openssl dhparam 耗时较长）
+# Only generate the file if it does not exist (openssl dhparam is slow)
 - name: Generate DH parameters (2048 bit, runs once)
   ansible.builtin.command:
     cmd: openssl dhparam -out /etc/nginx/dhparam.pem 2048
-    creates: /etc/nginx/dhparam.pem   # creates: 文件存在则跳过（等同幂等）
+    creates: /etc/nginx/dhparam.pem   # creates: skip if the file exists (idempotent)
   notify: Reload Nginx
-  # throttle: 多台主机同时 openssl 会耗尽 CPU，限制并发
+  # throttle: running openssl on many hosts in parallel exhausts CPU; limit concurrency
   throttle: 1
   tags: [nginx, ssl]
 
-# ── blockinfile: 在文件特定位置插入/更新内容块 ───────────────────────────────
+# ── blockinfile: insert/update a content block at a specific spot ───────────
 - name: Add security headers to nginx.conf
   ansible.builtin.blockinfile:
     path: "{{ _webserver__nginx_conf_dir }}/conf.d/security-headers.conf"
     create: true
     mode: "0644"
-    # marker 标记 Ansible 管理的块，使操作幂等
+    # marker delimits the Ansible-managed block so the operation is idempotent
     marker: "# {mark} ANSIBLE MANAGED BLOCK - security headers"
     block: |
       add_header X-Content-Type-Options "nosniff" always;
@@ -48,7 +48,7 @@
   notify: Reload Nginx
   tags: [nginx, security]
 
-# ── replace: 精确替换文件中的模式（比 lineinfile 更精确）────────────────────
+# ── replace: precise pattern replacement (more accurate than lineinfile) ────
 - name: Disable server_tokens in existing config
   ansible.builtin.replace:
     path: "{{ _webserver__nginx_conf_dir }}/nginx.conf"
@@ -57,10 +57,10 @@
   notify: Reload Nginx
   tags: [nginx, hardening]
 
-# ── 配置验证（不触发 changed）────────────────────────────────────────────────
+# ── Configuration validation (does not mark tasks as changed) ───────────────
 - name: Verify Nginx configuration syntax
   ansible.builtin.command: nginx -t
-  changed_when: false    # 验证命令不产生变更
+  changed_when: false    # validation commands do not produce changes
   register: nginx_test_result
   tags: [nginx, verify]
 
@@ -70,7 +70,7 @@
   when: nginx_test_result.rc != 0
   tags: [nginx, verify]
 
-# ── logrotate 配置 ────────────────────────────────────────────────────────────
+# ── logrotate configuration ─────────────────────────────────────────────────
 - name: Configure Nginx log rotation
   ansible.builtin.copy:
     content: |

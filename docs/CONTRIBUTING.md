@@ -1,108 +1,109 @@
-# 贡献与迭代流程
+# Contribution and iteration workflow
 
-本文定义了对此仓库进行修改时必须遵守的**质量保证流程**。
-所有人（包括 AI 协作者）的每次修改都应按此流程操作。
+This document defines the **quality-assurance workflow** that every change to
+this repository must follow. Everyone (including AI collaborators) must apply
+this workflow to every change.
 
 ---
 
-## 一、修改前
+## 1. Before editing
 
-### 1. 明确改动范围
+### 1.1 Define the scope of the change
 
-在开始修改前，必须能回答：
+Before starting, you must be able to answer:
 
-- 这次改什么？（文件列表）
-- 为什么改？（来源：review / bug / 需求）
-- 不改什么？（边界）
+- What is being changed? (file list)
+- Why? (source: review / bug / requirement)
+- What is explicitly NOT being changed? (boundary)
 
-### 2. 记录当前基线
+### 1.2 Record the current baseline
 
 ```bash
-# 确认当前工作树状态
+# Confirm the current working tree state
 git status
-git stash list  # 确认没有未处理的 stash
+git stash list  # confirm no unresolved stashes
 
-# 如果有未提交的变更，先提交或 stash
+# If there are uncommitted changes, commit or stash first
 git add -A && git commit -m "wip: checkpoint before <task name>"
 ```
 
 ---
 
-## 二、修改中
+## 2. While editing
 
-### 按文件逐一修改，不批量替换
+### One logical unit at a time — no batch replacements
 
-- 每次只改一个逻辑单元（一个 role、一个 playbook、一个 section）
-- 改完一个单元立即做自检（见下方"自检清单"）
+- Change one logical unit at a time (one role, one playbook, one section)
+- Self-check the moment a unit is done (see the "self-check list" below)
 
 ---
 
-## 三、修改后（提交前必做）
+## 3. After editing (mandatory before committing)
 
-### 3. Diff 自检（每次提交前必须执行）
+### 3.1 Diff self-check (required before every commit)
 
 ```bash
-# 1. 查看所有改动的文件列表
+# 1. List every modified file
 git diff --stat HEAD
 
-# 2. 逐文件检查 diff，重点核对：
-#    - 是否有非预期的删除（红色 - 行）
-#    - 是否有非预期的新增（绿色 + 行）
+# 2. Review the diff file by file, paying attention to:
+#    - Unintended deletions (red "-" lines)
+#    - Unintended additions (green "+" lines)
 git diff HEAD -- <file>
 
-# 3. 对于 README 等文档，额外检查：
-#    - 章节是否完整（没有意外删掉某一 section）
-#    - 表格行数是否合理（不应减少）
-#    - 代码块是否配对（每个 ``` 都有对应的 ```）
+# 3. For READMEs and other docs, additionally check:
+#    - All sections are intact (no section silently removed)
+#    - Table row counts look right (should not decrease)
+#    - Code blocks are balanced (every ``` has a matching ```)
 git diff HEAD -- README.md | grep "^-" | grep -v "^---" | wc -l
 git diff HEAD -- README.md | grep "^+" | grep -v "^+++" | wc -l
-# 删除行数不应大幅超过新增行数，除非是有意重构
+# Deletions should not vastly exceed additions unless it's a deliberate refactor.
 ```
 
-### 自检清单（针对常见遗漏）
+### Self-check list (common pitfalls)
 
-| 检查项 | 命令 / 方法 |
-|--------|------------|
-| README 中无意删除的章节 | `git diff HEAD -- README.md \| grep "^-## "` |
-| 性能建议等非功能章节是否保留 | `grep "性能\|Vault 工作流\|动态 Inventory" README.md` |
-| 变量命名是否一致 | `grep -r "nginx_\b\|mysql_\b" roles/ --include="*.yml"` |
-| 硬编码主机名是否残留 | `grep -r "lb01\.example\|example\.com" playbooks/ --include="*.yml"` |
-| YAML 语法无误 | `python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" <file>` |
-| 模板中无自定义 filter 隐式依赖 | `grep -r "\| env_badge\| to_nginx" roles/*/templates/` |
+| Check | Command / method |
+|-------|------------------|
+| No README sections silently removed | `git diff HEAD -- README.md \| grep "^-## "` |
+| Non-functional sections (e.g. performance tips) still present | `grep "Performance\|Vault workflow\|Dynamic inventory" README.md` |
+| Variable naming stays consistent | `grep -r "nginx_\b\|mysql_\b" roles/ --include="*.yml"` |
+| No hard-coded hostnames left behind | `grep -r "lb01\.example\|example\.com" playbooks/ --include="*.yml"` |
+| YAML parses cleanly | `python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" <file>` |
+| Templates don't silently depend on a custom filter | `grep -r "\| env_badge\| to_nginx" roles/*/templates/` |
 
-### 4. 检查非预期删除后的处置
+### 3.2 Handling unintended deletions
 
-- **发现非预期删除** → 立即还原，再提交
-- **发现删除是必要的重构** → 在 commit message 中说明 `removed: <原因>`
-- **不确定** → 默认还原，在 review 文档中提出讨论
+- **Unintended deletion found** → restore immediately, then commit
+- **Deletion is a deliberate refactor** → note `removed: <reason>` in the commit message
+- **Unsure** → default to restoring, and raise it in the review document
 
 ---
 
-## 四、提交规范
+## 4. Commit conventions
 
-### Commit message 格式
+### Commit message format
 
 ```
-<type>(<scope>): <简短描述>
+<type>(<scope>): <short description>
 
-[可选正文: 解释为什么，不是什么]
+[optional body: explain why, not what]
 
-[可选尾注: 关联 review round / 已关闭问题]
+[optional footer: reference review round / closed issues]
 ```
 
-**type 取值：**
+**Valid type values:**
 
-| type | 含义 |
-|------|------|
-| `feat` | 新增功能或内容 |
-| `fix` | 修复 bug 或错误 |
-| `docs` | 仅文档变更 |
-| `refactor` | 重构（不改变行为）|
-| `review` | 响应 review 意见的修改 |
-| `chore` | 工具链、配置、CI 变更 |
-| `revert` | 还原误删内容 |
+| type | Meaning |
+|------|---------|
+| `feat` | New feature or content |
+| `fix` | Bug fix |
+| `docs` | Docs-only change |
+| `refactor` | Refactor (no behavior change) |
+| `review` | Change responding to review feedback |
+| `chore` | Tooling, configuration, or CI change |
+| `revert` | Restore accidentally removed content |
 
-**示例：**
+**Example:**
 
 ```bash
 git commit -m "review(round-2): fix preflight to use Tier 1/2/3 platform model
@@ -113,73 +114,73 @@ and Tier-1 warning. Aligns with platform-support-addendum.
 Closes: TODO-2 (Codex Round 2)"
 ```
 
-### 何时提交
+### When to commit
 
-| 场景 | 策略 |
-|------|------|
-| 单个逻辑单元完成且自检通过 | 立即提交 |
-| 一轮 review 修复全部完成 | 按 round 提交，message 带 round 编号 |
-| 中途发现需要还原 | 先 `revert` commit，再重新修改 |
-| 不确定是否改对 | 提交 `wip:` commit，继续验证后 squash |
+| Situation | Strategy |
+|-----------|----------|
+| A logical unit is done and self-check passes | Commit immediately |
+| A full review round of fixes is done | Commit per round; include the round number in the message |
+| Need to revert mid-stream | `revert` the commit first, then redo the change |
+| Not sure the change is correct | Commit a `wip:` commit; squash after verification |
 
 ---
 
-## 五、Review 轮次提交流程
+## 5. Review-round commit flow
 
-每完成一个完整的 review round（Codex 审查 + Claude 修复）：
+After completing a full review round (Codex review + Claude fixes):
 
 ```bash
-# 1. 自检所有变更文件
+# 1. Self-check all changed files
 git diff --stat HEAD
 
-# 2. 逐文件 diff 检查（重点看删除行）
+# 2. Review per-file diffs (watch deletions)
 git diff HEAD
 
-# 3. 确认 review 文档已更新
+# 3. Confirm the review document has been updated
 ls docs/reviews/
 
-# 4. 分批提交（按逻辑分组）
-git add roles/ && git commit -m "review(round-N): <角色修改描述>"
-git add playbooks/ && git commit -m "review(round-N): <playbook 修改描述>"
+# 4. Commit in logical batches
+git add roles/ && git commit -m "review(round-N): <role changes>"
+git add playbooks/ && git commit -m "review(round-N): <playbook changes>"
 git add docs/ && git commit -m "docs(round-N): add review and change log"
 git add . && git commit -m "chore(round-N): update CI, EE, pre-commit"
 ```
 
 ---
 
-## 六、AI 协作者的额外约束
+## 6. Extra constraints for AI collaborators
 
-当 AI（Claude / Codex）参与修改时：
+When an AI (Claude / Codex) participates in a change:
 
-1. **每次修改文件后，必须用 `git diff HEAD -- <file>` 验证实际改动**
-2. **发现非预期删除，必须在提交前还原**
-3. **不得以"已重构替代"为由跳过对有价值内容的还原**
-4. **审查文档中的"已落地"结论，必须附有对应的 diff 证据**
-5. **README 的每次重写，必须核对章节数量不减少**
+1. **After editing a file, you must verify the actual change with `git diff HEAD -- <file>`**
+2. **If an unintended deletion is found, it must be restored before committing**
+3. **"Replaced by refactor" is not a valid reason to skip restoring valuable content**
+4. **Any "already landed" claim in a review document must be backed by a concrete diff**
+5. **Every README rewrite must preserve the section count (sections must not decrease)**
 
 ```bash
-# AI 修改 README 后的必检命令
-git diff HEAD -- README.md | grep "^-## " | wc -l   # 应为 0
-git diff HEAD -- README.md | grep "^+## " | wc -l   # 新增章节数
+# Required checks after an AI edits the README
+git diff HEAD -- README.md | grep "^-## " | wc -l   # should be 0
+git diff HEAD -- README.md | grep "^+## " | wc -l   # number of newly added sections
 ```
 
 ---
 
-## 七、快速参考
+## 7. Quick reference
 
 ```bash
-# 改前快照
+# Snapshot before editing
 git status
 
-# 改后验证
-git diff --stat HEAD          # 文件级概览
-git diff HEAD -- README.md    # README 专项检查
-git diff HEAD -- README.md | grep "^-## "  # 被删章节
+# Verify after editing
+git diff --stat HEAD          # file-level overview
+git diff HEAD -- README.md    # README-specific check
+git diff HEAD -- README.md | grep "^-## "  # deleted sections
 
-# 提交
-git add <具体文件>
-git commit -m "review(round-N): <描述>"
+# Commit
+git add <specific files>
+git commit -m "review(round-N): <description>"
 
-# 如发现误删，还原单个文件
+# If an accidental deletion is found, restore a single file
 git checkout HEAD -- <file>
 ```

@@ -1,16 +1,16 @@
 # roles/common/tasks/preflight.yml
-# Pre-flight 检查 — role 执行前的前置条件校验
+# Pre-flight checks — validate prerequisites before the rest of the role runs
 #
-# 平台支持分层（详见 docs/reviews/platform-support-addendum-2026-04-09.md）:
-#   Tier 1 — 默认支持并持续 CI 验证:
+# Platform support tiers (see docs/reviews/platform-support-addendum-2026-04-09.md):
+#   Tier 1 — supported by default and continuously CI-verified:
 #             Ubuntu 20.04+ / Rocky Linux 9+ / AlmaLinux 9+
-#   Tier 2 — 有代码骨架，未纳入 CI:
+#   Tier 2 — code skeleton exists, not yet in CI:
 #             Debian 11+  / AlmaLinux 8 / CentOS Stream 9
-#   Tier 3 — 需额外 bootstrap，不在默认路径承诺范围:
-#             Alpine / 最小化镜像 / 无 Python 主机
+#   Tier 3 — needs extra bootstrap; outside the default-path commitment:
+#             Alpine / minimal images / hosts without Python
 
 ---
-# ── OS 支持检查（Tier 1 + Tier 2）────────────────────────────────────────────
+# ── OS support check (Tier 1 + Tier 2) ──────────────────────────────────────
 - name: Preflight | Assert supported OS family
   ansible.builtin.assert:
     that:
@@ -22,7 +22,7 @@
     success_msg: "OS family check passed: {{ ansible_os_family }}"
   tags: [always, preflight]
 
-# ── Tier 1 版本检查（警告而非硬失败，允许 Tier 2 继续运行）────────────────────
+# ── Tier 1 version check (warn, don't fail — let Tier 2 continue) ───────────
 - name: Preflight | Check if running on Tier 1 tested platform
   ansible.builtin.set_fact:
     _preflight_tier1: >-
@@ -42,7 +42,7 @@
   when: not _preflight_tier1
   tags: [always, preflight]
 
-# ── Ansible 版本检查 ──────────────────────────────────────────────────────────
+# ── Ansible version check ───────────────────────────────────────────────────
 - name: Preflight | Assert minimum Ansible version
   ansible.builtin.assert:
     that:
@@ -50,7 +50,7 @@
     fail_msg: "Ansible >= 2.14 required, found {{ ansible_version.full }}"
   tags: [always, preflight]
 
-# ── 必填变量检查 ──────────────────────────────────────────────────────────────
+# ── Required-variable check ─────────────────────────────────────────────────
 - name: Preflight | Assert mandatory variables are set
   ansible.builtin.assert:
     that:
@@ -59,7 +59,7 @@
     fail_msg: "system_timezone must be set (e.g. Asia/Shanghai)"
   tags: [always, preflight]
 
-# ── 磁盘空间检查 ──────────────────────────────────────────────────────────────
+# ── Disk-space check ────────────────────────────────────────────────────────
 - name: Preflight | Gather hardware facts for disk check
   ansible.builtin.setup:
     gather_subset:
@@ -75,7 +75,7 @@
       Available: {{ (ansible_mounts | selectattr('mount', 'equalto', '/') | list | first).size_available | human_readable }}
   tags: [always, preflight]
 
-# ── 网络连通性检查（警告而非硬失败，内网环境可能无公网访问）────────────────
+# ── Network connectivity check (warn only — intranets may lack public access) ─
 - name: Preflight | Check internet connectivity
   ansible.builtin.uri:
     url: https://{{ 'archive.ubuntu.com' if ansible_os_family == 'Debian' else 'dl.rockylinux.org' }}
@@ -92,7 +92,7 @@
   when: internet_check.status is not defined or internet_check.status != 200
   tags: [always, preflight]
 
-# ── Python 解释器检查 ─────────────────────────────────────────────────────────
+# ── Python interpreter check ────────────────────────────────────────────────
 - name: Preflight | Assert Python 3 is available
   ansible.builtin.assert:
     that:

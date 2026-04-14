@@ -1,6 +1,6 @@
-# molecule/webserver/molecule.yml — Molecule 测试配置
-# 安装: pip install molecule molecule-docker
-# 运行: molecule test -s webserver
+# molecule/webserver/molecule.yml — Molecule test configuration
+# Install: pip install molecule molecule-docker
+# Run:     molecule test -s webserver
 
 ---
 dependency:
@@ -9,7 +9,7 @@ dependency:
     requirements-file: requirements.yml
 
 driver:
-  name: docker                     # 也支持 vagrant、ec2、gce 等
+  name: docker                     # vagrant, ec2, gce, etc. are also supported
 
 platforms:
   - name: ubuntu22-webserver
@@ -44,7 +44,7 @@ provisioner:
     verify: verify.yml
 
 verifier:
-  name: ansible               # 也可以用 testinfra（Python）
+  name: ansible               # testinfra (Python) is also an option
 
 lint: |
   set -e

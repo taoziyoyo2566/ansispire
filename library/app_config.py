@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-# library/app_config.py — 自定义模块示例
-# 用途: 演示如何用 Python 编写幂等的 Ansible 模块
-# 使用方法:
+# library/app_config.py — example custom module
+# Purpose: demonstrate writing an idempotent Ansible module in Python
+# Usage:
 #   - name: Manage app config
 #     app_config:
 #       path: /etc/myapp/config.json
@@ -67,7 +67,7 @@ from ansible.module_utils.basic import AnsibleModule
 
 
 def get_nested(d, keys):
-    """按点分路径获取嵌套字典的值"""
+    """Get a nested dict value by a dot-path."""
     for key in keys:
         if not isinstance(d, dict) or key not in d:
             return None
@@ -76,14 +76,14 @@ def get_nested(d, keys):
 
 
 def set_nested(d, keys, value):
-    """按点分路径设置嵌套字典的值"""
+    """Set a nested dict value by a dot-path."""
     for key in keys[:-1]:
         d = d.setdefault(key, {})
     d[keys[-1]] = value
 
 
 def delete_nested(d, keys):
-    """按点分路径删除嵌套字典的键"""
+    """Delete a nested dict key by a dot-path."""
     for key in keys[:-1]:
         if key not in d:
             return False
@@ -111,7 +111,7 @@ def run_module():
     state = module.params['state']
     keys = key.split('.')
 
-    # 读取现有配置
+    # Read the existing config
     config = {}
     if os.path.exists(path):
         with open(path, 'r') as f:
@@ -131,7 +131,7 @@ def run_module():
             if not module.check_mode:
                 delete_nested(config, keys)
 
-    # 写回文件（幂等: 只在 changed 时写）
+    # Write the file (idempotent: only write when changed)
     if result['changed'] and not module.check_mode:
         with open(path, 'w') as f:
             json.dump(config, f, indent=2)

@@ -1,14 +1,14 @@
-# staging 覆盖部分 production 默认值
+# staging overrides on top of production defaults
 
 ---
 env: staging
 
-# Staging 不需要严格安全
+# Staging does not need strict security
 ssh_permit_root_login: "yes"
 ssh_password_auth: "yes"
 
-# 更短的日志保留
+# Shorter log retention
 log_retention_days: 7
 
-# 调试模式
+# Debug mode
 app_debug: true

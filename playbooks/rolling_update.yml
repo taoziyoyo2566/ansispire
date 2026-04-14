@@ -1,13 +1,13 @@
-# playbooks/rolling_update.yml — 滚动更新参考模板
+# playbooks/rolling_update.yml — rolling-update reference template
 #
-# ⚠ 这是参考流程模板，不是开箱即用的 playbook。
-#   使用前需要替换以下占位变量（通过 group_vars 或 -e 传入）:
-#     lb_host     — 负载均衡器主机名（必须存在于 inventory 中）
-#     app_repo    — 应用代码仓库 URL
-#     app_version — 部署的 git 分支/tag/commit
+# ⚠ This is a reference template, not a drop-in-ready playbook.
+#   Before use, replace the following placeholders (via group_vars or -e):
+#     lb_host     — load balancer hostname (must exist in inventory)
+#     app_repo    — application code repository URL
+#     app_version — git branch/tag/commit to deploy
 #
-# 展示的 Ansible 模式:
-#   serial、max_fail_percentage、delegate_to、run_once、until/retries
+# Ansible patterns demonstrated:
+#   serial, max_fail_percentage, delegate_to, run_once, until/retries
 
 ---
 - name: Rolling update of web servers
@@ -16,7 +16,7 @@
   gather_facts: true
 
   vars:
-    # 从 inventory 动态取第一台 LB，不存在时 fail 前给出清晰错误
+    # Pick the first LB from inventory; when absent, fail with a clear error.
     lb_host: "{{ groups['loadbalancers'] | first | default('') }}"
     app_repo: "https://github.com/YOUR_ORG/YOUR_APP.git"
     app_version: "{{ deploy_version | default('main') }}"
@@ -32,16 +32,16 @@
           Add a [loadbalancers] group to your inventory, or pass -e lb_host=<hostname>.
       tags: [lb]
 
-    # 更新前：从负载均衡器摘除该主机
+    # Before update: remove this host from the load balancer
     - name: Remove host from load balancer
       community.general.haproxy:
         state: disabled
         host: "{{ inventory_hostname }}"
         socket: /var/run/haproxy/admin.sock
-      delegate_to: "{{ lb_host }}"   # 在 LB 主机上执行
+      delegate_to: "{{ lb_host }}"   # executed on the LB host
       tags: [lb]
 
-    # 等待连接排空（优雅下线）
+    # Wait for connection drain (graceful drain)
     - name: Wait for connections to drain
       ansible.builtin.wait_for:
         timeout: 30
@@ -60,7 +60,7 @@
         requirements: "{{ app_base_dir }}/myapp/requirements.txt"
         virtualenv: "{{ app_base_dir }}/myapp/.venv"
 
-    # run_once + delegate_to: 只在第一台主机执行数据库迁移
+    # run_once + delegate_to: run DB migrations only on the first host
     - name: Run database migrations (once per deployment)
       ansible.builtin.command:
         cmd: "{{ app_base_dir }}/myapp/.venv/bin/python manage.py migrate --noinput"
@@ -75,7 +75,7 @@
         state: restarted
 
   post_tasks:
-    # 等待健康检查通过，再加回 LB
+    # Wait for the health check to pass before re-adding to the LB
     - name: Wait for app health check
       ansible.builtin.uri:
         url: "http://{{ ansible_host }}:{{ app_port | default(8080) }}/health"

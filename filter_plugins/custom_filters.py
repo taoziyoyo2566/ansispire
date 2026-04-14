@@ -1,26 +1,26 @@
-# filter_plugins/custom_filters.py — 自定义 Jinja2 过滤器
+# filter_plugins/custom_filters.py — custom Jinja2 filters
 #
-# Ansible 自动加载项目根目录下 filter_plugins/ 中的所有 .py 文件
-# 无需额外配置，直接在模板和 vars 中使用: {{ value | filter_name }}
+# Ansible auto-loads every .py under the project-root filter_plugins/ directory.
+# No extra configuration needed — use in templates and vars as: {{ value | filter_name }}
 #
-# 内置常用过滤器备忘:
-#   {{ list | unique }}           去重
-#   {{ list | sort }}             排序
-#   {{ list | flatten }}          扁平化嵌套列表
-#   {{ dict | dict2items }}       字典转 [{key:..., value:...}] 列表
-#   {{ list | items2dict }}       列表转字典
-#   {{ dict | combine(other) }}   合并字典
-#   {{ str | regex_search(pat) }} 正则搜索
-#   {{ str | regex_replace(p,r) }}正则替换
-#   {{ val | default(x, true) }}  空值也用默认（true = boolean false 也替换）
-#   {{ val | mandatory }}         未定义则立即报错
-#   {{ b | ternary(x, y) }}       三元: b ? x : y
-#   {{ n | human_readable }}      字节数转人类可读（1073741824 → "1.0 GB"）
-#   {{ str | b64encode }}         Base64 编码
-#   {{ str | password_hash('sha512') }} 生成密码哈希
-#   {{ path | basename }}         路径中的文件名
-#   {{ path | dirname }}          路径中的目录部分
-#   {{ path | expanduser }}       展开 ~ 路径
+# Built-in filter cheat-sheet:
+#   {{ list | unique }}            deduplicate
+#   {{ list | sort }}              sort
+#   {{ list | flatten }}           flatten nested lists
+#   {{ dict | dict2items }}        dict → [{key:..., value:...}]
+#   {{ list | items2dict }}        list → dict
+#   {{ dict | combine(other) }}    merge dicts
+#   {{ str | regex_search(pat) }}  regex search
+#   {{ str | regex_replace(p,r) }} regex replace
+#   {{ val | default(x, true) }}   default also for empty (true = replace boolean false too)
+#   {{ val | mandatory }}          fail immediately if undefined
+#   {{ b | ternary(x, y) }}        ternary: b ? x : y
+#   {{ n | human_readable }}       bytes → human (1073741824 → "1.0 GB")
+#   {{ str | b64encode }}          base64 encode
+#   {{ str | password_hash('sha512') }} generate a password hash
+#   {{ path | basename }}          filename portion of a path
+#   {{ path | dirname }}           directory portion of a path
+#   {{ path | expanduser }}        expand a leading ~
 
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
@@ -30,7 +30,7 @@ import re
 
 def to_nginx_size(value):
     """
-    将字节数转为 Nginx 大小字符串。
+    Convert bytes into an Nginx size string.
     {{ 1073741824 | to_nginx_size }}  →  "1g"
     {{ 10485760 | to_nginx_size }}    →  "10m"
     """
@@ -46,7 +46,7 @@ def to_nginx_size(value):
 
 def cidr_to_nginx_allow(cidr_list):
     """
-    将 CIDR 列表转为 Nginx allow 指令列表。
+    Convert a CIDR list into Nginx `allow` directives.
     {{ ['10.0.0.0/8'] | cidr_to_nginx_allow }}  →  ['allow 10.0.0.0/8;']
     """
     return [f"allow {cidr};" for cidr in cidr_list]
@@ -54,7 +54,8 @@ def cidr_to_nginx_allow(cidr_list):
 
 def mask_secret(value, visible=4):
     """
-    遮盖敏感字符串，只显示前 N 位（用于 debug 输出，避免泄露）。
+    Mask a sensitive string, showing only the first N characters
+    (for debug output so the secret does not leak).
     {{ 'SuperSecret123' | mask_secret }}  →  "Supe**********"
     """
     s = str(value)
@@ -65,7 +66,7 @@ def mask_secret(value, visible=4):
 
 def env_badge(env, style='bracket'):
     """
-    根据环境名返回可读标记。
+    Return a readable badge for the environment name.
     {{ 'production' | env_badge }}  →  "[PROD]"
     {{ 'staging' | env_badge }}     →  "[STAGING]"
     """
@@ -90,9 +91,9 @@ def env_badge(env, style='bracket'):
 
 def parse_version(version_string):
     """
-    解析版本字符串为可比较的元组。
+    Parse a version string into a comparable tuple.
     {{ 'v2.3.1' | parse_version }}  →  [2, 3, 1]
-    使用: {{ '2.3.1' | parse_version >= '2.0.0' | parse_version }}
+    Usage: {{ '2.3.1' | parse_version >= '2.0.0' | parse_version }}
     """
     clean = re.sub(r'^[vV]', '', str(version_string))
     parts = re.split(r'[.\-]', clean)
@@ -107,7 +108,7 @@ def parse_version(version_string):
 
 def to_systemd_bool(value):
     """
-    将 Python bool / Ansible yes/no 转为 systemd 的 yes/no 格式。
+    Convert a Python bool / Ansible yes-no into systemd's yes/no format.
     {{ true | to_systemd_bool }}  →  "yes"
     {{ false | to_systemd_bool }} →  "no"
     """
@@ -118,7 +119,7 @@ def to_systemd_bool(value):
 
 
 class FilterModule(object):
-    """Ansible 通过此类发现过滤器"""
+    """Ansible discovers filters through this class."""
 
     def filters(self):
         return {

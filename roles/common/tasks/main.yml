@@ -1,44 +1,44 @@
 # roles/common/tasks/main.yml
 #
-# import_tasks vs include_tasks 选择原则:
-#   用 import_tasks 当:
-#     - 需要 tags 透传（--tags 能穿透到子文件）
-#     - 文件名是静态的
-#   用 include_tasks 当:
-#     - 文件名包含变量（动态决定加载哪个文件）
-#     - 需要 loop 迭代
-#     - 不需要 tags 透传
+# import_tasks vs include_tasks — when to use which:
+#   Use import_tasks when:
+#     - tags must propagate (--tags penetrates into the child file)
+#     - the filename is static
+#   Use include_tasks when:
+#     - the filename contains variables (which file to load is decided dynamically)
+#     - a loop is needed
+#     - tag propagation is not required
 
 ---
-# ── 第一步: 前置检查（tags: always 保证总是运行）────────────────────────────
+# ── Step 1: preflight checks (tags: always guarantees they run) ──────────────
 - name: Run preflight checks
   ansible.builtin.import_tasks: preflight.yml
   tags: [common, preflight, always]
 
-# ── 第二步: 加载 OS 特定变量 ──────────────────────────────────────────────────
-# with_first_found: 按顺序尝试，找到第一个存在的文件就加载
-# 这是官方推荐的跨发行版变量管理模式
+# ── Step 2: load OS-specific variables ──────────────────────────────────────
+# with_first_found: try each in order; load the first file that exists.
+# This is the officially recommended pattern for cross-distro variable management.
 - name: Load OS-specific variables
   ansible.builtin.include_vars: "{{ lookup('ansible.builtin.first_found', os_vars_files) }}"
   vars:
     os_vars_files:
       files:
-        # 精确匹配: Ubuntu-22
+        # exact match: Ubuntu-22
         - "os/{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml"
-        # OS 家族匹配: Debian
+        # OS family match: Debian
         - "os/{{ ansible_os_family }}.yml"
-        # 兜底默认值
+        # fallback default
         - "os/default.yml"
       paths:
         - "{{ role_path }}/vars"
   tags: [common, always]
 
-# ── 第三步: 安装包 & 用户 ─────────────────────────────────────────────────────
+# ── Step 3: packages & users ────────────────────────────────────────────────
 - name: Manage packages and users
   ansible.builtin.import_tasks: packages.yml
   tags: [common, packages, users]
 
-# ── 第四步: 安全加固 ──────────────────────────────────────────────────────────
+# ── Step 4: security hardening ──────────────────────────────────────────────
 - name: Apply security baseline
   ansible.builtin.import_tasks: security.yml
   tags: [common, security, hardening]

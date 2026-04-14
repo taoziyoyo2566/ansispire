@@ -1,0 +1,55 @@
+# inventory/dynamic/gcp_compute.yml — GCP dynamic-inventory plugin config (placeholder)
+#
+# Enablement steps:
+#   1. Uncomment google.cloud in requirements.yml
+#   2. Run: ansible-galaxy collection install google.cloud
+#   3. Install Python deps: pip install google-auth requests
+#   4. Configure authentication (pick one):
+#      Option A: gcloud auth application-default login
+#      Option B: GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+#      Option C: GCE_EMAIL + GCE_PROJECT + GCE_PEM_FILE_PATH
+#   5. Point the `inventory` in ansible.cfg at a directory that includes this file
+#
+# Docs: https://docs.ansible.com/ansible/latest/collections/google/cloud/gcp_compute_inventory.html
+
+# --- config below is commented out; uncomment when ready ---
+
+# ---
+# plugin: google.cloud.gcp_compute
+#
+# # ── Project list ─────────────────────────────────────────────────────────────
+# projects:
+#   - my-gcp-project-id
+#
+# # ── Zones to scan ────────────────────────────────────────────────────────────
+# zones:
+#   - us-central1-a
+#   - us-central1-b
+#   - asia-east1-a
+#
+# # ── Filters (return only running instances) ──────────────────────────────────
+# filters:
+#   - status = RUNNING
+#   - labels.environment = production
+#
+# # ── Hostname format ──────────────────────────────────────────────────────────
+# hostnames:
+#   - name              # instance name (preferred)
+#   - private_ip        # private IP (fallback)
+#
+# # ── Auto-grouping ────────────────────────────────────────────────────────────
+# keyed_groups:
+#   # Group by labels.role
+#   - key: labels.role | default('ungrouped')
+#     prefix: role
+#     separator: _
+#   # Group by labels.env
+#   - key: labels.env | default('unknown')
+#     prefix: env
+#
+# # ── Extra variables ──────────────────────────────────────────────────────────
+# compose:
+#   # Use the internal IP as ansible_host (no public IP needed)
+#   ansible_host: networkInterfaces[0].networkIP
+#   env: labels.env | default('unknown')
+#   db_role: labels.db_role | default(omit)

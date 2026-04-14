@@ -1,5 +1,5 @@
 # molecule/common/molecule.yml
-# 测试平台: Tier 1
+# Test platforms: Tier 1
 #   - Ubuntu 22.04 (Debian family)
 #   - Rocky Linux 9 (RedHat family)
 

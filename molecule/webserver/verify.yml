@@ -1,4 +1,4 @@
-# molecule/webserver/verify.yml — 验证测试结果
+# molecule/webserver/verify.yml — verify the test results
 
 ---
 - name: Verify

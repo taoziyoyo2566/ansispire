@@ -1,12 +1,13 @@
 # roles/common/meta/argument_specs.yml
-# Role Argument Validation — Ansible 2.11+ 官方特性
-# 在 role 执行前自动校验调用方传入的变量类型/必填/取值范围
-# 文档: https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_reuse_roles.html#role-argument-validation
+# Role Argument Validation — official feature since Ansible 2.11.
+# Automatically validates caller-supplied variables (type / required / allowed values)
+# before the role executes.
+# Docs: https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_reuse_roles.html#role-argument-validation
 
 ---
 argument_specs:
 
-  # main 对应 tasks/main.yml 入口
+  # `main` corresponds to the tasks/main.yml entry point
   main:
     short_description: Apply common baseline to all servers
     description: |

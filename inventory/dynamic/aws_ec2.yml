@@ -1,55 +1,55 @@
-# inventory/dynamic/aws_ec2.yml — AWS EC2 动态 Inventory 插件配置
-# 插件文档: https://docs.ansible.com/ansible/latest/collections/amazon/aws/aws_ec2_inventory.html
-# 启用: ansible.cfg 中 inventory = inventory/production:inventory/dynamic
-# 前提: pip install boto3 && ansible-galaxy collection install amazon.aws
+# inventory/dynamic/aws_ec2.yml — AWS EC2 dynamic-inventory plugin config
+# Plugin docs: https://docs.ansible.com/ansible/latest/collections/amazon/aws/aws_ec2_inventory.html
+# Enable: in ansible.cfg, set inventory = inventory/production:inventory/dynamic
+# Prereq: pip install boto3 && ansible-galaxy collection install amazon.aws
 
 ---
 plugin: amazon.aws.aws_ec2
 
-# ── 扫描区域 ──────────────────────────────────────────────────────────────────
+# ── Regions to scan ──────────────────────────────────────────────────────────
 regions:
   - us-east-1
   - ap-southeast-1
 
-# ── 过滤条件（只返回符合 tag 的实例）────────────────────────────────────────
+# ── Filters (return only instances that match these tags) ───────────────────
 filters:
   tag:Environment: production
   instance-state-name: running
 
-# ── 主机名格式 ────────────────────────────────────────────────────────────────
-# 可选: ip-address / dns-name / tag:Name / private-ip-address
+# ── Hostname format ──────────────────────────────────────────────────────────
+# Options: ip-address / dns-name / tag:Name / private-ip-address
 hostnames:
-  - tag:Name              # 优先用 Name tag 作为主机名
-  - private-ip-address    # 无 Name tag 时回退到私有 IP
+  - tag:Name              # prefer the Name tag as the hostname
+  - private-ip-address    # fall back to private IP when Name tag is absent
 
-# ── 自动分组 ──────────────────────────────────────────────────────────────────
-# keyed_groups: 按 EC2 属性自动创建 Ansible 组
+# ── Auto-grouping ────────────────────────────────────────────────────────────
+# keyed_groups: auto-create Ansible groups by EC2 attribute
 keyed_groups:
-  # 按 tag:Role 分组: Role=webserver → 组名 role_webserver
+  # Group by tag:Role — Role=webserver → group name role_webserver
   - key: tags.Role
     prefix: role
     separator: "_"
 
-  # 按 instance type 分组: t3.medium → 组名 type_t3_medium
+  # Group by instance type — t3.medium → group name type_t3_medium
   - key: instance_type
     prefix: type
 
-  # 按 AZ 分组: us-east-1a → 组名 az_us_east_1a
+  # Group by availability zone — us-east-1a → group name az_us_east_1a
   - key: placement.availability_zone
     prefix: az
 
-# ── 组合过滤（条件组）────────────────────────────────────────────────────────
+# ── Composed filters (conditional groups) ───────────────────────────────────
 groups:
-  # 名称包含 "web" 的实例加入 webservers 组
+  # Instances whose Role tag contains "web" join the webservers group
   webservers: "'web' in tags.Role | default('')"
-  # 名称包含 "db" 的实例加入 dbservers 组
+  # Instances whose Role tag contains "db" join the dbservers group
   dbservers: "'db' in tags.Role | default('')"
 
-# ── 附加变量（从 EC2 元数据提取变量）────────────────────────────────────────
+# ── Extra variables (extracted from EC2 metadata) ───────────────────────────
 compose:
-  # 用私有 IP 作为 ansible_host
+  # Use the private IP as ansible_host
   ansible_host: private_ip_address
-  # 从 tag 读取 env 变量
+  # Read env from a tag
   env: tags.Environment | default('unknown')
-  # 从 tag 读取 db_role
+  # Read db_role from a tag
   db_role: tags.DBRole | default(omit)

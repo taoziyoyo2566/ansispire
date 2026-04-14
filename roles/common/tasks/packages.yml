@@ -1,28 +1,28 @@
 # roles/common/tasks/packages.yml
-# 展示: package_facts、loop 技巧、block/rescue/always、subelements、omit
+# Demonstrates: package_facts, loop techniques, block/rescue/always, subelements, omit
 
 ---
-# ── 收集已安装包信息（用于后续幂等判断）───────────────────────────────────────
+# ── Collect installed package info (used for downstream idempotency checks) ─
 - name: Gather installed package facts
   ansible.builtin.package_facts:
-    manager: auto   # 自动识别 apt/dnf/yum
+    manager: auto   # auto-detect apt/dnf/yum
   tags: [packages]
 
-# ── OS 特定包（从 vars/os/ 加载）+ 通用包 ────────────────────────────────────
+# ── OS-specific packages (loaded from vars/os/) + common packages ───────────
 - name: Install OS-specific and common packages
   ansible.builtin.package:
     name: "{{ (_common__os_packages + common_packages + common__extra_packages) | unique }}"
     state: present
   tags: [packages]
 
-# ── 设置时区 ──────────────────────────────────────────────────────────────────
+# ── Timezone ────────────────────────────────────────────────────────────────
 - name: Set system timezone
   community.general.timezone:
     name: "{{ system_timezone | default(common__timezone) }}"
   notify: Restart cron service
   tags: [timezone]
 
-# ── 用户管理：block/rescue/always 完整示例 ───────────────────────────────────
+# ── User management: complete block/rescue/always example ───────────────────
 - name: Manage application user and directory
   block:
     - name: Ensure app group exists
@@ -72,42 +72,42 @@
     - name: Report user check result
       ansible.builtin.debug:
         msg: "App user '{{ app_user }}': {{ 'exists' if app_user_check.ansible_facts is defined else 'MISSING' }}"
-        verbosity: 1    # verbosity: 只在 -v 时显示，减少正常运行噪音
+        verbosity: 1    # verbosity: only shown with -v; reduces normal-run noise
   tags: [users, appdir]
 
-# ── 创建 deploy 用户（loop + loop_control）───────────────────────────────────
+# ── Create deploy users (loop + loop_control) ───────────────────────────────
 - name: Create deploy users
   ansible.builtin.user:
     name: "{{ item.name }}"
-    uid: "{{ item.uid | default(omit) }}"       # omit: 不传参数，模块用默认值
+    uid: "{{ item.uid | default(omit) }}"       # omit: do not pass this parameter; the module uses its default
     groups: "{{ item.groups | default([]) }}"
-    append: true                                 # 追加组，不替换现有组
+    append: true                                 # append to groups, do not replace existing ones
     shell: /bin/bash
     create_home: true
     state: present
   loop: "{{ common__deploy_users }}"
   loop_control:
-    label: "{{ item.name }}"                     # 只显示 name，简化输出
-    pause: 0                                     # loop 间暂停秒数（调试用）
+    label: "{{ item.name }}"                     # only show name; simplifies output
+    pause: 0                                     # seconds to pause between iterations (debug aid)
   when: common__deploy_users | length > 0
   tags: [users]
 
-# ── 部署 SSH 公钥（subelements 展开嵌套列表）────────────────────────────────
+# ── Deploy SSH public keys (subelements expands nested lists) ───────────────
 - name: Add authorized SSH keys for deploy users
   ansible.posix.authorized_key:
     user: "{{ item.0.name }}"
     key: "{{ item.1 }}"
     state: present
-    exclusive: false    # 追加，不删除已有 key
+    exclusive: false    # append; do not remove existing keys
   # subelements(list, 'field', skip_missing=True):
-  #   item.0 = 外层对象（用户），item.1 = 内层元素（单个 key）
+  #   item.0 = outer object (user), item.1 = inner element (one key)
   loop: "{{ common__deploy_users | subelements('authorized_keys', skip_missing=True) }}"
   loop_control:
     label: "{{ item.0.name }}"
-  no_log: true    # SSH 公钥不算敏感，但 authorized_keys 内容较长，隐藏减少噪音
+  no_log: true    # SSH pub keys aren't sensitive, but authorized_keys content is long; hide to reduce noise
   tags: [users, ssh]
 
-# ── sysctl 调优（dict2items 转 loop）────────────────────────────────────────
+# ── sysctl tuning (dict2items → loop) ───────────────────────────────────────
 - name: Apply sysctl performance tuning
   ansible.posix.sysctl:
     name: "{{ item.key }}"
@@ -115,13 +115,13 @@
     sysctl_set: true
     state: present
     reload: true
-  # dict2items: 将 {key: value} 字典转为 [{key:..., value:...}] 列表
+  # dict2items: converts {key: value} into a [{key:..., value:...}] list
   loop: "{{ common__sysctl_settings | dict2items }}"
   loop_control:
     label: "{{ item.key }}={{ item.value }}"
   tags: [sysctl, tuning]
 
-# ── 部署 MOTD ─────────────────────────────────────────────────────────────────
+# ── Deploy MOTD ─────────────────────────────────────────────────────────────
 - name: Deploy MOTD
   ansible.builtin.template:
     src: motd.j2

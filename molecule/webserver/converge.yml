@@ -1,4 +1,4 @@
-# molecule/webserver/converge.yml — 测试中执行的 Playbook
+# molecule/webserver/converge.yml — playbook executed during the test
 
 ---
 - name: Converge
@@ -7,7 +7,7 @@
   gather_facts: true
 
   vars:
-    # 测试用 vhosts，不需要真实证书
+    # Test vhosts — no real certificates required
     nginx_vhosts:
       - name: test.local
         root: /var/www/test

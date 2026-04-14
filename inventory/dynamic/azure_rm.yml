@@ -1,0 +1,49 @@
+# inventory/dynamic/azure_rm.yml — Azure dynamic-inventory plugin config (placeholder)
+#
+# Enablement steps:
+#   1. Uncomment azure.azcollection in requirements.yml
+#   2. Run: ansible-galaxy collection install azure.azcollection
+#   3. Install Python deps: pip install azure-mgmt-compute azure-mgmt-network azure-identity
+#   4. Configure authentication: `az login` or set these env vars:
+#      export AZURE_CLIENT_ID=...
+#      export AZURE_CLIENT_SECRET=...
+#      export AZURE_TENANT_ID=...
+#      export AZURE_SUBSCRIPTION_ID=...
+#   5. Update ansible.cfg:
+#      inventory = inventory/production:inventory/dynamic
+#
+# Docs: https://docs.ansible.com/ansible/latest/collections/azure/azcollection/azure_rm_inventory.html
+
+# --- config below is commented out; uncomment when ready ---
+
+# ---
+# plugin: azure.azcollection.azure_rm
+#
+# # ── Resource-group filter (if omitted, scans the whole subscription) ────────
+# include_vm_resource_groups:
+#   - rg-production
+#   - rg-staging
+#
+# # ── Filters ──────────────────────────────────────────────────────────────────
+# # Only return running VMs
+# default_host_filters:
+#   - powerstate == 'running'
+#
+# # ── Auto-grouping (by tag) ───────────────────────────────────────────────────
+# keyed_groups:
+#   # Group by Role tag — Role=webserver → group name tag_Role_webserver
+#   - key: tags.Role | default('ungrouped')
+#     prefix: tag_Role
+#     separator: _
+#   # Group by Environment tag
+#   - key: tags.Environment | default('unknown')
+#     prefix: env
+#
+# # ── Extra variables (extracted from Azure metadata) ─────────────────────────
+# compose:
+#   # Use the private IP as ansible_host
+#   ansible_host: private_ipaddress
+#   # Read env from a tag
+#   env: tags.Environment | default('unknown')
+#   # db_role drives the MySQL primary/replica configuration
+#   db_role: tags.DBRole | default(omit)

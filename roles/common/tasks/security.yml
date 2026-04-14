@@ -1,14 +1,14 @@
 # roles/common/tasks/security.yml
-# 展示: register/changed_when/failed_when、async/poll、set_fact、check_mode 感知
+# Demonstrates: register/changed_when/failed_when, async/poll, set_fact, check_mode awareness
 #
-# 跨平台策略:
-#   - SSH 加固: 通用（所有平台）
-#   - 防火墙: UFW (Debian) / firewalld (RedHat) 各自条件执行
-#   - fail2ban: 用 package_facts 检查，跨平台（不用 dpkg-query）
-#   - async 升级: 按 OS 家族调用不同包管理器
+# Cross-platform strategy:
+#   - SSH hardening: universal (all platforms)
+#   - Firewall:      UFW (Debian) / firewalld (RedHat), each under its own conditional
+#   - fail2ban:      uses package_facts — cross-platform (avoids dpkg-query)
+#   - async upgrade: invokes the appropriate package manager per OS family
 
 ---
-# ── SSH 配置加固（所有平台通用）──────────────────────────────────────────────
+# ── SSH hardening (cross-platform) ──────────────────────────────────────────
 - name: Configure SSH hardening
   ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
@@ -27,7 +27,7 @@
   notify: "Restart {{ _common__ssh_service }} service"
   tags: [ssh, hardening]
 
-# ── 防火墙: UFW（Debian/Ubuntu 专用）─────────────────────────────────────────
+# ── Firewall: UFW (Debian/Ubuntu only) ──────────────────────────────────────
 - name: Install UFW (Debian)
   ansible.builtin.package:
     name: ufw
@@ -57,7 +57,7 @@
   when: ansible_os_family == 'Debian'
   tags: [firewall]
 
-# ── 防火墙: firewalld（RedHat/Rocky/Alma 专用）───────────────────────────────
+# ── Firewall: firewalld (RedHat/Rocky/Alma only) ────────────────────────────
 - name: Install firewalld (RedHat)
   ansible.builtin.package:
     name: firewalld
@@ -83,7 +83,7 @@
   when: ansible_os_family == 'RedHat'
   tags: [firewall]
 
-# ── fail2ban: 用 package_facts 检查（跨平台，不依赖 dpkg-query）─────────────
+# ── fail2ban: probe via package_facts (cross-platform, no dpkg-query) ───────
 - name: Gather installed package facts for fail2ban check
   ansible.builtin.package_facts:
     manager: auto
@@ -96,7 +96,7 @@
   when: "'fail2ban' not in ansible_facts.packages"
   tags: [fail2ban]
 
-# ── limits.conf（通用）──────────────────────────────────────────────────────
+# ── limits.conf (universal) ─────────────────────────────────────────────────
 - name: Check if custom limits.conf exists
   ansible.builtin.stat:
     path: /etc/security/limits.d/99-ansible.conf
@@ -115,7 +115,7 @@
   when: not limits_conf_stat.stat.exists
   tags: [limits]
 
-# ── set_fact: 计算派生变量 ────────────────────────────────────────────────────
+# ── set_fact: derived variables ─────────────────────────────────────────────
 - name: Compute host identity facts
   ansible.builtin.set_fact:
     host_role: "{{ 'primary' if db_role is defined and db_role == 'primary' else 'secondary' }}"
@@ -132,7 +132,7 @@
     verbosity: 1
   tags: [facts]
 
-# ── async 异步升级（标记 never，需显式 --tags upgrade 才执行）──────────────
+# ── Async OS upgrade (tagged 'never' — runs only with explicit --tags upgrade) ──
 - name: Run full OS upgrade (async, Debian)
   ansible.builtin.apt:
     upgrade: dist
@@ -168,7 +168,7 @@
       (upgrade_job_redhat is defined and upgrade_job_redhat.ansible_job_id is defined)
   tags: [upgrade, never]
 
-# ── check_mode 感知 ───────────────────────────────────────────────────────────
+# ── check_mode awareness ────────────────────────────────────────────────────
 - name: Collect service facts (safe in check mode)
   ansible.builtin.service_facts:
   check_mode: false

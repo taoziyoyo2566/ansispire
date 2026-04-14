@@ -1,33 +1,33 @@
-# playbooks/vault_demo.yml — Ansible Vault 完整工作流演示
+# playbooks/vault_demo.yml — end-to-end Ansible Vault workflow demo
 #
-# Vault 核心命令速查:
+# Vault command cheat-sheet:
 #
-#   # 加密整个文件
+#   # Encrypt an entire file
 #   ansible-vault encrypt inventory/production/group_vars/all/vault.yml
 #
-#   # 解密文件（覆盖）
+#   # Decrypt a file (in place)
 #   ansible-vault decrypt inventory/production/group_vars/all/vault.yml
 #
-#   # 查看加密文件（不解密到磁盘）
+#   # View an encrypted file (without writing plaintext to disk)
 #   ansible-vault view inventory/production/group_vars/all/vault.yml
 #
-#   # 编辑加密文件
+#   # Edit an encrypted file
 #   ansible-vault edit inventory/production/group_vars/all/vault.yml
 #
-#   # 修改 vault 密码
+#   # Change the vault password
 #   ansible-vault rekey inventory/production/group_vars/all/vault.yml
 #
-#   # 加密单个字符串（嵌入 vars.yml 中）
+#   # Encrypt a single string (inline, for embedding in vars.yml)
 #   ansible-vault encrypt_string 'MySecret123' --name 'db_password'
-#   # 输出:
+#   # Output:
 #   # db_password: !vault |
 #   #   $ANSIBLE_VAULT;1.1;AES256
 #   #   66...
 #
-#   # 运行时提供 vault 密码（3种方式）:
-#   ansible-playbook site.yml --ask-vault-pass              # 交互输入
-#   ansible-playbook site.yml --vault-password-file .vault_pass  # 密码文件
-#   ansible-playbook site.yml --vault-id prod@.vault_pass   # 多 vault ID
+#   # Supplying the vault password at runtime (three options):
+#   ansible-playbook site.yml --ask-vault-pass              # interactive prompt
+#   ansible-playbook site.yml --vault-password-file .vault_pass  # password file
+#   ansible-playbook site.yml --vault-id prod@.vault_pass   # multi vault-id
 
 ---
 - name: Vault workflow demonstration
@@ -35,12 +35,13 @@
   gather_facts: false
 
   vars:
-    # 明文变量引用 vault 变量（最佳实践: vault_ 前缀区分来源）
-    # vault_db_root_password 在 inventory/production/group_vars/all/vault.yml 中定义（已加密）
+    # Plain-text variable referencing a vaulted variable.
+    # Best practice: prefix with vault_ to mark the source clearly.
+    # vault_db_root_password is defined (encrypted) in inventory/production/group_vars/all/vault.yml
     db_password: "{{ vault_db_root_password }}"
     api_key: "{{ vault_api_secret_key }}"
 
-    # 单行加密变量示例（直接嵌入 playbook，实际放 vars 文件）
+    # Inline encrypted variable example (normally placed in a vars file, not the playbook)
     # inline_secret: !vault |
     #   $ANSIBLE_VAULT;1.1;AES256
     #   33343637...
@@ -50,7 +51,7 @@
       ansible.builtin.debug:
         msg: "DB password length: {{ db_password | length }} chars"
 
-    # no_log: true — 含敏感变量的 task，隐藏所有输出
+    # no_log: true — hide all output for tasks that touch sensitive variables
     - name: Task using secret (no_log prevents exposure)
       ansible.builtin.command: echo "connecting with password"
       environment:
@@ -58,7 +59,7 @@
       no_log: true
       changed_when: false
 
-    # 多 vault ID 场景（生产 + 开发使用不同密码）
+    # Multi-vault-id scenario (production + development use different passwords)
     # ansible-playbook site.yml \
     #   --vault-id prod@prod_vault_pass \
     #   --vault-id dev@dev_vault_pass

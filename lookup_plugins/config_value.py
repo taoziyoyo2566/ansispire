@@ -1,14 +1,15 @@
-# lookup_plugins/config_value.py — 自定义 Lookup 插件示例
+# lookup_plugins/config_value.py — example custom lookup plugin
 #
-# 用途: 从自定义配置源（CMDB、配置中心）动态查找配置值
-# 使用:
+# Purpose: dynamically fetch configuration values from a custom source
+# (CMDB, config service).
+# Usage:
 #   vars:
 #     db_host: "{{ lookup('config_value', 'database.host') }}"
 #     app_port: "{{ lookup('config_value', 'app.port', env='production') }}"
 #
-# Ansible 自动从以下位置加载:
-#   - 项目根目录的 lookup_plugins/
-#   - ansible.cfg 中 lookup_plugins 配置的路径
+# Ansible auto-loads lookups from:
+#   - the project-root lookup_plugins/ directory
+#   - the path set via `lookup_plugins` in ansible.cfg
 
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
@@ -55,7 +56,7 @@ from ansible.errors import AnsibleError
 from ansible.plugins.lookup import LookupBase
 
 
-# 模拟配置存储（实际替换为 CMDB API / Consul / etcd 调用）
+# Mock config store (replace with CMDB API / Consul / etcd calls in real use)
 MOCK_CONFIG_STORE = {
     "production": {
         "database.host": "db01.example.com",
@@ -79,7 +80,7 @@ MOCK_CONFIG_STORE = {
 class LookupModule(LookupBase):
 
     def run(self, terms, variables=None, **kwargs):
-        # 获取参数
+        # Parse arguments
         env = kwargs.get("env", "production")
         default = kwargs.get("default", None)
 

@@ -1,7 +1,7 @@
 # playbooks/advanced_patterns.yml
 #
-# 此文件已迁移至 examples/advanced_patterns.yml
-# 保留此占位文件以避免破坏已有引用
+# This file has been relocated to examples/advanced_patterns.yml.
+# The stub is kept here so existing references do not break.
 #
-# 完整的高级模式教学参考请查看:
+# For the full advanced-patterns teaching reference, see:
 #   examples/advanced_patterns.yml

@@ -1,15 +1,18 @@
 # roles/database/meta/argument_specs.yml
 #
-# 关于 database__mysql_root_password 的设计说明:
-#   - argument_specs 中标记为 required: true
-#   - defaults/main.yml 中不设默认值（已移除）
-#   - 调用方必须通过 group_vars + vault 显式注入
+# Design note for database__mysql_root_password:
+#   - argument_specs marks it required: true
+#   - defaults/main.yml intentionally does NOT set a default (removed)
+#   - Callers must inject it explicitly via group_vars + vault
 #
-#   为什么不在 defaults 里给默认值?
-#   如果在 defaults/main.yml 写 `database__mysql_root_password: "{{ vault_db_root_password }}"`
-#   当 vault 未解密或 vault_db_root_password 未定义时，defaults 中的 Jinja2
-#   会解析为字面字符串（未展开），通过 required 校验但在实际使用时报错。
-#   移除 defaults 中的赋值后，required: true 会在 role 执行前立即报错，错误信息更清晰。
+#   Why no default in defaults?
+#   If defaults/main.yml said
+#     database__mysql_root_password: "{{ vault_db_root_password }}"
+#   then when the vault is not decrypted or vault_db_root_password is undefined,
+#   the Jinja2 in defaults would evaluate to a literal un-expanded string, pass
+#   `required` validation, and fail at actual use with a cryptic error.
+#   Removing the default from defaults makes `required: true` fail immediately
+#   before the role runs, producing a much clearer error message.
 
 ---
 argument_specs:

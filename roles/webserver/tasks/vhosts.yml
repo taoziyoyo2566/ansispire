@@ -1,9 +1,10 @@
 # roles/webserver/tasks/vhosts.yml
 #
-# 注意: 不对单个 vhost 配置片段使用 validate: nginx -t -c %s
-# 因为 vhost 文件是 server{} 片段，不是完整的 nginx 主配置文件，
-# nginx -c 会将它当作主入口文件处理，导致校验错误。
-# 正确做法: 部署完所有 vhost 后，用独立 task 运行 nginx -t 验证整体配置。
+# Note: do not apply `validate: nginx -t -c %s` to an individual vhost snippet.
+# A vhost file is a server{} snippet, not a full nginx main config; `nginx -c`
+# would treat it as the main entry file and raise a validation error.
+# Correct approach: after deploying every vhost, run a dedicated `nginx -t`
+# task to validate the full composed configuration.
 
 ---
 - name: Deploy virtual host configurations
@@ -30,7 +31,7 @@
   notify: Reload Nginx
   tags: [nginx, vhosts]
 
-# 找出已有的 vhost 配置，清理不在列表中的（资源幂等清理）
+# Discover existing vhost configs and remove any not in the list (idempotent cleanup)
 - name: Find existing vhost configs
   ansible.builtin.find:
     paths: "{{ _webserver__nginx_sites_available }}"
@@ -52,7 +53,7 @@
   notify: Reload Nginx
   tags: [nginx, vhosts, cleanup]
 
-# 所有 vhost 部署完成后，统一校验 nginx 完整配置
+# Once every vhost is deployed, validate the full composed nginx configuration
 - name: Validate complete Nginx configuration
   ansible.builtin.command: nginx -t
   changed_when: false

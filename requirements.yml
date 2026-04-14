@@ -1,16 +1,16 @@
-# requirements.yml — 外部依赖声明
-# 安装:
+# requirements.yml — external dependency declaration
+# Install:
 #   ansible-galaxy role install -r requirements.yml
 #   ansible-galaxy collection install -r requirements.yml
 
 ---
 roles:
-  # 从 Ansible Galaxy 安装
+  # Installed from Ansible Galaxy
   - name: geerlingguy.docker
     version: "7.0.0"
 
-  # 占位示例（私有 Git 仓库）— 已注释，make install 时不会安装
-  # 取消注释并替换为真实 URL 再使用
+  # Placeholder example (private Git repository) — commented out; `make install` will NOT install it.
+  # Uncomment and replace with the real URL before use.
   # - name: my_company.base_hardening
   #   src: https://github.com/YOUR_ORG/ansible-hardening.git
   #   version: v2.1.0
@@ -26,6 +26,19 @@ collections:
   - name: ansible.posix
     version: ">=1.5.0"
 
-  # AWS EC2 动态 inventory 插件（仅在使用 inventory/dynamic/aws_ec2.yml 时需要）
+  # AWS EC2 dynamic inventory plugin + Secrets Manager (uncomment when using AWS)
   # - name: amazon.aws
   #   version: ">=7.0.0"
+
+  # ── External secret managers (enable on demand; see secrets_external.example.yml) ──
+  # HashiCorp Vault integration
+  # - name: community.hashi_vault
+  #   version: ">=6.0.0"
+
+  # Azure services (Key Vault, dynamic inventory, etc.)
+  # - name: azure.azcollection
+  #   version: ">=2.0.0"
+
+  # Google Cloud (Secret Manager, dynamic inventory, etc.)
+  # - name: google.cloud
+  #   version: ">=1.3.0"

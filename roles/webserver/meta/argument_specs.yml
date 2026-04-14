@@ -16,7 +16,7 @@ argument_specs:
           Use "*" for latest, or "1.24.*" to pin minor version.
 
       webserver__worker_processes:
-        type: raw          # auto 或整数，用 raw 兼容两者
+        type: raw          # accepts "auto" or an integer; raw matches both
         required: false
         default: auto
         description: worker_processes directive (auto or integer)

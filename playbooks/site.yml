@@ -1,39 +1,40 @@
-# playbooks/site.yml — 主 Playbook
+# playbooks/site.yml — main playbook
 #
-# 常用运行方式:
-#   ansible-playbook playbooks/site.yml                           # 全部
-#   ansible-playbook playbooks/site.yml --tags nginx              # 指定标签
-#   ansible-playbook playbooks/site.yml --limit webservers        # 指定组
-#   ansible-playbook playbooks/site.yml --check --diff            # Dry-run
-#   ansible-playbook playbooks/site.yml -e "env=staging"          # 覆盖变量
-#   ansible-playbook playbooks/site.yml -i inventory/staging      # 切换环境
+# Common invocations:
+#   ansible-playbook playbooks/site.yml                           # everything
+#   ansible-playbook playbooks/site.yml --tags nginx              # tag filter
+#   ansible-playbook playbooks/site.yml --limit webservers        # group filter
+#   ansible-playbook playbooks/site.yml --check --diff            # dry-run
+#   ansible-playbook playbooks/site.yml -e "env=staging"          # variable override
+#   ansible-playbook playbooks/site.yml -i inventory/staging      # switch environment
 
 ---
-# ── Play 1: 所有主机基础配置 ──────────────────────────────────────────────────
+# ── Play 1: baseline config for all hosts ────────────────────────────────────
 - name: Apply common baseline to all hosts
   hosts: all
   become: true
 
-  # gather_subset: 只收集需要的 facts，提升速度
-  # min: 最少信息 / hardware: 硬件 / network: 网络 / virtual: 虚拟化
+  # gather_subset: collect only the facts we need, for speed.
+  # min: minimal / hardware: hardware / network: network / virtual: virtualization
   gather_facts: true
   gather_subset:
-    - min          # 始终包含: os, python, platform
-    - hardware     # 需要: ansible_processor_vcpus, ansible_mounts
-    - network      # 需要: ansible_default_ipv4, ansible_interfaces
+    - min          # always includes os, python, platform
+    - hardware     # needed: ansible_processor_vcpus, ansible_mounts
+    - network      # needed: ansible_default_ipv4, ansible_interfaces
 
-  # any_errors_fatal: 任意一台主机失败 → 立即停止整个 play（不继续其他主机）
-  # 适合: 数据库迁移等不能部分成功的场景
-  any_errors_fatal: false   # 默认 false；关键操作可设 true
+  # any_errors_fatal: if any host fails, stop the whole play immediately
+  # (do not continue with the rest). Suitable for DB migrations and other
+  # operations that cannot tolerate partial success.
+  any_errors_fatal: false   # default false; set true for critical operations
 
-  # 忽略无法访问的主机（SSH 超时等），不视为失败
+  # Ignore unreachable hosts (SSH timeouts, etc.) instead of treating them as failures.
   ignore_unreachable: false
 
   pre_tasks:
     - name: Update apt cache (Debian/Ubuntu)
       ansible.builtin.apt:
         update_cache: true
-        cache_valid_time: 3600   # 1小时内不重复更新
+        cache_valid_time: 3600   # skip if updated within the last hour
       when: ansible_os_family == "Debian"
       tags: [packages, always]
 
@@ -50,21 +51,21 @@
       tags: [verify]
 
 
-# ── Play 2: Web 服务器（滚动更新）────────────────────────────────────────────
+# ── Play 2: web servers (rolling update) ─────────────────────────────────────
 - name: Configure web servers
   hosts: webservers
   become: true
   gather_facts: true
 
-  # serial: 滚动更新控制
-  #   数字 1          → 每次处理 1 台
-  #   百分比 "30%"    → 每次处理 30% 的主机
-  #   列表 [1, 2, 5%] → 第一批1台，第二批2台，其余每批5%（灰度发布）
+  # serial: rolling-update control
+  #   integer 1       → one host at a time
+  #   percent "30%"   → 30% of hosts per batch
+  #   list [1, 2, 5%] → 1 host first batch, 2 next, then 5% per batch (canary)
   serial: "{{ webserver_serial | default('100%') }}"
 
-  # strategy: 任务调度策略
-  #   linear (默认): 所有主机同步执行，一个 task 完成后再到下一个
-  #   free:          每台主机独立推进，不等待其他主机
+  # strategy: task scheduling strategy
+  #   linear (default): all hosts advance in lockstep; next task waits until this one finishes everywhere
+  #   free:             each host advances independently, no cross-host wait
   strategy: linear
 
   roles:
@@ -72,12 +73,12 @@
       tags: [webserver, nginx]
 
 
-# ── Play 3: 数据库服务器 ──────────────────────────────────────────────────────
+# ── Play 3: database servers ─────────────────────────────────────────────────
 - name: Configure database servers
   hosts: dbservers
   become: true
   gather_facts: true
-  any_errors_fatal: true    # DB 变更必须全部成功
+  any_errors_fatal: true    # DB changes must all succeed
 
   roles:
     - role: database

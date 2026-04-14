@@ -11,7 +11,7 @@ galaxy_info:
       versions: [bullseye, bookworm]
   galaxy_tags: [nginx, webserver, ssl]
 
-# 声明依赖：运行本 role 前先运行 common role
+# Dependencies: the common role runs before this role
 dependencies:
   - role: common
     vars:

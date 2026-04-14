@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-inventory/dynamic/custom_inventory.py — 自定义动态 Inventory 脚本
-用途: 从任意数据源（CMDB、数据库、API）生成 Ansible inventory
-运行: ansible-playbook site.yml -i inventory/dynamic/custom_inventory.py
-测试: python custom_inventory.py --list | python -m json.tool
+inventory/dynamic/custom_inventory.py — example dynamic-inventory script.
 
-必须支持两个参数:
-  --list  : 返回所有主机和组的 JSON
-  --host HOSTNAME : 返回指定主机的变量 JSON（现代方式用 _meta 代替此接口）
+Purpose: generate an Ansible inventory from an arbitrary data source
+(CMDB, database, API).
+Run:  ansible-playbook site.yml -i inventory/dynamic/custom_inventory.py
+Test: python custom_inventory.py --list | python -m json.tool
+
+Must support two arguments:
+  --list           : return JSON of all hosts and groups
+  --host HOSTNAME  : return JSON of variables for the given host
+                     (modern approach uses _meta in --list instead)
 """
 
 import argparse
@@ -18,14 +21,15 @@ import sys
 
 def get_inventory():
     """
-    模拟从 CMDB/API 获取主机数据，返回标准 Ansible inventory 格式。
+    Simulate fetching host data from a CMDB/API and return the standard
+    Ansible inventory structure.
 
-    实际使用时可替换为:
-    - requests.get("https://cmdb.example.com/api/hosts")
-    - psycopg2 查询 PostgreSQL
-    - boto3 / libcloud 查询云平台
+    In production, replace the mock data with one of:
+      - requests.get("https://cmdb.example.com/api/hosts")
+      - psycopg2 queries against PostgreSQL
+      - boto3 / libcloud calls against a cloud provider
     """
-    # 模拟数据
+    # Mock data
     hosts_from_cmdb = [
         {"hostname": "app01.example.com", "ip": "10.0.1.21", "role": "webserver", "env": "production"},
         {"hostname": "app02.example.com", "ip": "10.0.1.22", "role": "webserver", "env": "production"},
@@ -35,7 +39,7 @@ def get_inventory():
 
     inventory = {
         "_meta": {
-            "hostvars": {}  # 每台主机的变量放在 _meta.hostvars 里，避免 --host 调用
+            "hostvars": {}  # per-host variables live in _meta.hostvars to avoid --host calls
         },
         "all": {
             "children": ["webservers", "dbservers"]
@@ -47,7 +51,7 @@ def get_inventory():
     for host in hosts_from_cmdb:
         hostname = host["hostname"]
 
-        # 填充主机变量
+        # Populate host variables
         inventory["_meta"]["hostvars"][hostname] = {
             "ansible_host": host["ip"],
             "env": host["env"],
@@ -55,7 +59,7 @@ def get_inventory():
         if "db_role" in host:
             inventory["_meta"]["hostvars"][hostname]["db_role"] = host["db_role"]
 
-        # 按 role 分组
+        # Group by role
         if host["role"] == "webserver":
             inventory["webservers"]["hosts"].append(hostname)
         elif host["role"] == "database":
@@ -73,7 +77,7 @@ def main():
     if args.list:
         print(json.dumps(get_inventory(), indent=2))
     elif args.host:
-        # 现代做法: 所有变量在 --list 的 _meta 里返回，--host 返回空
+        # Modern approach: all vars are returned in --list via _meta; --host returns empty.
         inventory = get_inventory()
         hostvars = inventory.get("_meta", {}).get("hostvars", {})
         print(json.dumps(hostvars.get(args.host, {}), indent=2))

@@ -1,13 +1,13 @@
-{# nginx.conf.j2 — 展示 Jinja2 高级用法 #}
+{# nginx.conf.j2 — demonstrates advanced Jinja2 usage #}
 {{ ansible_managed }}
 
 user  {{ webserver__nginx_user }};
 worker_processes  {{ webserver__worker_processes }};
 pid  {{ webserver__nginx_pid }};
 
-# 动态引用 ansible facts
-# ansible_processor_vcpus: 从目标主机收集的 CPU 核数
-# 技巧: 用 | int 过滤器确保类型安全
+# Dynamic reference to ansible facts
+# ansible_processor_vcpus: CPU core count collected from the target host
+# Tip: apply the | int filter for type safety
 worker_rlimit_nofile  {{ [webserver__worker_connections * 2, 65535] | min }};
 
 error_log  /var/log/nginx/error.log warn;
@@ -24,21 +24,21 @@ http {
 
     server_tokens  {{ webserver__server_tokens }};
 
-    # ── 日志格式 ──────────────────────────────────────────────────────────────
+    # ── Log format ────────────────────────────────────────────────────────────
     log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
                       '$status $body_bytes_sent "$http_referer" '
                       '"$http_user_agent" "$http_x_forwarded_for"';
 
     access_log  {{ webserver__log_dir }}/access.log  main;
 
-    # ── 性能 ──────────────────────────────────────────────────────────────────
+    # ── Performance ───────────────────────────────────────────────────────────
     sendfile        on;
     tcp_nopush      on;
     tcp_nodelay     on;
     keepalive_timeout  {{ webserver__keepalive_timeout }};
     client_max_body_size  {{ webserver__client_max_body_size }};
 
-    # ── Gzip 压缩 ──────────────────────────────────────────────────────────────
+    # ── Gzip compression ──────────────────────────────────────────────────────
 {% if webserver__gzip_enabled %}
     gzip  on;
     gzip_vary  on;
@@ -50,14 +50,14 @@ http {
 {%- endfor %};
 {% endif %}
 
-    # ── SSL 全局配置 ───────────────────────────────────────────────────────────
+    # ── Global SSL configuration ──────────────────────────────────────────────
     ssl_protocols  {{ webserver__ssl_protocols }};
     ssl_ciphers  {{ webserver__ssl_ciphers }};
     ssl_prefer_server_ciphers  {{ webserver__ssl_prefer_server_ciphers }};
     ssl_session_cache  shared:SSL:10m;
     ssl_session_timeout  10m;
 
-    # 加载 sites-enabled 下的所有 vhost 配置
+    # Load every vhost config under sites-enabled
     include  /etc/nginx/sites-enabled/*.conf;
     include  /etc/nginx/conf.d/*.conf;
 }

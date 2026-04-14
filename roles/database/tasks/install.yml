@@ -4,7 +4,7 @@
     name:
       - mysql-server
       - mysql-client
-      - python3-mysqldb     # community.mysql 模块依赖
+      - python3-mysqldb     # required by community.mysql modules
     state: present
 
 - name: Ensure MySQL is started and enabled

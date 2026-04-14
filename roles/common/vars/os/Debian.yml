@@ -1,6 +1,6 @@
 # roles/common/vars/os/Debian.yml
-# Tier 1 支持平台: Ubuntu 20.04+, Ubuntu 22.04+
-# Tier 2 支持平台: Debian 11 (bullseye), Debian 12 (bookworm)
+# Tier 1 supported platforms: Ubuntu 20.04+, Ubuntu 22.04+
+# Tier 2 supported platforms: Debian 11 (bullseye), Debian 12 (bookworm)
 
 ---
 _common__os_packages:

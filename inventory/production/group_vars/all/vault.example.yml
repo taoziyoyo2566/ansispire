@@ -1,12 +1,12 @@
-# vault.example.yml — 展示 vault 变量结构（无敏感值，可提交）
+# vault.example.yml — shape of the vault variables (no real secrets; safe to commit)
 #
-# 使用流程:
+# Workflow:
 #   1. cp vault.example.yml vault.yml
-#   2. 编辑 vault.yml，填入真实密码
+#   2. Edit vault.yml and fill in the real passwords
 #   3. ansible-vault encrypt vault.yml
-#   4. 提交加密后的 vault.yml（不要提交明文版本）
+#   4. Commit the encrypted vault.yml (never commit the plain-text version)
 #
-# 在 vars.yml 中引用（命名约定: vault_ 前缀标识来源）:
+# Reference from vars.yml (naming convention: vault_ prefix marks the source):
 #   db_root_password: "{{ vault_db_root_password }}"
 
 ---

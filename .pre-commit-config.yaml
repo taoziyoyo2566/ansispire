@@ -1,6 +1,6 @@
 # .pre-commit-config.yaml
-# 安装: pip install pre-commit && pre-commit install
-# 手动运行: pre-commit run --all-files
+# Install:     pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
 
 ---
 repos:
@@ -15,7 +15,7 @@ repos:
     hooks:
       - id: ansible-lint
         files: \.(yaml|yml)$
-        # 排除 examples/ 目录（教学用途，不强制 lint）
+        # exclude examples/ (teaching material; lint is not enforced here)
         exclude: ^examples/
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -35,7 +35,7 @@ repos:
     hooks:
       - id: detect-secrets
         args: [--baseline, .secrets.baseline]
-        # 排除已知的占位文件和加密文件
+        # exclude known placeholder and encrypted files
         exclude: |
           (?x)^(
             inventory/production/group_vars/all/vault\.yml|

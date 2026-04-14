@@ -1,15 +1,15 @@
 # roles/webserver/vars/main.yml
-# vars/ — 优先级高于 defaults/，比 group_vars 低
-# 用途: 存放不希望被外部轻易覆盖的内部常量
+# vars/ — higher priority than defaults/, lower than group_vars
+# Purpose: hold internal constants that should not be easily overridden externally
 
 ---
-# 这些是内部常量，不应被外部覆盖
+# These are internal constants; should not be overridden externally
 _webserver__nginx_conf_dir: /etc/nginx
 _webserver__nginx_sites_available: /etc/nginx/sites-available
 _webserver__nginx_sites_enabled: /etc/nginx/sites-enabled
 _webserver__nginx_service: nginx
 
-# OS 特定包名映射（只有在 vars/ 里定义才不会被意外覆盖）
+# OS-specific package-name map (placed in vars/ to avoid accidental override)
 _webserver__nginx_packages:
   Debian: nginx
   RedHat: nginx

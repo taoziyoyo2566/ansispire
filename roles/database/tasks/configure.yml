@@ -1,5 +1,5 @@
 # roles/database/tasks/configure.yml
-# 展示: no_log、community.mysql 模块、cron 备份
+# Demonstrates: no_log, community.mysql module, cron-based backup
 
 ---
 - name: Deploy MySQL configuration
@@ -48,7 +48,7 @@
   no_log: true
   tags: [mysql, users]
 
-# ── 备份（条件部署）──────────────────────────────────────────────────────────
+# ── Backup (conditional deployment) ─────────────────────────────────────────
 - name: Ensure backup directory exists
   ansible.builtin.file:
     path: "{{ database__backup_dir }}"

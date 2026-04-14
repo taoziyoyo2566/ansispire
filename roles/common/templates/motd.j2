@@ -1,9 +1,9 @@
 {# motd.j2
-   {{ ansible_managed }} — 此文件由 Ansible 管理，请勿手动修改
-   使用内置 Jinja2 特性（不依赖自定义 filter_plugins），确保 role 可独立复用 #}
+   {{ ansible_managed }} — this file is managed by Ansible; do not edit by hand.
+   Uses built-in Jinja2 features only (no custom filter_plugins) so the role stays self-contained. #}
 {{ ansible_managed }}
 
-{# 内联定义环境标签映射，无需外部过滤器 #}
+{# Inline env-label map keeps the template free of external filters. #}
 {%- set _env_badges = {
   'production':  '[PROD]',
   'staging':     '[STAGING]',

@@ -1,4 +1,4 @@
-# roles/common/vars/os/default.yml — 不认识的 OS 的兜底值
+# roles/common/vars/os/default.yml — fallback values for unrecognized OSes
 
 ---
 _common__os_packages: []

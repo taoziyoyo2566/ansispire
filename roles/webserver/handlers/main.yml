@@ -1,6 +1,6 @@
 ---
-# 推荐: handler 只做服务操作，不写复杂逻辑
-# 技巧: 使用 FQCN 模块名（ansible.builtin.systemd），符合 Ansible 2.12+ 规范
+# Recommended: handlers do service operations only, no complex logic
+# Tip: use FQCN module names (ansible.builtin.systemd), per Ansible 2.12+ guidance
 
 - name: Reload Nginx
   ansible.builtin.systemd:
@@ -14,7 +14,7 @@
     state: restarted
   listen: Restart Nginx
 
-# 多个 handler 监听同一事件（listen 机制）
+# Multiple handlers listening on the same event (listen mechanism)
 - name: Restart PHP-FPM
   ansible.builtin.systemd:
     name: php8.2-fpm

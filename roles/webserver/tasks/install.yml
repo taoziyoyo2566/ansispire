@@ -1,4 +1,4 @@
-# 展示: 包安装、服务管理、文件操作
+# Demonstrates: package installation, service management, file operations
 
 ---
 - name: Install Nginx package
@@ -13,7 +13,7 @@
     enabled: true
     state: started
 
-# 创建目录树
+# Create the directory tree
 - name: Create Nginx config directories
   ansible.builtin.file:
     path: "{{ item }}"
@@ -27,10 +27,10 @@
     - "{{ _webserver__nginx_sites_enabled }}"
     - "{{ webserver__log_dir }}"
 
-# copy 模块：复制 files/ 目录下的静态文件
+# copy module: copy static files from files/
 - name: Deploy default index page
   ansible.builtin.copy:
-    src: default_index.html      # 相对 roles/webserver/files/
+    src: default_index.html      # relative to roles/webserver/files/
     dest: /var/www/html/index.html
     owner: "{{ webserver__nginx_user }}"
     group: "{{ webserver__nginx_group }}"

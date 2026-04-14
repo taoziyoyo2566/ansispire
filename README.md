@@ -1,91 +1,113 @@
-# Ansible 完整参考项目
+# Ansible Complete Reference Project
 
-基于 Ansible 官方最佳实践与社区共识构建的脚手架，包含 dummy 内容，用于学习 Ansible 的功能、设计模式和使用技巧。
+A scaffold built on Ansible's official best practices and community consensus. The content is dummy, intended for learning Ansible's features, design patterns, and usage techniques.
 
----
+The project's actual positioning is **an Ansible-based multi-server management control system**, split into a "data plane" (roles/playbooks) and a "control plane" (controller/).
 
-## 平台支持矩阵
-
-| 层级 | 平台 | CI/Molecule | 说明 |
-|------|------|:-----------:|------|
-| **Tier 1** | Ubuntu 20.04 / 22.04 | ✅ | 默认测试目标 |
-| **Tier 1** | Rocky Linux 9 | ✅ | molecule/common 已验证 |
-| **Tier 2** | AlmaLinux 9 | ⚠ | 预期兼容，未纳入 CI |
-| **Tier 2** | Debian 11 / 12 | 未测试 | 有代码骨架，预期兼容 |
-| **Tier 2** | AlmaLinux 8 / CentOS Stream 9 | 未测试 | 有代码骨架 |
-| **Tier 3** | Alpine / 无 systemd / 无 Python | ❌ | 需额外 bootstrap，见 `examples/` |
-
-Tier 3 的处理模式参见 `examples/advanced_patterns.yml` 中的 `raw + script bootstrap` 章节。
+> Chinese reference snapshot: `docs/reference-cn/snapshot-2026-04-14/README.zh.md`
 
 ---
 
-## 完整目录结构
+## Control Plane
+
+`controller/` provides a **lightweight open-source control plane** that upgrades Ansible from "scripts + SSH" into a system with a real API, job history, and credential management.
+
+Current implementation: **Semaphore + Docker Compose + SQLite** (about 200 MB RAM).
+
+```bash
+# Quick start
+cp controller/semaphore/.env.example controller/semaphore/.env
+vim controller/semaphore/.env        # at minimum, change SEMAPHORE_ADMIN_PASSWORD
+make controller-up                    # docker compose up -d
+# Open http://localhost:3000 in a browser
+```
+
+Rationale, upgrade path, and comparison to AWX / AAP: see [`controller/README.md`](./controller/README.md).
+
+---
+
+## Platform Support Matrix
+
+| Tier | Platform | CI / Molecule | Notes |
+|------|----------|:-------------:|-------|
+| **Tier 1** | Ubuntu 20.04 / 22.04 | ✅ | Default test target |
+| **Tier 1** | Rocky Linux 9 | ✅ | Verified via molecule/common |
+| **Tier 2** | AlmaLinux 9 | ⚠ | Expected compatible; not yet in CI |
+| **Tier 2** | Debian 11 / 12 | Not tested | Code skeleton present; expected compatible |
+| **Tier 2** | AlmaLinux 8 / CentOS Stream 9 | Not tested | Code skeleton present |
+| **Tier 3** | Alpine / no systemd / no Python | ❌ | Requires additional bootstrap; see `examples/` |
+
+For Tier 3 handling, see the `raw + script bootstrap` section in `examples/advanced_patterns.yml`.
+
+---
+
+## Full Directory Structure
 
 ```
 ansible-demo/
-├── ansible.cfg                          # 项目级配置（纯 INI，无行内注释）
-├── requirements.yml                     # 外部 roles + collections 依赖
-├── Makefile                             # 常用命令快捷入口
-├── execution-environment.yml            # Ansible EE 定义（ansible-builder）
-├── .ansible-lint                        # Lint 规则（profile: production）
-├── .pre-commit-config.yaml              # 提交前检查
-├── .yamllint                            # YAML 格式规范
-├── .secrets.baseline                    # detect-secrets 基线
-├── .gitignore                           # 含 vault.yml 排除规则
+├── ansible.cfg                          # Project-level config (pure INI, no inline comments)
+├── requirements.yml                     # External roles + collections dependencies
+├── Makefile                             # Shortcuts for common commands
+├── execution-environment.yml            # Ansible EE definition (ansible-builder)
+├── .ansible-lint                        # Lint rules (profile: production)
+├── .pre-commit-config.yaml              # Pre-commit checks
+├── .yamllint                            # YAML style rules
+├── .secrets.baseline                    # detect-secrets baseline
+├── .gitignore                           # Includes vault.yml exclusion rules
 │
-├── .github/workflows/ci.yml             # CI: lint + syntax-check + Molecule(3场景)
+├── .github/workflows/ci.yml             # CI: lint + syntax-check + Molecule (3 scenarios)
 │
 ├── inventory/
 │   ├── production/
-│   │   ├── hosts.ini                    # 静态 inventory
+│   │   ├── hosts.ini                    # Static inventory
 │   │   ├── group_vars/
 │   │   │   ├── all/
-│   │   │   │   ├── vars.yml             # 明文公共变量（统一 role 前缀命名）
-│   │   │   │   ├── vault.yml            # 加密敏感变量（.gitignore 排除）
-│   │   │   │   └── vault.example.yml   # 结构示例（可提交）
-│   │   │   ├── webservers/vars.yml      # webserver__ 前缀变量
-│   │   │   └── dbservers/vars.yml       # database__ 前缀变量
+│   │   │   │   ├── vars.yml             # Plaintext shared vars (unified role-prefix naming)
+│   │   │   │   ├── vault.yml            # Encrypted sensitive vars (excluded by .gitignore)
+│   │   │   │   └── vault.example.yml   # Structural example (committable)
+│   │   │   ├── webservers/vars.yml      # webserver__ prefixed vars
+│   │   │   └── dbservers/vars.yml       # database__ prefixed vars
 │   │   └── host_vars/web01.example.com/vars.yml
 │   ├── staging/
 │   └── dynamic/
-│       ├── aws_ec2.yml                  # AWS EC2 动态 inventory 插件
-│       └── custom_inventory.py          # 自定义动态 inventory 脚本
+│       ├── aws_ec2.yml                  # AWS EC2 dynamic inventory plugin
+│       └── custom_inventory.py          # Custom dynamic inventory script
 │
 ├── playbooks/
-│   ├── site.yml                         # 主 Playbook
-│   ├── rolling_update.yml               # 滚动更新参考模板（⚠ 需配置变量）
-│   └── vault_demo.yml                   # Vault 工作流演示
+│   ├── site.yml                         # Main playbook
+│   ├── rolling_update.yml               # Rolling-update reference template (⚠ configure vars)
+│   └── vault_demo.yml                   # Vault workflow demo
 │
-├── examples/                            # ⚠ 教学参考，非默认执行路径
-│   └── advanced_patterns.yml            # 高级用法全集（vars_prompt/add_host/等）
+├── examples/                            # ⚠ Teaching reference; NOT the default execution path
+│   └── advanced_patterns.yml            # Full collection of advanced patterns (vars_prompt/add_host/etc.)
 │
 ├── roles/
-│   ├── common/                          # 基础配置（Tier 1: Ubuntu + Rocky）
+│   ├── common/                          # Base configuration (Tier 1: Ubuntu + Rocky)
 │   │   ├── defaults/main.yml
-│   │   ├── vars/os/                     # OS 特定变量（first_found 加载）
+│   │   ├── vars/os/                     # OS-specific vars (loaded via first_found)
 │   │   │   ├── Debian.yml               # UFW / apt / ssh
 │   │   │   ├── RedHat.yml               # firewalld / dnf / sshd
 │   │   │   └── default.yml
 │   │   ├── tasks/
-│   │   │   ├── main.yml                 # import_tasks 入口
-│   │   │   ├── preflight.yml            # Tier 1/2 OS 检查、磁盘、Python
-│   │   │   ├── packages.yml             # 包安装、用户、block/rescue
-│   │   │   └── security.yml             # SSH + 跨平台防火墙 + async 升级
+│   │   │   ├── main.yml                 # import_tasks entry
+│   │   │   ├── preflight.yml            # Tier 1/2 OS check, disk, Python
+│   │   │   ├── packages.yml             # package install, users, block/rescue
+│   │   │   └── security.yml             # SSH + cross-platform firewall + async upgrade
 │   │   ├── handlers/main.yml
-│   │   ├── templates/motd.j2            # 内联 Jinja2（不依赖 filter_plugins）
+│   │   ├── templates/motd.j2            # Inline Jinja2 (no filter_plugins dependency)
 │   │   └── meta/
 │   │       ├── main.yml
 │   │       └── argument_specs.yml
 │   │
-│   ├── webserver/                       # Nginx（Tier 1: Ubuntu）
+│   ├── webserver/                       # Nginx (Tier 1: Ubuntu)
 │   │   ├── defaults/main.yml
-│   │   ├── vars/main.yml                # 内部常量
+│   │   ├── vars/main.yml                # Internal constants
 │   │   ├── tasks/
 │   │   │   ├── main.yml
-│   │   │   ├── preflight.yml            # vhost 配置前置校验
+│   │   │   ├── preflight.yml            # Pre-checks before vhost configuration
 │   │   │   ├── install.yml
-│   │   │   ├── configure.yml            # validate/blockinfile/replace
-│   │   │   └── vhosts.yml               # symlink 管理 + 统一 nginx -t 校验
+│   │   │   ├── configure.yml            # validate / blockinfile / replace
+│   │   │   └── vhosts.yml               # Symlink management + unified nginx -t check
 │   │   ├── handlers/main.yml
 │   │   ├── templates/
 │   │   │   ├── nginx.conf.j2
@@ -95,80 +117,80 @@ ansible-demo/
 │   │       ├── main.yml
 │   │       └── argument_specs.yml
 │   │
-│   └── database/                        # MySQL（Tier 1: Ubuntu）
-│       ├── defaults/main.yml            # 注: mysql_root_password 无默认值
+│   └── database/                        # MySQL (Tier 1: Ubuntu)
+│       ├── defaults/main.yml            # Note: mysql_root_password has no default
 │       ├── tasks/
 │       │   ├── main.yml
 │       │   ├── install.yml
 │       │   └── configure.yml            # no_log / community.mysql
 │       ├── handlers/main.yml
 │       ├── templates/
-│       │   ├── my.cnf.j2                # primary/replica 条件渲染
-│       │   └── backup.sh.j2             # 备份脚本模板
+│       │   ├── my.cnf.j2                # Primary/replica conditional rendering
+│       │   └── backup.sh.j2             # Backup script template
 │       └── meta/
 │           ├── main.yml
-│           └── argument_specs.yml       # required: true（无默认值，见注释）
+│           └── argument_specs.yml       # required: true (no default; see comments)
 │
-├── library/app_config.py                # 自定义模块（JSON 配置管理）
-├── filter_plugins/custom_filters.py     # 自定义 Jinja2 过滤器
-├── lookup_plugins/config_value.py       # 自定义 Lookup 插件
-├── callback_plugins/human_log.py        # 演示型 Callback（可启用示例）
+├── library/app_config.py                # Custom module (JSON config management)
+├── filter_plugins/custom_filters.py     # Custom Jinja2 filters
+├── lookup_plugins/config_value.py       # Custom lookup plugin
+├── callback_plugins/human_log.py        # Demo callback (opt-in example)
 │
 └── molecule/
-    ├── common/      # Ubuntu 22 + Rocky 9（Tier 1 双平台）
+    ├── common/      # Ubuntu 22 + Rocky 9 (Tier 1 dual platform)
     ├── webserver/   # Ubuntu 22
     └── database/    # Ubuntu 22
 ```
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 前置准备
+### Prerequisites
 
 ```bash
-# 安装工具（推荐用 pipx 隔离）
+# Install tooling (pipx for isolation is recommended)
 pip install ansible ansible-lint molecule[docker] pre-commit ansible-navigator
 
-# 安装 Galaxy 依赖
+# Install Galaxy dependencies
 ansible-galaxy role install -r requirements.yml
 ansible-galaxy collection install -r requirements.yml
 
-# 初始化 pre-commit
+# Initialize pre-commit
 pre-commit install
 ```
 
-### Vault 工作流（方案 B：不提交明文 vault.yml）
+### Vault Workflow (Option B: do not commit plaintext vault.yml)
 
 ```bash
-# 1. 从示例复制结构
+# 1. Copy the structural example
 cp inventory/production/group_vars/all/vault.example.yml \
    inventory/production/group_vars/all/vault.yml
 
-# 2. 填写真实密码
+# 2. Fill in real secrets
 vim inventory/production/group_vars/all/vault.yml
 
-# 3. 创建 vault 密码文件（加入 .gitignore）
+# 3. Create a vault password file (add to .gitignore)
 echo "your-vault-password" > .vault_pass
 chmod 600 .vault_pass
 
-# 4. 加密（此后 vault.yml 才可提交，但默认已在 .gitignore 中）
+# 4. Encrypt (vault.yml becomes committable only after this; it is in .gitignore by default)
 ansible-vault encrypt inventory/production/group_vars/all/vault.yml
 
-# vault.yml 已在 .gitignore 中排除（inventory/**/vault.yml）
-# 如需提交加密后的 vault.yml，从 .gitignore 中删除该条目
+# vault.yml is excluded in .gitignore (inventory/**/vault.yml).
+# To commit the encrypted vault.yml, remove that entry from .gitignore.
 ```
 
-### 运行
+### Run
 
 ```bash
 # Dry-run
 ansible-playbook playbooks/site.yml --check --diff
 
-# 完整部署
+# Full deployment
 ansible-playbook playbooks/site.yml
 
-# Molecule 测试
+# Molecule tests
 molecule test -s common     # Ubuntu 22 + Rocky 9
 molecule test -s webserver  # Ubuntu 22
 molecule test -s database   # Ubuntu 22
@@ -179,261 +201,261 @@ make lint
 
 ---
 
-## 核心概念
+## Core Concepts
 
-### 变量优先级（从低到高）
+### Variable Precedence (low to high)
 
 ```
-role defaults/         ← 最容易被覆盖，用于"合理默认值"
-inventory group_vars/  ← 组级变量（命名约定: role 前缀）
-inventory host_vars/   ← 主机级变量
-play vars:             ← playbook 中直接写的 vars
-role vars/             ← 内部常量，比 group_vars 优先级高！
-task vars:             ← task 级 vars（include_role 传入的 vars）
-extra_vars -e          ← 命令行 -e，最高优先级，不可被覆盖
+role defaults/         ← easiest to override; use for "reasonable defaults"
+inventory group_vars/  ← group-level vars (naming convention: role prefix)
+inventory host_vars/   ← host-level vars
+play vars:             ← vars declared directly in a playbook
+role vars/             ← internal constants; higher precedence than group_vars!
+task vars:             ← task-level vars (vars passed via include_role)
+extra_vars -e          ← -e on the command line; highest precedence, unoverridable
 ```
 
-> **变量命名约定:** group_vars 与 role defaults 统一使用 `role__*` 前缀
-> （如 `webserver__worker_processes`），避免"变量看似设置但未被消费"的问题。
+> **Variable naming convention:** group_vars and role defaults both use the `role__*` prefix
+> (e.g., `webserver__worker_processes`) to avoid the "variable looks set but is never consumed" trap.
 
 ### import_tasks vs include_tasks
 
-| | `import_tasks`（静态）| `include_tasks`（动态）|
+| | `import_tasks` (static) | `include_tasks` (dynamic) |
 |---|---|---|
-| 解析时机 | 编译期 | 运行期 |
-| Tags 透传 | ✅ | ❌ |
-| 动态文件名 | ❌ | ✅ |
-| loop 支持 | ❌ | ✅ |
+| Resolution time | Compile time | Runtime |
+| Tag propagation | ✅ | ❌ |
+| Dynamic filename | ❌ | ✅ |
+| loop support | ❌ | ✅ |
 
-**经验法则:** 默认用 `import_tasks`；只有需要动态文件名或 loop 时才改用 `include_tasks`。
+**Rule of thumb:** default to `import_tasks`; only switch to `include_tasks` when you need a dynamic filename or a loop.
 
-### Role Argument Validation（Ansible 2.11+）
+### Role Argument Validation (Ansible 2.11+)
 
-`meta/argument_specs.yml` 在 role 执行前自动校验参数类型/必填/枚举。
-**注意:** `required: true` 与 `defaults/main.yml` 中的默认值不能并存（见 `roles/database/meta/argument_specs.yml` 注释）。
+`meta/argument_specs.yml` automatically validates argument type / required / enum before a role runs.
+**Note:** `required: true` cannot coexist with a default value in `defaults/main.yml` (see the comment in `roles/database/meta/argument_specs.yml`).
 
-### Tags 约定
+### Tag Conventions
 
 ```bash
-ansible-playbook site.yml --tags nginx,config   # 只跑指定 tag
-ansible-playbook site.yml --skip-tags hardening  # 跳过指定 tag
-ansible-playbook site.yml --list-tags            # 列出所有 tag
-ansible-playbook site.yml --tags upgrade         # 运行 never tag 的 task
+ansible-playbook site.yml --tags nginx,config   # Run only the given tags
+ansible-playbook site.yml --skip-tags hardening  # Skip the given tags
+ansible-playbook site.yml --list-tags            # List all tags
+ansible-playbook site.yml --tags upgrade         # Run tasks tagged never
 ```
 
-| Tag | 含义 |
-|-----|------|
-| `always` | 始终执行（preflight 检查）|
-| `never` | 默认跳过（升级、破坏性操作，需显式触发）|
-| `preflight` | 前置检查 |
-| `packages` | 包安装 |
-| `hardening` | 安全加固 |
-| `nginx` / `mysql` | 组件相关 |
-| `verify` | 验证类（只读，可单独运行）|
+| Tag | Meaning |
+|-----|---------|
+| `always` | Always runs (preflight checks) |
+| `never` | Skipped by default (upgrades, destructive ops; must be triggered explicitly) |
+| `preflight` | Pre-checks |
+| `packages` | Package installation |
+| `hardening` | Security hardening |
+| `nginx` / `mysql` | Component-related |
+| `verify` | Verification (read-only; safe to run alone) |
 
-### Handlers 设计原则
+### Handler Design Principles
 
 ```yaml
-# ✅ 推荐: 用 listen 解耦，纯服务操作，全部 FQCN
+# ✅ Recommended: decouple via listen; pure service operations; use FQCN everywhere
 - name: Reload Nginx
   ansible.builtin.systemd:
     name: nginx
     state: reloaded
-  listen: Reload Nginx   # task 侧 notify: Reload Nginx
+  listen: Reload Nginx   # tasks do: notify: Reload Nginx
 
-# ❌ 避免: handler 中含 when 条件或复杂逻辑
+# ❌ Avoid: putting when conditions or complex logic inside a handler
 - name: Restart service
   ansible.builtin.systemd:
     name: nginx
     state: restarted
-  when: some_condition   # 应在 task 侧控制是否 notify，不在 handler 侧
+  when: some_condition   # decide whether to notify on the task side, not in the handler
 
-# meta: flush_handlers — 立即执行已触发的 handler（不等 play 结束）
+# meta: flush_handlers — run queued handlers now (do not wait for play end)
 - name: Force handler execution now
   ansible.builtin.meta: flush_handlers
 ```
 
-### Vault 最佳实践
+### Vault Best Practices
 
 ```
-vault.example.yml  ← 结构说明，可提交
-vault.yml          ← 加密后才能提交；未加密版排除在 .gitignore 中
+vault.example.yml  ← structure description; committable
+vault.yml          ← committable only after encryption; the unencrypted form is in .gitignore
 ```
 
-命名约定: vault 变量用 `vault_` 前缀，在明文 vars.yml 中引用：
+Naming convention: prefix vault variables with `vault_` and reference them from plaintext vars.yml:
 ```yaml
-# vault.yml（加密）: vault_db_password: "real_secret"
-# vars.yml（明文）:  db_password: "{{ vault_db_password }}"
+# vault.yml (encrypted): vault_db_password: "real_secret"
+# vars.yml (plaintext):  db_password: "{{ vault_db_password }}"
 ```
 
 ---
 
-## 功能速查表
+## Feature Reference
 
-| 功能 | 示例位置 |
-|------|---------|
-| ansible.cfg 无行内注释 INI 格式 | `ansible.cfg` |
-| 多环境 Inventory | `inventory/production/` vs `inventory/staging/` |
-| group_vars 目录（明文+vault 分离）| `group_vars/all/vars.yml` + `vault.example.yml` |
-| host_vars 主机级覆盖 | `host_vars/web01.example.com/` |
-| AWS EC2 动态 inventory 插件 | `inventory/dynamic/aws_ec2.yml` |
-| 自定义动态 inventory 脚本 | `inventory/dynamic/custom_inventory.py` |
+| Feature | Example location |
+|---------|------------------|
+| ansible.cfg without inline comments (INI) | `ansible.cfg` |
+| Multi-environment inventory | `inventory/production/` vs `inventory/staging/` |
+| group_vars directory (plaintext + vault split) | `group_vars/all/vars.yml` + `vault.example.yml` |
+| host_vars host-level override | `host_vars/web01.example.com/` |
+| AWS EC2 dynamic inventory plugin | `inventory/dynamic/aws_ec2.yml` |
+| Custom dynamic inventory script | `inventory/dynamic/custom_inventory.py` |
 | Role Argument Validation | `roles/*/meta/argument_specs.yml` |
-| required: true 无默认值设计 | `roles/database/meta/argument_specs.yml` |
-| Preflight 前置检查（Tier 1/2）| `roles/common/tasks/preflight.yml` |
-| OS 特定变量（first_found）| `roles/common/vars/os/` |
-| 跨平台防火墙（UFW + firewalld）| `roles/common/tasks/security.yml` |
+| `required: true` with no default | `roles/database/meta/argument_specs.yml` |
+| Preflight checks (Tier 1/2) | `roles/common/tasks/preflight.yml` |
+| OS-specific variables (first_found) | `roles/common/vars/os/` |
+| Cross-platform firewall (UFW + firewalld) | `roles/common/tasks/security.yml` |
 | `strategy: free` / `linear` | `playbooks/site.yml` |
-| `gather_subset` 精简 facts 采集 | `playbooks/site.yml` |
+| `gather_subset` minimal facts | `playbooks/site.yml` |
 | import_tasks vs include_tasks | `roles/common/tasks/main.yml` |
 | loop + subelements + loop_control | `roles/common/tasks/packages.yml` |
 | block / rescue / always | `roles/common/tasks/packages.yml` |
 | register / changed_when / failed_when | `roles/common/tasks/security.yml` |
-| async / poll 异步任务（双平台）| `roles/common/tasks/security.yml` |
-| never 标签 | `roles/common/tasks/security.yml` |
-| check_mode 感知 | `roles/common/tasks/security.yml` |
-| ansible_managed（无 filter 依赖）| `roles/common/templates/motd.j2` |
-| validate 写前校验 | `roles/webserver/tasks/configure.yml` |
+| async / poll asynchronous tasks (dual platform) | `roles/common/tasks/security.yml` |
+| `never` tag | `roles/common/tasks/security.yml` |
+| check_mode awareness | `roles/common/tasks/security.yml` |
+| `ansible_managed` (no filter dependency) | `roles/common/templates/motd.j2` |
+| `validate` pre-write check | `roles/webserver/tasks/configure.yml` |
 | blockinfile / replace | `roles/webserver/tasks/configure.yml` |
-| vhost 部署后统一 nginx -t | `roles/webserver/tasks/vhosts.yml` |
-| handler listen 机制 | `roles/webserver/handlers/main.yml` |
-| no_log 敏感数据保护 | `roles/database/tasks/configure.yml` |
-| 主从条件渲染（db_role）| `roles/database/templates/my.cnf.j2` |
-| 备份脚本模板 | `roles/database/templates/backup.sh.j2` |
+| Unified `nginx -t` after vhost deploy | `roles/webserver/tasks/vhosts.yml` |
+| Handler `listen` mechanism | `roles/webserver/handlers/main.yml` |
+| `no_log` protects sensitive data | `roles/database/tasks/configure.yml` |
+| Primary/replica conditional rendering (db_role) | `roles/database/templates/my.cnf.j2` |
+| Backup script template | `roles/database/templates/backup.sh.j2` |
 | serial + delegate_to + run_once | `playbooks/rolling_update.yml` |
-| lb_host 变量化（不硬编码）| `playbooks/rolling_update.yml` |
-| Vault 工作流完整演示 | `playbooks/vault_demo.yml` |
+| `lb_host` variable (not hardcoded) | `playbooks/rolling_update.yml` |
+| Complete Vault workflow demo | `playbooks/vault_demo.yml` |
 | vars_prompt / add_host / group_by | `examples/advanced_patterns.yml` |
-| meta 指令 / throttle / environment | `examples/advanced_patterns.yml` |
-| hostvars / groups 魔法变量 | `examples/advanced_patterns.yml` |
-| 内置 lookups（file/env/pipe/password）| `examples/advanced_patterns.yml` |
+| meta directives / throttle / environment | `examples/advanced_patterns.yml` |
+| hostvars / groups magic vars | `examples/advanced_patterns.yml` |
+| Built-in lookups (file/env/pipe/password) | `examples/advanced_patterns.yml` |
 | uri REST API / wait_for | `examples/advanced_patterns.yml` |
 | raw + script bootstrap | `examples/advanced_patterns.yml` |
-| 高级 Jinja2（selectattr/combine/json_query）| `examples/advanced_patterns.yml` |
-| 自定义模块 | `library/app_config.py` |
-| 自定义 Jinja2 过滤器 | `filter_plugins/custom_filters.py` |
-| 自定义 Lookup 插件 | `lookup_plugins/config_value.py` |
-| 演示型 Callback（健壮版）| `callback_plugins/human_log.py` |
-| `ansible_managed` 模板头 | `roles/*/templates/*.j2` |
+| Advanced Jinja2 (selectattr/combine/json_query) | `examples/advanced_patterns.yml` |
+| Custom module | `library/app_config.py` |
+| Custom Jinja2 filters | `filter_plugins/custom_filters.py` |
+| Custom lookup plugin | `lookup_plugins/config_value.py` |
+| Demo callback (robust version) | `callback_plugins/human_log.py` |
+| `ansible_managed` template header | `roles/*/templates/*.j2` |
 | `delegate_to` / `run_once` | `playbooks/rolling_update.yml` |
-| `until` / `retries` / `delay` 轮询 | `playbooks/rolling_update.yml` |
-| Ansible Vault 完整工作流 | `playbooks/vault_demo.yml` |
-| Molecule（3 场景，双平台）| `molecule/common/` `molecule/webserver/` `molecule/database/` |
-| CI（5 job，含双平台 Molecule）| `.github/workflows/ci.yml` |
-| EE 定义（ansible-lint 自洽）| `execution-environment.yml` |
+| `until` / `retries` / `delay` polling | `playbooks/rolling_update.yml` |
+| Full Ansible Vault workflow | `playbooks/vault_demo.yml` |
+| Molecule (3 scenarios, dual platform) | `molecule/common/` `molecule/webserver/` `molecule/database/` |
+| CI (5 jobs incl. dual-platform Molecule) | `.github/workflows/ci.yml` |
+| EE definition (ansible-lint self-consistent) | `execution-environment.yml` |
 | pre-commit + ansible-lint + detect-secrets | `.pre-commit-config.yaml` + `.secrets.baseline` |
 
 ---
 
-## 常用命令
+## Common Commands
 
 ```bash
-make install           # 安装 roles + collections
+make install           # Install roles + collections
 make lint              # ansible-lint
 make syntax            # --syntax-check
 make dry-run           # --check --diff
-make deploy-staging    # 部署 staging
-make deploy-prod       # 部署 production（需确认）
+make deploy-staging    # Deploy to staging
+make deploy-prod       # Deploy to production (requires confirmation)
 
 # Ad-hoc
 ansible all -m ansible.builtin.ping
 ansible webservers -m ansible.builtin.setup -a "filter=ansible_distribution*"
 ansible all -m ansible.builtin.shell -a "df -h" --become
 
-# 按标签执行
+# Run by tag
 ansible-playbook playbooks/site.yml --tags preflight,packages
 ansible-playbook playbooks/site.yml --skip-tags hardening
 
-# 按主机过滤
+# Filter by host
 ansible-playbook playbooks/site.yml --limit web01.example.com
 ansible-playbook playbooks/site.yml --limit 'webservers:!web03*'
 
-# Ad-hoc 服务操作
+# Ad-hoc service operations
 ansible webservers -m ansible.builtin.service -a "name=nginx state=restarted" --become
 
-# Molecule（完整测试 / 调试）
+# Molecule (full test / debug)
 molecule test -s common
-molecule converge -s webserver   # 不销毁容器，方便调试
+molecule converge -s webserver   # Keep containers running for debugging
 molecule verify -s webserver
-molecule login -s webserver      # SSH 进入测试容器
+molecule login -s webserver      # SSH into a test container
 ```
 
 ---
 
-## Vault 工作流速查
+## Vault Workflow Cheatsheet
 
 ```bash
-# 加密整个文件
+# Encrypt an entire file
 ansible-vault encrypt inventory/production/group_vars/all/vault.yml
 
-# 查看加密文件（不落盘解密）
+# View an encrypted file (no plaintext written to disk)
 ansible-vault view inventory/production/group_vars/all/vault.yml
 
-# 编辑加密文件
+# Edit an encrypted file
 ansible-vault edit inventory/production/group_vars/all/vault.yml
 
-# 修改 vault 密码
+# Change the vault password
 ansible-vault rekey inventory/production/group_vars/all/vault.yml
 
-# 加密单个字符串（嵌入 vars.yml 中）
+# Encrypt a single string (inlined into vars.yml)
 ansible-vault encrypt_string 'MyPassword123' --name 'vault_db_password'
-# 输出可直接粘贴到 vars.yml:
+# Output can be pasted directly into vars.yml:
 # vault_db_password: !vault |
 #   $ANSIBLE_VAULT;1.1;AES256
 #   66...
 
-# 多 vault-id（不同环境用不同密码）
+# Multiple vault-ids (different passwords per environment)
 ansible-playbook site.yml \
   --vault-id prod@.vault_pass_prod \
   --vault-id dev@.vault_pass_dev
 ```
 
-**命名约定:** vault 文件中的变量统一加 `vault_` 前缀，在明文 vars.yml 中引用：
+**Naming convention:** prefix all variables in a vault file with `vault_` and reference them from plaintext vars.yml:
 ```yaml
-# vault.yml（加密）
+# vault.yml (encrypted)
 vault_db_password: "SuperSecret123"
 
-# vars.yml（明文）
+# vars.yml (plaintext)
 db_password: "{{ vault_db_password }}"
 ```
 
 ---
 
-## 动态 Inventory
+## Dynamic Inventory
 
 ```bash
-# 测试自定义脚本
+# Test the custom script
 python inventory/dynamic/custom_inventory.py --list | python -m json.tool
 
-# 同时使用多个 inventory 源
+# Use multiple inventory sources simultaneously
 ansible-playbook site.yml -i inventory/production:inventory/dynamic
 
-# 在 ansible.cfg 中配置多源
+# Configure multiple sources in ansible.cfg
 [defaults]
 inventory = inventory/production:inventory/dynamic
 ```
 
 ---
 
-## 性能优化建议
+## Performance Tips
 
-| 技巧 | 配置位置 |
-|------|---------|
-| SSH 持久连接 | `ansible.cfg`: `ssh_args = -o ControlPersist=60s` |
-| 管道传输（减少 SSH 往返）| `ansible.cfg`: `pipelining = true` |
-| Fact 缓存（避免重复采集）| `ansible.cfg`: `fact_caching = jsonfile` |
-| 精简 facts 采集范围 | playbook: `gather_subset: [min, hardware]` |
-| 并发主机数 | `ansible.cfg`: `forks = 20` |
-| 任务调度策略 | playbook: `strategy: free`（主机间无依赖时可用）|
-| 纯配置 play 关闭 facts | playbook: `gather_facts: false` |
+| Technique | Where to configure |
+|-----------|---------------------|
+| Persistent SSH connection | `ansible.cfg`: `ssh_args = -o ControlPersist=60s` |
+| SSH pipelining (fewer round-trips) | `ansible.cfg`: `pipelining = true` |
+| Fact cache (avoid recollection) | `ansible.cfg`: `fact_caching = jsonfile` |
+| Minimal facts scope | playbook: `gather_subset: [min, hardware]` |
+| Parallel host count | `ansible.cfg`: `forks = 20` |
+| Task scheduling strategy | playbook: `strategy: free` (when hosts are independent) |
+| Disable facts on pure-config plays | playbook: `gather_facts: false` |
 
 ---
 
-## 推荐阅读
+## Further Reading
 
-- [Ansible 官方最佳实践](https://docs.ansible.com/ansible/latest/tips_tricks/ansible_tips_tricks.html)
-- [Jeff Geerling 的 roles](https://github.com/geerlingguy) — 社区最广泛参考
-- [dev-sec hardening roles](https://github.com/dev-sec) — 安全加固参考
-- [Ansible Lint 规则](https://ansible.readthedocs.io/projects/lint/)
-- [Molecule 文档](https://ansible.readthedocs.io/projects/molecule/)
+- [Ansible official best practices](https://docs.ansible.com/ansible/latest/tips_tricks/ansible_tips_tricks.html)
+- [Jeff Geerling's roles](https://github.com/geerlingguy) — the most widely used community reference
+- [dev-sec hardening roles](https://github.com/dev-sec) — security hardening reference
+- [Ansible Lint rules](https://ansible.readthedocs.io/projects/lint/)
+- [Molecule docs](https://ansible.readthedocs.io/projects/molecule/)
 - [Ansible Builder / EE](https://ansible.readthedocs.io/projects/builder/)

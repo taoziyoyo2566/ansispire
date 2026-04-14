@@ -1,19 +1,19 @@
 # group_vars/dbservers/vars.yml
-# 变量命名约定: 统一使用 database__ 前缀，与 roles/database/defaults 一致
+# Variable naming: use the database__ prefix consistently, matching roles/database/defaults
 
 ---
-# ── MySQL 配置（覆盖 roles/database/defaults/main.yml）──────────────────────
+# ── MySQL config (overrides roles/database/defaults/main.yml) ───────────────
 database__mysql_version: "8.0"
 database__mysql_port: 3306
 database__mysql_bind_address: "0.0.0.0"
 database__mysql_datadir: /var/lib/mysql
 
-# ── 性能调优（覆盖 role defaults）────────────────────────────────────────────
+# ── Performance tuning (overrides role defaults) ────────────────────────────
 database__mysql_innodb_buffer_pool_size: "2G"
 database__mysql_innodb_log_file_size: "256M"
 database__mysql_max_connections: 300
 
-# ── 数据库列表（被 roles/database/tasks/configure.yml 消费）──────────────────
+# ── Database list (consumed by roles/database/tasks/configure.yml) ──────────
 database__databases:
   - name: appdb
     encoding: utf8mb4
@@ -22,7 +22,7 @@ database__databases:
     encoding: utf8mb4
     collation: utf8mb4_unicode_ci
 
-# ── 用户列表 ──────────────────────────────────────────────────────────────────
+# ── Users ───────────────────────────────────────────────────────────────────
 database__users:
   - name: appuser
     password: "{{ vault_db_app_password }}"
@@ -33,12 +33,12 @@ database__users:
     priv: "appdb.*:SELECT"
     host: "%"
 
-# ── 备份 ──────────────────────────────────────────────────────────────────────
+# ── Backup ──────────────────────────────────────────────────────────────────
 database__backup_enabled: true
 database__backup_dir: /backups/mysql
 database__backup_retention_days: 7
 
-# ── 公共变量 ──────────────────────────────────────────────────────────────────
+# ── Shared variables ────────────────────────────────────────────────────────
 firewall_allowed_tcp_ports:
   - 22
   - 3306

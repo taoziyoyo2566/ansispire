@@ -1,8 +1,8 @@
 #!/bin/bash
 {{ ansible_managed | comment }}
-# MySQL 自动备份脚本
-# 由 roles/database/tasks/configure.yml 部署
-# 调度: 每日 02:00 通过 cron 运行
+# MySQL automated backup script
+# Deployed by roles/database/tasks/configure.yml
+# Schedule: cron, daily at 02:00
 
 set -euo pipefail
 
@@ -17,7 +17,7 @@ log() {
 
 log "Starting MySQL backup"
 
-# 获取所有数据库列表（排除系统库）
+# List every database (exclude system databases)
 DATABASES=$(mysql -u root --socket=/var/run/mysqld/mysqld.sock \
     -e "SHOW DATABASES;" 2>/dev/null \
     | grep -Ev "(Database|information_schema|performance_schema|sys|mysql)")
@@ -36,7 +36,7 @@ for DB in ${DATABASES}; do
     log "Completed: ${DB} ($(du -sh "${BACKUP_FILE}" | cut -f1))"
 done
 
-# 清理过期备份
+# Remove expired backups
 log "Removing backups older than ${RETENTION_DAYS} days"
 find "${BACKUP_DIR}" -name "*.sql.gz" -mtime "+${RETENTION_DAYS}" -delete
 

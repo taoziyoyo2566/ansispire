@@ -1,8 +1,8 @@
 # roles/database/defaults/main.yml
 #
-# 注意: database__mysql_root_password 不在此处设置默认值。
-# 原因见 meta/argument_specs.yml 文件头注释。
-# 调用方必须通过 vault 显式提供该变量。
+# Note: database__mysql_root_password has no default here on purpose.
+# See meta/argument_specs.yml header for the full rationale.
+# The caller must supply this variable explicitly via vault.
 
 ---
 database__mysql_version: "8.0"

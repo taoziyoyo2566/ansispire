@@ -1,4 +1,4 @@
-# roles/webserver/tasks/preflight.yml — Webserver role 前置检查
+# roles/webserver/tasks/preflight.yml — webserver role preflight checks
 
 ---
 - name: Preflight | Assert required variables for vhosts
@@ -6,9 +6,9 @@
     that:
       - item.name is defined
       - item.root is defined
-      # SSL 启用时必须提供证书路径
+      # When SSL is enabled, certificate paths must be provided
       - not (item.ssl | default(false)) or (item.ssl_cert is defined and item.ssl_key is defined)
-      # PHP-FPM 启用时必须提供 socket
+      # When PHP-FPM is enabled, the socket must be provided
       - not (item.php_fpm | default(false)) or item.php_fpm_socket is defined
     fail_msg: >
       vhost '{{ item.name | default('unknown') }}' is misconfigured.
