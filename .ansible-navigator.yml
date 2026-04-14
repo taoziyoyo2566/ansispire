@@ -1,0 +1,67 @@
+# .ansible-navigator.yml — ansible-navigator configuration
+#
+# ansible-navigator is a modern replacement for ansible-playbook with
+# execution-environment (EE) containerization and an interactive TUI.
+# Docs: https://ansible.readthedocs.io/projects/navigator/
+#
+# Usage:
+#   ansible-navigator run playbooks/site.yml              # use EE (default)
+#   ansible-navigator run playbooks/site.yml --ee false   # no EE (like ansible-playbook)
+#   ansible-navigator run playbooks/site.yml --mode stdout  # non-interactive (for CI)
+---
+ansible-navigator:
+
+  # ── Execution Environment (EE) ─────────────────────────────
+  # Image name aligns with the build output from execution-environment.yml
+  execution-environment:
+    image: ansible-demo-ee:latest
+    pull:
+      policy: missing
+    container-engine: docker
+    # Switch to podman:
+    # container-engine: podman
+    volume-mounts:
+      - src: "${PWD}"
+        dest: /runner/project
+        options: Z
+    environment-variables:
+      pass:
+        - ANSIBLE_VAULT_PASSWORD_FILE
+
+  # ── Run mode ───────────────────────────────────────────────
+  # interactive: TUI mode (local development, default)
+  # stdout:      plain output (CI/CD pipelines)
+  mode: stdout
+
+  # ── Playbook artifact ──────────────────────────────────────
+  # Write a JSON artifact per run for audit and diffing
+  playbook-artifact:
+    enable: true
+    save-as: .cache/navigator/{playbook_name}-artifact-{ts_utc}.json
+
+  # ── Logging ────────────────────────────────────────────────
+  logging:
+    level: warning
+    file: .cache/navigator/ansible-navigator.log
+    append: true
+
+  # ── Ansible core settings ──────────────────────────────────
+  # These complement ansible.cfg (navigator reads ansible.cfg first)
+  ansible:
+    config: ansible.cfg
+    inventories:
+      - inventory/production
+
+  # ── Timezone and color ─────────────────────────────────────
+  color:
+    enable: true
+    osc4: true
+  time-zone: UTC
+
+  # ── AAP / AWX integration placeholder ──────────────────────
+  # When connecting to AAP 2.5+, configure automation-content-navigator here
+  # ansible-navigator:
+  #   ansible:
+  #     cmdline: --forks 20
+  #   execution-environment:
+  #     image: registry.redhat.io/aap/ee-supported-rhel9:latest

@@ -1,0 +1,49 @@
+# .editorconfig — unified formatting across editors
+# Docs:    https://editorconfig.org
+# Support: VS Code, JetBrains, Vim, Sublime Text, etc.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# YAML files (aligned with .yamllint: 2-space indent)
+[*.{yml,yaml}]
+indent_size = 2
+
+# Python files (PEP 8)
+[*.py]
+indent_size = 4
+
+# Jinja2 templates
+[*.j2]
+indent_size = 2
+
+# Shell scripts
+[*.sh]
+indent_size = 4
+
+# Makefile (must use tabs)
+[Makefile]
+indent_style = tab
+
+# INI config files
+[*.{ini,cfg}]
+indent_size = 2
+
+# JSON files
+[*.json]
+indent_size = 2
+
+# TOML files
+[*.toml]
+indent_size = 4
+
+# Markdown
+[*.md]
+trim_trailing_whitespace = false

@@ -27,6 +27,18 @@ fact_cache/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.venv/
+*.egg-info/
+uv.lock
 
 # Molecule 产物
 .molecule/
+
+# 本地安装的 collections（由 ansible-galaxy install -r requirements.yml 生成）
+collections/
+
+# ansible-navigator 产物
+.cache/
+
+# 控制面（Semaphore）本地环境文件
+controller/semaphore/.env
