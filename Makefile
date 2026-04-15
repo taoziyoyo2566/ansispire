@@ -7,21 +7,26 @@
 .PHONY: help setup install lint syntax test molecule-all dry-run \
         deploy-staging deploy-prod tags ping vault-edit vault-encrypt \
         ee-build navigator clean \
+        controller-net \
         controller-up controller-down controller-logs controller-reset \
         controller-bootstrap \
         controller-audit-up controller-audit-down \
         controller-audit-tail controller-audit-stats \
-        controller-rbac-smoke
+        controller-rbac-smoke \
+        controller-loop-smoke
 
 # Control-plane compose command wrapper
 CONTROLLER_DIR := controller/semaphore
 CONTROLLER_ENV := $(CONTROLLER_DIR)/.env
 CONTROLLER_COMPOSE := docker compose -f $(CONTROLLER_DIR)/docker-compose.yml --env-file $(CONTROLLER_ENV)
 
-# Round 8: audit sink
+# Round 8: audit sink (+ Round 9 relay)
 AUDIT_DIR := controller/audit
-AUDIT_COMPOSE := docker compose -f $(AUDIT_DIR)/docker-compose.yml
+# Relay reads SEMAPHORE_ADMIN_PASSWORD from the Semaphore .env so both stacks
+# stay in sync without duplicating secrets.
+AUDIT_COMPOSE := docker compose -f $(AUDIT_DIR)/docker-compose.yml --env-file $(CONTROLLER_ENV)
 AUDIT_CONTAINER := ansible-demo-audit-sink
+CONTROLLER_NET := controller-net
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 help: ## Show all available commands
@@ -95,7 +100,11 @@ vault-encrypt: ## Encrypt a single variable value
 	ansible-vault encrypt_string --ask-vault-pass
 
 # ── Control plane (Semaphore) ────────────────────────────────────────────────
-controller-up: ## Start Semaphore control plane (create controller/semaphore/.env first)
+controller-net: ## Ensure the shared control-plane docker network exists
+	@docker network inspect $(CONTROLLER_NET) >/dev/null 2>&1 || \
+		docker network create $(CONTROLLER_NET) >/dev/null
+
+controller-up: controller-net ## Start Semaphore control plane (create controller/semaphore/.env first)
 	@test -f $(CONTROLLER_ENV) || { echo "Missing $(CONTROLLER_ENV); run: cp $(CONTROLLER_DIR)/.env.example $(CONTROLLER_ENV) && vim $(CONTROLLER_ENV)"; exit 1; }
 	$(CONTROLLER_COMPOSE) up -d
 	@PORT=$$(grep '^SEMAPHORE_PORT=' $(CONTROLLER_ENV) | cut -d= -f2); echo "==> Semaphore starting at: http://localhost:$${PORT:-3000}"
@@ -118,9 +127,10 @@ controller-bootstrap: ## Bootstrap Semaphore project/inventory/template via API 
 		-e semaphore_password=$$(grep '^SEMAPHORE_ADMIN_PASSWORD=' $(CONTROLLER_ENV) | cut -d= -f2)
 
 # ── Round 8: audit sink ──────────────────────────────────────────────────────
-controller-audit-up: ## Start the Round 8 audit sink (loopback port 3010)
+controller-audit-up: controller-net ## Start audit sink + Round 9 polling relay
 	$(AUDIT_COMPOSE) up -d
 	@echo "==> audit-sink listening at http://127.0.0.1:3010/event"
+	@echo "==> audit-relay polling Semaphore /api/events → sink"
 
 controller-audit-down: ## Stop the audit sink (volume preserved)
 	$(AUDIT_COMPOSE) down
@@ -136,6 +146,10 @@ controller-audit-stats: ## Count audit events by path (requires jq in the contai
 # ── Round 8: RBAC smoke test (no ansible-playbook needed) ────────────────────
 controller-rbac-smoke: ## Verify RBAC demo: guest-403, task_runner can run but not edit, owner can do both
 	@bash controller/rbac/smoke.sh
+
+# ── Round 9: control-plane loop smoke ────────────────────────────────────────
+controller-loop-smoke: ## Verify Semaphore action → relay → audit JSONL (≤20s)
+	@bash controller/audit/loop-smoke.sh
 
 # ── Utilities ────────────────────────────────────────────────────────────────
 ping: ## Test connectivity to all hosts
