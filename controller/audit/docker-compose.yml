@@ -1,0 +1,51 @@
+# controller/audit/docker-compose.yml — Round 8 audit sink
+#
+# Purpose: accept Semaphore webhooks (HTTP POST) and append each event as
+#          a single JSON object to /var/log/semaphore/events.jsonl
+#
+# Intentionally small (D1=a, plan §9): a single Python container with the
+# Flask stdlib-ish `http.server`-based sink (no Flask/FastAPI dependency).
+# Persistent volume (D4=a); log rotation via logrotate running inside the
+# same container so state stays self-contained.
+#
+# Start:  make controller-audit-up    (or docker compose -f this up -d)
+# Stop:   make controller-audit-down
+# Tail:   make controller-audit-tail
+
+---
+services:
+  audit-sink:
+    image: python:3.12-alpine
+    container_name: ansible-demo-audit-sink
+    restart: unless-stopped
+    ports:
+      # Bind to loopback only — this is a local learning sink, not public
+      - "127.0.0.1:${AUDIT_PORT:-3010}:3010"
+    volumes:
+      - ./sink.py:/app/sink.py:ro
+      - ./logrotate.conf:/etc/logrotate.d/audit:ro
+      - audit-data:/var/log/semaphore
+    working_dir: /app
+    environment:
+      AUDIT_LOG: /var/log/semaphore/events.jsonl
+      AUDIT_PORT: "3010"
+      PYTHONUNBUFFERED: "1"
+    # Install logrotate, then run the sink in the foreground.
+    # logrotate is invoked hourly by a tiny wrapper below so the container
+    # stays single-process-foreground (no cron/supervisord needed).
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache logrotate >/dev/null &&
+        ( while true; do sleep 3600; logrotate -s /tmp/logrotate.state /etc/logrotate.d/audit; done ) &
+        exec python3 /app/sink.py
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3010/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  audit-data:
