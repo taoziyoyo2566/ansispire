@@ -42,3 +42,8 @@ collections/
 
 # 控制面（Semaphore）本地环境文件
 controller/semaphore/.env
+
+# Round 8: RBAC demo user credentials (random-generated at bootstrap)
+controller/rbac/users.yml
+# Round 8: audit sink persisted JSONL + rotated logs
+controller/audit/data/
