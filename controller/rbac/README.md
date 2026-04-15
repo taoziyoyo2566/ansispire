@@ -42,18 +42,66 @@ If a later Semaphore version adds team support, migrate by replacing
 the per-user bindings with per-team bindings in one pass — the role
 matrix does not need to change.
 
-## Importing real SSH / vault material (post-bootstrap, manual)
+## Importing real SSH / vault material (post-bootstrap)
 
-Bootstrap creates **placeholder** credentials (empty private key, literal
-`REPLACE_ME` password). Importing real material is a deliberate manual step
-to avoid accidentally committing secrets via API replay logs.
+Bootstrap creates **placeholder** credentials (PEM-shaped dummy private
+key, literal `REPLACE_ME` password). Real material can be imported along
+either of two paths — both are idempotent and both are visible to the UI
+once the key reaches Semaphore's database.
+
+### Key detection (both paths)
+
+Semaphore reads keys from its data volume regardless of origin. The
+bootstrap playbook's `when:` guard skips creation when a key with the
+target name already exists, so a re-run never overwrites a key you
+updated by hand. You can verify the current content type via:
+
+```bash
+curl -s -b $COOKIE $SEM/api/project/$PID/keys | \
+  python3 -m json.tool
+```
+
+A placeholder key shows `"private_key": ""` and the dummy PEM body; a
+real key never echoes `private_key` content back (Semaphore returns an
+empty string for any read-after-write).
 
 ### SSH key (`ssh_lab_key`)
+
+**Path A — UI import** (recommended for humans)
 
 1. Log in to Semaphore as `admin` (or any `owner` on `round8-rbac-demo`).
 2. Navigate to the `round8-rbac-demo` project → **Key Store** → `ssh_lab_key`.
 3. Paste the private key (PEM) and optional passphrase.
 4. Save.
+
+**Path B — API / manual import** (scriptable; useful for CI pipelines)
+
+```bash
+SEM=http://localhost:3001
+PW=$(grep ^SEMAPHORE_ADMIN_PASSWORD controller/semaphore/.env | cut -d= -f2)
+COOKIE=/tmp/semaphore.cookies
+curl -s -X POST $SEM/api/auth/login -H 'Content-Type: application/json' \
+  -d "{\"auth\":\"admin\",\"password\":\"$PW\"}" -c $COOKIE -o /dev/null
+
+# Resolve key id, then PUT the new content
+PID=$(curl -s -b $COOKIE $SEM/api/projects | python3 -c "import sys,json; \
+  print(next(p['id'] for p in json.load(sys.stdin) if p['name']=='round8-rbac-demo'))")
+KID=$(curl -s -b $COOKIE $SEM/api/project/$PID/keys | python3 -c "import sys,json; \
+  print(next(k['id'] for k in json.load(sys.stdin) if k['name']=='ssh_lab_key'))")
+
+python3 - <<PY
+import json, subprocess
+body = {
+    "id": $KID, "name": "ssh_lab_key", "type": "ssh", "project_id": $PID,
+    "ssh": {"login": "ansible", "passphrase": "",
+            "private_key": open("/path/to/id_ed25519").read()},
+}
+subprocess.run(["curl", "-s", "-b", "$COOKIE", "-X", "PUT",
+                f"$SEM/api/project/$PID/keys/$KID",
+                "-H", "Content-Type: application/json",
+                "-d", json.dumps(body)], check=True)
+PY
+```
 
 The key is stored encrypted in Semaphore's data volume
 (`semaphore-data`, bound to `/var/lib/semaphore`). Removing a user from
