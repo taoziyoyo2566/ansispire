@@ -1,14 +1,19 @@
-# controller/audit/docker-compose.yml — Round 8 audit sink
+# controller/audit/docker-compose.yml — Round 8 audit sink + Round 9 relay
 #
-# Purpose: accept Semaphore webhooks (HTTP POST) and append each event as
-#          a single JSON object to /var/log/semaphore/events.jsonl
+# Purpose:
+#   - audit-sink: accept HTTP POSTs and append each event to events.jsonl.
+#   - audit-relay (R9): poll Semaphore /api/events and forward new entries
+#     to the sink. This closes the control-plane loop: actions taken in
+#     Semaphore (logins, template runs, key changes) leave a structured
+#     trace in the sink without needing Semaphore-side webhook config.
 #
-# Intentionally small (D1=a, plan §9): a single Python container with the
-# Flask stdlib-ish `http.server`-based sink (no Flask/FastAPI dependency).
-# Persistent volume (D4=a); log rotation via logrotate running inside the
-# same container so state stays self-contained.
+# Network:
+#   Both services join the external `controller-net` so the relay can
+#   reach Semaphore as `semaphore:3000` and the sink as `audit-sink:3010`.
+#   Create it once: `make controller-net` (or `docker network create
+#   controller-net`).
 #
-# Start:  make controller-audit-up    (or docker compose -f this up -d)
+# Start:  make controller-audit-up
 # Stop:   make controller-audit-down
 # Tail:   make controller-audit-tail
 
@@ -41,11 +46,48 @@ services:
         ( while true; do sleep 3600; logrotate -s /tmp/logrotate.state /etc/logrotate.d/audit; done ) &
         exec python3 /app/sink.py
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3010/healthz"]
+      # 127.0.0.1 explicitly — sink binds IPv4-only and wget tries ::1 first.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3010/healthz"]
       interval: 30s
       timeout: 3s
       retries: 5
       start_period: 10s
+    networks:
+      default: {}
+      controller-net:
+        aliases: [audit-sink]
+
+  # Round 9: polling relay — Semaphore /api/events → audit-sink
+  audit-relay:
+    image: python:3.12-alpine
+    container_name: ansible-demo-audit-relay
+    restart: unless-stopped
+    depends_on:
+      audit-sink:
+        condition: service_healthy
+    volumes:
+      - ./relay.py:/app/relay.py:ro
+      - audit-relay-state:/var/lib/audit-relay
+    working_dir: /app
+    environment:
+      SEMAPHORE_URL: "http://semaphore:3000"
+      SEMAPHORE_USER: "${SEMAPHORE_ADMIN:-admin}"
+      # Password is read from controller/semaphore/.env by the Makefile
+      # target and passed as SEMAPHORE_PASSWORD at compose time.
+      SEMAPHORE_PASSWORD: "${SEMAPHORE_ADMIN_PASSWORD:?set SEMAPHORE_ADMIN_PASSWORD in controller/semaphore/.env}"
+      SINK_URL: "http://audit-sink:3010/event"
+      STATE_FILE: "/var/lib/audit-relay/cursor.json"
+      POLL_INTERVAL: "5"
+      PYTHONUNBUFFERED: "1"
+    command: ["python3", "/app/relay.py"]
+    networks:
+      - controller-net
 
 volumes:
   audit-data:
+  audit-relay-state:
+
+networks:
+  controller-net:
+    external: true
+    name: controller-net
