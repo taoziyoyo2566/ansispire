@@ -17,7 +17,7 @@ set -euo pipefail
 
 SEM_HOST_URL="${SEMAPHORE_URL:-http://localhost:3001}"
 ENV_FILE="$(dirname "$0")/../semaphore/.env"
-SINK_CONTAINER="${SINK_CONTAINER:-ansible-demo-audit-sink}"
+SINK_CONTAINER="${SINK_CONTAINER:-ansispire-audit-sink}"
 JSONL="${JSONL:-/var/log/semaphore/events.jsonl}"
 TIMEOUT="${SMOKE_TIMEOUT:-20}"
 
@@ -79,6 +79,6 @@ if [[ -n "$found" ]]; then
 else
   echo
   echo "Loop smoke: FAIL — marker '$marker' not in JSONL after ${TIMEOUT}s" >&2
-  echo "  inspect: docker logs $SINK_CONTAINER | tail; docker logs ansible-demo-audit-relay | tail" >&2
+  echo "  inspect: docker logs $SINK_CONTAINER | tail; docker logs ansispire-audit-relay | tail" >&2
   exit 1
 fi

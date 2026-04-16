@@ -19,7 +19,7 @@
 #
 # API docs: https://docs.semaphoreui.com/administration-guide/api/
 
-- name: Bootstrap Semaphore with a minimal ansible-demo project
+- name: Bootstrap Semaphore with a minimal ansispire project
   hosts: localhost
   gather_facts: false
   connection: local
@@ -28,7 +28,7 @@
     semaphore_url: "http://localhost:3000"
     semaphore_user: "admin"
     # semaphore_password: pass via -e; no default value to avoid accidental use
-    project_name: "ansible-demo"
+    project_name: "ansispire"
     repo_name: "local-workspace"
     inventory_name: "production"
     template_name: "site.yml (check mode)"

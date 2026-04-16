@@ -11,7 +11,7 @@
 services:
   semaphore:
     image: semaphoreui/semaphore:v2.10.34
-    container_name: ansible-demo-semaphore
+    container_name: ansispire-semaphore
     restart: unless-stopped
     ports:
       - "${SEMAPHORE_PORT:-3000}:3000"

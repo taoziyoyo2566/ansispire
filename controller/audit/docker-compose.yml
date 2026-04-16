@@ -21,7 +21,7 @@
 services:
   audit-sink:
     image: python:3.12-alpine
-    container_name: ansible-demo-audit-sink
+    container_name: ansispire-audit-sink
     restart: unless-stopped
     ports:
       # Bind to loopback only — this is a local learning sink, not public
@@ -60,7 +60,7 @@ services:
   # Round 9: polling relay — Semaphore /api/events → audit-sink
   audit-relay:
     image: python:3.12-alpine
-    container_name: ansible-demo-audit-relay
+    container_name: ansispire-audit-relay
     restart: unless-stopped
     depends_on:
       audit-sink:

@@ -25,7 +25,7 @@ AUDIT_DIR := controller/audit
 # Relay reads SEMAPHORE_ADMIN_PASSWORD from the Semaphore .env so both stacks
 # stay in sync without duplicating secrets.
 AUDIT_COMPOSE := docker compose -f $(AUDIT_DIR)/docker-compose.yml --env-file $(CONTROLLER_ENV)
-AUDIT_CONTAINER := ansible-demo-audit-sink
+AUDIT_CONTAINER := ansispire-audit-sink
 CONTROLLER_NET := controller-net
 
 # ── Help ─────────────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ tags: ## Run only tasks with the given tag, e.g. make tags TAGS=nginx
 
 # ── Execution Environment ────────────────────────────────────────────────────
 ee-build: ## Build the Execution Environment container image
-	ansible-builder build -t ansible-demo-ee:latest -f execution-environment.yml -v3
+	ansible-builder build -t ansispire-ee:latest -f execution-environment.yml -v3
 
 navigator: ## Run via ansible-navigator (EE mode)
 	ansible-navigator run playbooks/site.yml

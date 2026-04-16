@@ -2,8 +2,8 @@
 #
 # The Execution Environment (EE) pins controller-side dependencies so CI, AWX/AAP, and local runs match.
 #
-# Build: ansible-builder build -t ansible-demo-ee:latest -f execution-environment.yml
-# Run:   ansible-navigator run playbooks/site.yml --eei ansible-demo-ee:latest
+# Build: ansible-builder build -t ansispire-ee:latest -f execution-environment.yml
+# Run:   ansible-navigator run playbooks/site.yml --eei ansispire-ee:latest
 # Docs:  https://ansible.readthedocs.io/projects/builder/
 
 ---

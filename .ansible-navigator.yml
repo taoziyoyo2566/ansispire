@@ -14,7 +14,7 @@ ansible-navigator:
   # ── Execution Environment (EE) ─────────────────────────────
   # Image name aligns with the build output from execution-environment.yml
   execution-environment:
-    image: ansible-demo-ee:latest
+    image: ansispire-ee:latest
     pull:
       policy: missing
     container-engine: docker

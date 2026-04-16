@@ -42,7 +42,7 @@ choice at bootstrap time is deliberate rather than default.
 > altering the role matrix.
 
 Bootstrap seeds one independent project `round8-rbac-demo` (so we do not
-experiment with permissions on the existing `ansible-demo` project from
+experiment with permissions on the existing `ansispire` project from
 Round 7) and binds three demo users directly:
 
 | Demo user | Conceptual team | Role on `round8-rbac-demo` | Rationale |
@@ -57,7 +57,7 @@ Round 7) and binds three demo users directly:
 - Creating a template as a `task_runner`-role user returns HTTP 403.
 - A `manager`-role user can edit a template but cannot delete the project.
 - An `owner`-role user can do everything on this project but has no
-  access to the original `ansible-demo` project (scoping is per-project).
+  access to the original `ansispire` project (scoping is per-project).
 
 Audit events covering these attempts are captured by the Round 8 audit
 sink (see `controller/audit/`) — the fail-closed paths (403) are the

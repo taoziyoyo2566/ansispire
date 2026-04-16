@@ -11,9 +11,9 @@
 # execution). This file is only for local development and the CI toolchain.
 
 [project]
-name = "ansible-demo"
+name = "ansispire"
 version = "0.1.0"
-description = "Ansible project template with production-grade best practices"
+description = "Ansispire — an Ansible-based reference multi-server management control system"
 requires-python = ">=3.11"
 readme = "README.md"
 license = {text = "MIT"}
@@ -51,13 +51,13 @@ dev = [
 
 # Full install (all optional dependencies)
 all = [
-    "ansible-demo[test,cloud,dev]",
+    "ansispire[test,cloud,dev]",
 ]
 
 [tool.uv]
 # uv-specific configuration
 dev-dependencies = [
-    "ansible-demo[all]",
+    "ansispire[all]",
 ]
 
 [build-system]

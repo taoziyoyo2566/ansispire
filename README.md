@@ -1,8 +1,6 @@
-# Ansible Complete Reference Project
+# Ansispire — Ansible-based Multi-Server Management Control System
 
-A scaffold built on Ansible's official best practices and community consensus. The content is dummy, intended for learning Ansible's features, design patterns, and usage techniques.
-
-The project's actual positioning is **an Ansible-based multi-server management control system**, split into a "data plane" (roles/playbooks) and a "control plane" (controller/).
+An Ansible-based reference control system split into a **data plane** (roles/playbooks) and a **control plane** (`controller/`). Built on Ansible best practices and community consensus; content is illustrative, intended for learning architectural patterns and operational techniques.
 
 > Chinese reference snapshot: `docs/reference-cn/snapshot-2026-04-14/README.zh.md`
 
@@ -44,7 +42,7 @@ For Tier 3 handling, see the `raw + script bootstrap` section in `examples/advan
 ## Full Directory Structure
 
 ```
-ansible-demo/
+ansispire/
 ├── ansible.cfg                          # Project-level config (pure INI, no inline comments)
 ├── requirements.yml                     # External roles + collections dependencies
 ├── Makefile                             # Shortcuts for common commands

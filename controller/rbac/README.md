@@ -127,7 +127,7 @@ Round 8 §11 self-check points (see the plan). Condensed procedure:
 | As `demo_dev`, attempt to edit the demo template | 403 — `task_runner` cannot modify |
 | As `demo_dev`, trigger the demo template | Succeeds (runs in check mode) |
 | As `demo_platform`, edit and re-run the template | Succeeds — `owner` can do both |
-| As any demo user, attempt to open the Round 7 `ansible-demo` project | No access — scoping is per-project |
+| As any demo user, attempt to open the `ansispire` project | No access — scoping is per-project |
 
 ## Rotating demo-user credentials
 

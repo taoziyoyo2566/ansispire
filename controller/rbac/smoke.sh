@@ -107,10 +107,10 @@ expect_code "owner GET /keys" "200" "$code"
 echo
 
 echo "── cross-project scoping ──"
-# demo_audit should have NO access to the Round 7 ansible-demo project
+# demo_audit should have NO access to the main ansispire project
 r7_pid=$(curl -s -b "$admin_cookie" "$SEM/api/projects" | \
   python3 -c "import sys,json; \
-print(next((p['id'] for p in json.load(sys.stdin) if p['name']=='ansible-demo'), ''))")
+print(next((p['id'] for p in json.load(sys.stdin) if p['name']=='ansispire'), ''))")
 if [[ -n "$r7_pid" ]]; then
   pw=$(pw_for demo_audit)
   cookie=$(login demo_audit "$pw")
@@ -119,7 +119,7 @@ if [[ -n "$r7_pid" ]]; then
   expect_code "demo_audit cross-project (expect 403/404)" "403" "$code" || \
     expect_code "demo_audit cross-project (expect 404)" "404" "$code"
 else
-  echo "  SKIP  ansible-demo project not found (run controller-bootstrap first)"
+  echo "  SKIP  ansispire project not found (run controller-bootstrap first)"
 fi
 echo
 

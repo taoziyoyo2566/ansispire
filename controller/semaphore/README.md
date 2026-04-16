@@ -54,7 +54,7 @@ ansible-playbook controller/semaphore/bootstrap.yml \
 ```
 
 After bootstrap completes, Semaphore will contain:
-- **Project**: `ansible-demo`
+- **Project**: `ansispire`
 - **Repository**: points to `/workspace` (this repo, mounted into the container)
 - **Inventory**: points to `inventory/production/hosts.ini`
 - **Template**: `site.yml --check` (dry-run task)
@@ -88,13 +88,13 @@ Semaphore state is stored in the Docker volume `semaphore-data` (BoltDB file).
 ```bash
 # Backup
 docker run --rm \
-  -v ansible-demo_semaphore-data:/data:ro \
+  -v semaphore_semaphore-data:/data:ro \
   -v $(pwd):/backup \
   alpine tar czf /backup/semaphore-backup-$(date +%Y%m%d).tar.gz -C /data .
 
 # Restore
 docker run --rm \
-  -v ansible-demo_semaphore-data:/data \
+  -v semaphore_semaphore-data:/data \
   -v $(pwd):/backup \
   alpine tar xzf /backup/semaphore-backup-YYYYMMDD.tar.gz -C /data
 ```
