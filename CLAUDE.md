@@ -41,10 +41,10 @@ Every round must declare which level it belongs to and apply the matching review
 
 ## 2. Plan-First (Mandatory Documentation)
 
-**Every round must produce two artifacts — both are required:**
+**Every piece of work must produce two artifacts — both are required:**
 
 ### A. Plan / Review Document
-- Path: `docs/reviews/claude-review-round-N-YYYY-MM-DD.md`
+- Path: see §5 for naming rules (depends on work type)
 - Timing: **before** implementation starts
 - **No implementation until the user approves the plan**
 - Must contain:
@@ -55,7 +55,7 @@ Every round must declare which level it belongs to and apply the matching review
   - Phased roadmap (required at architecture level)
 
 ### B. Change Log
-- Path: `docs/reviews/round-N-change-log-YYYY-MM-DD.md`
+- Path: see §5 for naming rules (depends on work type)
 - Timing: **after** all changes land
 - Must contain:
   - `Reference:` bidirectional link to the plan doc
@@ -64,8 +64,7 @@ Every round must declare which level it belongs to and apply the matching review
   - What was explicitly NOT done (boundaries)
   - Self-check results (syntax, consistency, critical-file presence)
 
-**Format reference**: `docs/reviews/round-4-change-log-2026-04-09.md`
-**Landing criteria**: plan doc + change log + self-check all pass — only then may a round be declared "done"
+**Landing criteria**: plan doc + change log + self-check all pass — only then may a unit of work be declared "done"
 
 ---
 
@@ -96,18 +95,27 @@ Every round must declare which level it belongs to and apply the matching review
 
 ## 5. Document Naming and Location
 
+Three naming patterns. Choose based on work type. Requirements are always the same: plan doc before changes, changelog after.
+
+### Pattern A — Feature / Architecture work (multi-phase)
+
+Use when: a feature or system change spans multiple implementation sessions.
+Group all related docs under one topic directory so history is readable in one place.
+
 ```
 docs/reviews/
-  claude-review-round-N-YYYY-MM-DD.md    # plan / review
-  round-N-change-log-YYYY-MM-DD.md       # change log
-  review-iteration-charter.md            # overall rules
+  feat-<topic>/
+    plan-YYYY-MM-DD.md             # exploration / architecture plan (before any implementation)
+    phase1-YYYY-MM-DD.changelog.md # after phase 1 lands
+    phase2-YYYY-MM-DD.changelog.md # after phase 2 lands
+    ...
 ```
 
-Round numbering: infer the next number from existing files in `docs/reviews/`; do not skip.
+Topic name: short, kebab-case, describes the capability (e.g. `test-infra`, `ha-failover`, `event-driven`).
 
-### Configuration-only maintenance notes (to avoid confusing “system rounds”)
+### Pattern B — Configuration-only maintenance
 
-For small, configuration-only hygiene work (e.g. `.claude/settings.local.json` ergonomics) that should not be conflated with the system’s round-based roadmap, use this alternate naming style instead of consuming `round-N`:
+Use when: small, self-contained config hygiene (e.g. `.claude/settings.local.json`, `tox.ini` tweaks) that should not be conflated with the system roadmap.
 
 ```
 docs/reviews/
@@ -115,7 +123,18 @@ docs/reviews/
   claude-config-<topic>-YYYY-MM-DD.changelog.md
 ```
 
-Requirements remain the same: a review/plan doc exists before changes, and a concise changelog exists after.
+### Pattern C — Legacy (rounds 1–9, read-only)
+
+Round-numbered files in `docs/reviews/` from before 2026-04-16. Do not create new files in this pattern. Reference them for history; do not rename them.
+
+```
+docs/reviews/
+  claude-review-round-N-YYYY-MM-DD.md   # legacy plan
+  round-N-change-log-YYYY-MM-DD.md      # legacy changelog
+  review-iteration-charter.md           # overall rules
+```
+
+**Decision rule**: if the work has a topic name and will produce more than one file over time → Pattern A. If it is config hygiene → Pattern B. Never create new Pattern C files.
 
 ---
 
@@ -170,6 +189,7 @@ Format: a short list (3-6 items). Mirror the same block into the change log's "F
 - **R9 (2026-04-14)**: **Roadmap auto-continuation.** When a multi-phase plan has been pre-approved (e.g., layered i18n a/b/c, or a roadmap with N ordered phases) and phase N has landed, phase N+1 must continue in the SAME response — do not stop and wait for the user to say "next". Exceptions that DO require a fresh pause: (a) the next phase crosses an authorization boundary not covered by the original approval; (b) the next phase is architecture-level and the approval only covered engineering-level phases; (c) the user has explicitly paused the roadmap ("暂且归档"). When in doubt whether authorization still covers the next phase, state the reasoning and ask — do not stop silently. Source: after refactor-i18n-b landed, I stopped instead of continuing to i18n-c even though the user had pre-approved the layered plan; user pointed out "做完了一个，就没有下文了".
 - **R10 (2026-04-15)**: When modifying repo configuration files (e.g. `.claude/settings.local.json`, `tox.ini`, CI config), explicitly verify the change is appropriate for the intent, does not conflict with existing rules/allow entries, and is the simplest improvement that reduces future maintenance. Source: user requested that config edits include a suitability/conflict/improvement check.
 - **R11 (2026-04-15)**: **Do not append on approval — refactor globally.** When a new permission, allow-entry, or rule is being added to any config/instruction file (`.claude/settings.local.json`, `tox.ini`, CI configs, and `CLAUDE.md` itself), do NOT simply append the new entry at the bottom. Instead: (a) read the whole file, (b) identify redundant / outdated / conflicting / malformed entries, (c) land a single coherent edit that both introduces the new capability and improves the file's overall structure (dedup, grouping, sorting, removing dead entries, consolidating wildcards). Why: ad-hoc appending accumulates cruft and drifts the file away from its design; global review keeps it maintainable. How to apply: on each approval request — local permission, lint rule, CI step, CLAUDE.md rule — treat it as a whole-file editing opportunity, not a one-line insert. Source: user reinforced 2026-04-15 — "对于后续需要请求新的 approve，如果同意，不要直接在里面添加新的，而是从全局考虑如何改进这个文件。对于其他配置文件，以及 claude.md 也适用".
+- **R12 (2026-04-16)**: **Topic-first document naming.** Round-numbered filenames (`round-N-...`) scatter related docs across unrelated files and make feature history unreadable. New work must use Pattern A (`feat-<topic>/` directory) or Pattern B (`claude-config-<topic>-...`) from §5. Round numbers are retired from filenames; they remain valid as conversational reference only. Why: a multi-phase feature (e.g. test-infra) spanning 4 implementation sessions should produce 5 files all inside `feat-test-infra/`, not 5 files named after arbitrary round numbers. How to apply: when starting any new work, pick the naming pattern from §5 before creating any file. Source: user 2026-04-16 — "当前同一个task，要分好几个round，这样不利于查看历史修改内容".
 
 ---
 
