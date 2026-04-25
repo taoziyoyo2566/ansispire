@@ -35,6 +35,19 @@ Ansispire features a **decoupled audit plane** to ensure full traceability of al
 
 ---
 
+## Event-Driven Automation (EDA)
+
+Ansispire includes a **lightweight EDA subsystem** that transforms audit events into autonomous actions.
+
+- **Reactor Engine**: A Python-based `reactor.py` that tails the audit log.
+- **Rulebook**: Configurable via `extensions/eda/rules.json`.
+- **Capabilities**:
+    - **Self-Healing**: Trigger Ansible playbooks or scripts when critical resources are modified.
+    - **Alerting**: Forward critical events to Webhooks (Slack/Teams).
+- **Security**: Actions are strictly limited to predefined commands in the rulebook.
+
+---
+
 ## AI-Native Development
 
 Ansispire is designed for high-efficiency AI collaboration. We use a Tiered Governance model to ensure architectural integrity while maintaining rapid iteration.

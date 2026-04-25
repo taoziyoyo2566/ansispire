@@ -83,6 +83,34 @@ services:
     networks:
       - controller-net
 
+  # Phase 4: EDA reactor — Watch events.jsonl → reactions (Webhook/Shell)
+  audit-reactor:
+    image: python:3.12-alpine
+    container_name: ansispire-audit-reactor
+    restart: unless-stopped
+    depends_on:
+      audit-sink:
+        condition: service_healthy
+    volumes:
+      - ./reactor.py:/app/reactor.py:ro
+      - ../../extensions/eda/rules.json:/etc/ansispire/eda/rules.json:ro
+      - audit-data:/var/log/semaphore:ro
+    working_dir: /app
+    environment:
+      JSONL_PATH: /var/log/semaphore/events.jsonl
+      RULES_PATH: /etc/ansispire/eda/rules.json
+      EDA_WEBHOOK_URL: "${EDA_WEBHOOK_URL:-}"
+      PYTHONUNBUFFERED: "1"
+    # Install jq for our sample shell reactions
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache jq >/dev/null &&
+        exec python3 /app/reactor.py
+    networks:
+      - controller-net
+
 volumes:
   audit-data:
   audit-relay-state:

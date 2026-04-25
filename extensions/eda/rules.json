@@ -1,0 +1,40 @@
+{
+  "rules": [
+    {
+      "name": "Audit: Critical Resource Modified",
+      "condition": {
+        "type": "project_updated"
+      },
+      "actions": [
+        {
+          "type": "webhook",
+          "name": "Notification: Project configuration changed"
+        }
+      ]
+    },
+    {
+      "name": "Security: Access Key Deleted",
+      "condition": {
+        "type": "access_key_removed"
+      },
+      "actions": [
+        {
+          "type": "webhook",
+          "name": "Alert: A security key was removed from the system"
+        }
+      ]
+    },
+    {
+      "name": "Auto-Healing: Project Creation Hook",
+      "condition": {
+        "type": "project_created"
+      },
+      "actions": [
+        {
+          "type": "shell",
+          "command": "echo 'Self-healing or auto-config playbook would run here for project id: ' $(echo $EDA_EVENT_JSON | jq -r '.event.project_id')"
+        }
+      ]
+    }
+  ]
+}

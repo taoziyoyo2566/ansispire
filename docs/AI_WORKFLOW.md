@@ -57,7 +57,16 @@ As Ansispire is a management control system, **Audit Integrity** is a top priori
 
 ---
 
-## 5. How to Invoke Specialized Sub-Agents
+## 5. Extending Automation (EDA)
+
+You can add new autonomous behaviors by modifying `extensions/eda/rules.json`.
+
+- **Event Matching**: Use simple key-value pairs in the `condition` block to match Semaphore events.
+- **Safe Execution**: Prefer webhook notifications for visibility. When using `shell` actions, ensure the command is idempotent and properly logged.
+
+---
+
+## 6. How to Invoke Specialized Sub-Agents
 
 - For deep codebase analysis or mapping variable precedence: 
   > *"Analyze the variable precedence for the database role using codebase_investigator."*
