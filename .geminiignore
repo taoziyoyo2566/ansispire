@@ -1,0 +1,25 @@
+# Ignore large legacy reference snapshots to save context
+docs/reference-cn/
+docs/reviews/round-1-change-log-2026-04-09.md
+docs/reviews/round-2-change-log-2026-04-09.md
+docs/reviews/round-3-change-log-2026-04-09.md
+docs/reviews/round-4-change-log-2026-04-09.md
+docs/reviews/round-5-change-log-2026-04-14.md
+docs/reviews/round-7-change-log-2026-04-14.md
+docs/reviews/round-8-change-log-2026-04-15.md
+docs/reviews/round-9-change-log-2026-04-15.md
+docs/reviews/claude-review-round-*.md
+docs/reviews/codex-review-round-*.md
+
+# Ignore sensitive files (matching .gitignore)
+**/*.vault.yml
+.vault_pass
+.env
+.secrets.baseline
+
+# Ignore temporary and cache files
+__pycache__/
+.tox/
+.molecule/
+.pytest_cache/
+*.pyc

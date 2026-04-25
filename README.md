@@ -24,6 +24,16 @@ Rationale, upgrade path, and comparison to AWX / AAP: see [`controller/README.md
 
 ---
 
+## AI-Native Development
+
+Ansispire is designed for high-efficiency AI collaboration. We use a Tiered Governance model to ensure architectural integrity while maintaining rapid iteration.
+
+- **AI Policy**: See [`GEMINI.md`](./GEMINI.md) for the core project mandates.
+- **Workflow Guide**: See [`docs/AI_WORKFLOW.md`](./docs/AI_WORKFLOW.md) for details on L0-L2 task classification and evidence-based verification.
+- **Context Optimization**: `.geminiignore` is used to maintain a high signal-to-noise ratio for AI agents.
+
+---
+
 ## Platform Support Matrix
 
 | Tier | Platform | CI / Molecule | Notes |
