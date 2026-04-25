@@ -81,7 +81,7 @@
     url: https://{{ 'archive.ubuntu.com' if ansible_os_family == 'Debian' else 'dl.rockylinux.org' }}
     method: HEAD
     timeout: 10
-  register: internet_check
+  register: common_internet_check
   failed_when: false
   changed_when: false
   tags: [always, preflight]
@@ -89,7 +89,7 @@
 - name: Preflight | Warn if no internet access
   ansible.builtin.debug:
     msg: "WARNING: No internet access detected. Package installation may fail if not using a local mirror."
-  when: internet_check.status is not defined or internet_check.status != 200
+  when: common_internet_check.status is not defined or common_internet_check.status != 200
   tags: [always, preflight]
 
 # ── Python interpreter check ────────────────────────────────────────────────

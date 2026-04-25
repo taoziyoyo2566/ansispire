@@ -22,12 +22,12 @@
 - name: Preflight | Assert Nginx not already managed by another tool
   ansible.builtin.stat:
     path: /etc/nginx/.not-ansible-managed
-  register: nginx_conflict_marker
+  register: webserver_nginx_conflict_marker
 
 - name: Preflight | Fail if conflict marker found
   ansible.builtin.fail:
     msg: >
       Found /etc/nginx/.not-ansible-managed — Nginx appears to be managed by
       another tool. Remove this file to allow Ansible to manage Nginx.
-  when: nginx_conflict_marker.stat.exists
+  when: webserver_nginx_conflict_marker.stat.exists
   tags: [always, preflight]

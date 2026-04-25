@@ -395,10 +395,10 @@
 
   vars:
     users:
-      - { name: alice, role: admin,  active: true,  score: 95 }
-      - { name: bob,   role: user,   active: false, score: 72 }
-      - { name: carol, role: admin,  active: true,  score: 88 }
-      - { name: dave,  role: user,   active: true,  score: 60 }
+      - { name: alice, role: admin, active: true, score: 95 }
+      - { name: bob,  role: user,  active: false, score: 72 }
+      - { name: carol, role: admin, active: true, score: 88 }
+      - { name: dave, role: user,  active: true, score: 60 }
 
     app_config:
       base:
@@ -449,9 +449,9 @@
           replace: "{{ 'foo-bar-baz' | replace('-', '_') }}"
           regex: "{{ '192.168.1.100' | regex_search('(\\d+\\.\\d+\\.\\d+\\.\\d+)') }}"
           # Lists
-          sort: "{{ [3,1,4,1,5,9] | sort | unique }}"
-          flatten: "{{ [[1,2],[3,[4,5]]] | flatten }}"
-          zip: "{{ ['a','b','c'] | zip([1,2,3]) | list }}"
+          sort: "{{ [3, 1, 4, 1, 5, 9] | sort | unique }}"
+          flatten: "{{ [[1, 2], [3, [4, 5]]] | flatten }}"
+          zip: "{{ ['a', 'b', 'c'] | zip([1, 2, 3]) | list }}"
           # Type conversion
           to_yaml: "{{ {'key': 'value'} | to_nice_yaml }}"
           from_json: "{{ '[1,2,3]' | from_json }}"

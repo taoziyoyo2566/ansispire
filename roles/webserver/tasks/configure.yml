@@ -61,13 +61,13 @@
 - name: Verify Nginx configuration syntax
   ansible.builtin.command: nginx -t
   changed_when: false    # validation commands do not produce changes
-  register: nginx_test_result
+  register: webserver_nginx_test_result
   tags: [nginx, verify]
 
-- name: Show nginx -t output on failure
+- name: Show Nginx -t output on failure
   ansible.builtin.debug:
-    msg: "{{ nginx_test_result.stderr_lines }}"
-  when: nginx_test_result.rc != 0
+    msg: "{{ webserver_nginx_test_result.stderr_lines }}"
+  when: webserver_nginx_test_result.rc != 0
   tags: [nginx, verify]
 
 # ── logrotate configuration ─────────────────────────────────────────────────

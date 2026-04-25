@@ -17,13 +17,13 @@
     validate: "/usr/sbin/sshd -t -f %s"
     backup: true
   loop:
-    - { key: PermitRootLogin,        value: "{{ ssh_permit_root_login }}" }
+    - { key: PermitRootLogin, value: "{{ ssh_permit_root_login }}" }
     - { key: PasswordAuthentication, value: "{{ ssh_password_auth }}" }
-    - { key: X11Forwarding,          value: "no" }
-    - { key: MaxAuthTries,           value: "3" }
-    - { key: ClientAliveInterval,    value: "300" }
-    - { key: ClientAliveCountMax,    value: "2" }
-    - { key: LoginGraceTime,         value: "60" }
+    - { key: X11Forwarding, value: "no" }
+    - { key: MaxAuthTries, value: "3" }
+    - { key: ClientAliveInterval, value: "300" }
+    - { key: ClientAliveCountMax, value: "2" }
+    - { key: LoginGraceTime, value: "60" }
   notify: "Restart {{ _common__ssh_service }} service"
   tags: [ssh, hardening]
 
@@ -100,7 +100,7 @@
 - name: Check if custom limits.conf exists
   ansible.builtin.stat:
     path: /etc/security/limits.d/99-ansible.conf
-  register: limits_conf_stat
+  register: common_limits_conf_stat
 
 - name: Deploy limits.conf
   ansible.builtin.copy:
@@ -112,23 +112,23 @@
       root hard nofile 65536
     dest: /etc/security/limits.d/99-ansible.conf
     mode: "0644"
-  when: not limits_conf_stat.stat.exists
+  when: not common_limits_conf_stat.stat.exists
   tags: [limits]
 
 # ── set_fact: derived variables ─────────────────────────────────────────────
 - name: Compute host identity facts
   ansible.builtin.set_fact:
-    host_role: "{{ 'primary' if db_role is defined and db_role == 'primary' else 'secondary' }}"
-    os_label: "{{ ansible_distribution }}-{{ ansible_distribution_major_version }}"
-    deploy_env: "{{ env | default('unknown') }}"
+    common_host_role: "{{ 'primary' if db_role is defined and db_role == 'primary' else 'secondary' }}"
+    common_os_label: "{{ ansible_distribution }}-{{ ansible_distribution_major_version }}"
+    common_deploy_env: "{{ env | default('unknown') }}"
   tags: [facts]
 
 - name: Show computed facts
   ansible.builtin.debug:
     msg:
-      - "Host role: {{ host_role }}"
-      - "OS: {{ os_label }} (Tier 1: {{ _preflight_tier1 | default(false) }})"
-      - "Environment: {{ deploy_env }}"
+      - "Host role: {{ common_host_role }}"
+      - "OS: {{ common_os_label }} (Tier 1: {{ common_preflight_tier1 | default(false) }})"
+      - "Environment: {{ common_deploy_env }}"
     verbosity: 1
   tags: [facts]
 
@@ -139,33 +139,33 @@
     update_cache: true
   async: 900
   poll: 0
-  register: upgrade_job_debian
+  register: common_upgrade_job_debian
   when: ansible_os_family == 'Debian'
   tags: [upgrade, never]
 
 - name: Run full OS upgrade (async, RedHat)
   ansible.builtin.dnf:
     name: "*"
-    state: latest
+    state: latest  # noqa package-latest
   async: 900
   poll: 0
-  register: upgrade_job_redhat
+  register: common_upgrade_job_redhat
   when: ansible_os_family == 'RedHat'
   tags: [upgrade, never]
 
 - name: Wait for OS upgrade to complete
   ansible.builtin.async_status:
     jid: >-
-      {{ upgrade_job_debian.ansible_job_id
+      {{ common_upgrade_job_debian.ansible_job_id
          if ansible_os_family == 'Debian'
-         else upgrade_job_redhat.ansible_job_id }}
-  register: upgrade_result
-  until: upgrade_result.finished
+         else common_upgrade_job_redhat.ansible_job_id }}
+  register: common_upgrade_result
+  until: common_upgrade_result.finished
   retries: 90
   delay: 10
   when:
-    - (upgrade_job_debian is defined and upgrade_job_debian.ansible_job_id is defined) or
-      (upgrade_job_redhat is defined and upgrade_job_redhat.ansible_job_id is defined)
+    - (common_upgrade_job_debian is defined and common_upgrade_job_debian.ansible_job_id is defined) or
+      (common_upgrade_job_redhat is defined and common_upgrade_job_redhat.ansible_job_id is defined)
   tags: [upgrade, never]
 
 # ── check_mode awareness ────────────────────────────────────────────────────

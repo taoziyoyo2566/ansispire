@@ -24,6 +24,7 @@
 
 # ── User management: complete block/rescue/always example ───────────────────
 - name: Manage application user and directory
+  tags: [users, appdir]
   block:
     - name: Ensure app group exists
       ansible.builtin.group:
@@ -51,7 +52,7 @@
 
   rescue:
     - name: Notify failure via syslog
-      ansible.builtin.syslogger:
+      community.general.syslogger:
         msg: >
           [ansible] Failed to create app user/dir on {{ inventory_hostname }}.
           Error: {{ ansible_failed_result.msg | default('unknown') }}
@@ -66,29 +67,28 @@
       ansible.builtin.getent:
         database: passwd
         key: "{{ app_user }}"
-      register: app_user_check
+      register: common_app_user_check
       failed_when: false
 
     - name: Report user check result
       ansible.builtin.debug:
-        msg: "App user '{{ app_user }}': {{ 'exists' if app_user_check.ansible_facts is defined else 'MISSING' }}"
+        msg: "App user '{{ app_user }}': {{ 'exists' if common_app_user_check.ansible_facts is defined else 'MISSING' }}"
         verbosity: 1    # verbosity: only shown with -v; reduces normal-run noise
-  tags: [users, appdir]
 
 # ── Create deploy users (loop + loop_control) ───────────────────────────────
 - name: Create deploy users
   ansible.builtin.user:
     name: "{{ item.name }}"
-    uid: "{{ item.uid | default(omit) }}"       # omit: do not pass this parameter; the module uses its default
+    uid: "{{ item.uid | default(omit) }}"
     groups: "{{ item.groups | default([]) }}"
-    append: true                                 # append to groups, do not replace existing ones
+    append: true
     shell: /bin/bash
     create_home: true
     state: present
   loop: "{{ common__deploy_users }}"
   loop_control:
-    label: "{{ item.name }}"                     # only show name; simplifies output
-    pause: 0                                     # seconds to pause between iterations (debug aid)
+    label: "{{ item.name }}"
+    pause: 0
   when: common__deploy_users | length > 0
   tags: [users]
 
@@ -98,13 +98,11 @@
     user: "{{ item.0.name }}"
     key: "{{ item.1 }}"
     state: present
-    exclusive: false    # append; do not remove existing keys
-  # subelements(list, 'field', skip_missing=True):
-  #   item.0 = outer object (user), item.1 = inner element (one key)
+    exclusive: false
   loop: "{{ common__deploy_users | subelements('authorized_keys', skip_missing=True) }}"
   loop_control:
     label: "{{ item.0.name }}"
-  no_log: true    # SSH pub keys aren't sensitive, but authorized_keys content is long; hide to reduce noise
+  no_log: true
   tags: [users, ssh]
 
 # ── sysctl tuning (dict2items → loop) ───────────────────────────────────────
@@ -115,7 +113,6 @@
     sysctl_set: true
     state: present
     reload: true
-  # dict2items: converts {key: value} into a [{key:..., value:...}] list
   loop: "{{ common__sysctl_settings | dict2items }}"
   loop_control:
     label: "{{ item.key }}={{ item.value }}"

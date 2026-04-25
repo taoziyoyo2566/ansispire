@@ -12,7 +12,7 @@
 
 ---
 # ── SSH ─────────────────────────────────────────────────────────────────────
-- name: Restart ssh service
+- name: Restart SSH service
   ansible.builtin.systemd:
     name: "{{ _common__ssh_service | default('ssh') }}"
     state: restarted
@@ -20,7 +20,7 @@
   listen: "Restart {{ _common__ssh_service | default('ssh') }} service"
 
 # ── Cron ────────────────────────────────────────────────────────────────────
-- name: Restart cron service
+- name: Restart Cron service
   ansible.builtin.systemd:
     name: "{{ _common__cron_service | default('cron') }}"
     state: restarted

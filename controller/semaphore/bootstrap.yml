@@ -77,7 +77,7 @@
       ansible.builtin.set_fact:
         existing_project: "{{ projects_list.json | selectattr('name', 'equalto', project_name) | list | first | default({}) }}"
 
-    - name: Create project '{{ project_name }}' if missing
+    - name: Create project if missing - {{ project_name }}
       ansible.builtin.uri:
         url: "{{ semaphore_url }}/api/projects"
         method: POST
@@ -127,7 +127,7 @@
       ansible.builtin.set_fact:
         none_key_id: "{{ (keys_list.json | selectattr('name', 'equalto', 'none') | list | first).id }}"
 
-    - name: Create repository '{{ repo_name }}' pointing to /workspace
+    - name: Create repository pointing to /workspace - {{ repo_name }}
       ansible.builtin.uri:
         url: "{{ semaphore_url }}/api/project/{{ project_id }}/repositories"
         method: POST
@@ -221,7 +221,7 @@
       ansible.builtin.set_fact:
         environment_id: "{{ (envs_list.json | selectattr('name', 'equalto', 'default') | list | first).id }}"
 
-    - name: Create job template '{{ template_name }}' (dry-run)
+    - name: Create job template (dry-run) - {{ template_name }}
       ansible.builtin.uri:
         url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates"
         method: POST

@@ -37,14 +37,14 @@
     paths: "{{ _webserver__nginx_sites_available }}"
     patterns: "*.conf"
     excludes: "default.conf"
-  register: existing_vhosts
+  register: webserver_existing_vhosts
   tags: [nginx, vhosts, cleanup]
 
 - name: Remove obsolete vhost configs
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: absent
-  loop: "{{ existing_vhosts.files }}"
+  loop: "{{ webserver_existing_vhosts.files }}"
   loop_control:
     label: "{{ item.path | basename }}"
   when: >
@@ -57,6 +57,6 @@
 - name: Validate complete Nginx configuration
   ansible.builtin.command: nginx -t
   changed_when: false
-  register: nginx_validate_result
-  failed_when: nginx_validate_result.rc != 0
+  register: webserver_nginx_validate_result
+  failed_when: webserver_nginx_validate_result.rc != 0
   tags: [nginx, vhosts, verify]

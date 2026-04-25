@@ -67,6 +67,7 @@
         chdir: "{{ app_base_dir }}/myapp"
       run_once: true
       delegate_to: "{{ groups['webservers'][0] }}"
+      changed_when: true
 
   handlers:
     - name: Restart app service
