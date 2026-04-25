@@ -1,7 +1,7 @@
 # Semaphore Control Plane — Local Deployment
 
-Semaphore is an open-source Ansible UI control plane (Go single-process + SQLite/Postgres).
-This directory provides a minimal learning deployment: Docker Compose + SQLite backend, using about **200 MB RAM**.
+Semaphore is an open-source Ansible UI control plane (Go single-process + BoltDB/Postgres).
+This directory provides a minimal learning deployment: Docker Compose + BoltDB backend, using about **200 MB RAM**.
 
 > Chinese reference snapshot: `../../docs/reference-cn/snapshot-2026-04-14/controller/semaphore/README.zh.md`
 
@@ -111,8 +111,8 @@ docker run --rm \
 
 ## FAQ
 
-**Q: Why SQLite instead of Postgres?**
-A: This is a learning setup; SQLite has zero external dependencies. For production, switch to Postgres (change `SEMAPHORE_DB_DIALECT` in `docker-compose.yml`).
+**Q: Why BoltDB instead of Postgres?**
+A: This is a learning setup. BoltDB is a pure Go key-value store that allows Semaphore to run with **zero external dependencies** and minimal memory overhead (~200MB). For production scaling or high availability, you should switch to Postgres by changing `SEMAPHORE_DB_DIALECT` in `docker-compose.yml`.
 
 **Q: Port 3000 already in use?**
 A: Change `SEMAPHORE_PORT` in `.env` (for example `3001`).

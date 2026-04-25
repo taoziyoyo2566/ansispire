@@ -20,6 +20,10 @@ CONTROLLER_DIR := controller/semaphore
 CONTROLLER_ENV := $(CONTROLLER_DIR)/.env
 CONTROLLER_COMPOSE := docker compose -f $(CONTROLLER_DIR)/docker-compose.yml --env-file $(CONTROLLER_ENV)
 
+# Virtual environment handling
+VENV := .venv
+BIN := $(shell [ -f $(VENV)/bin/ansible ] && echo $(VENV)/bin/ || echo "")
+
 # Round 8: audit sink (+ Round 9 relay)
 AUDIT_DIR := controller/audit
 # Relay reads SEMAPHORE_ADMIN_PASSWORD from the Semaphore .env so both stacks
@@ -28,76 +32,72 @@ AUDIT_COMPOSE := docker compose -f $(AUDIT_DIR)/docker-compose.yml --env-file $(
 AUDIT_CONTAINER := ansispire-audit-sink
 CONTROLLER_NET := controller-net
 
-# ── Help ─────────────────────────────────────────────────────────────────────
-help: ## Show all available commands
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
-
 # ── Bootstrap ────────────────────────────────────────────────────────────────
-setup: ## Bootstrap full dev environment (Python deps + Galaxy + pre-commit)
-	@echo "==> Installing Python dependencies..."
-	@if command -v uv > /dev/null 2>&1; then \
-		uv sync --extra all; \
-	else \
-		pip install -e ".[all]"; \
-	fi
+setup: ## Bootstrap full dev environment (venv + Python deps + Galaxy + pre-commit)
+	@echo "==> Setting up virtual environment..."
+	@python3 -m venv $(VENV)
+	@$(VENV)/bin/pip install --upgrade pip ansible-core ansible-lint molecule-docker cryptography
 	@echo "==> Installing Ansible Galaxy dependencies..."
-	ansible-galaxy role install -r requirements.yml --force
-	ansible-galaxy collection install -r requirements.yml --force
+	@$(VENV)/bin/ansible-galaxy role install -r requirements.yml --force
+	@$(VENV)/bin/ansible-galaxy collection install -r requirements.yml --force
 	@echo "==> Configuring pre-commit hooks..."
-	pre-commit install
-	@echo "==> Dev environment ready"
+	@if command -v pre-commit > /dev/null 2>&1; then \
+		pre-commit install; \
+	elif [ -f $(VENV)/bin/pre-commit ]; then \
+		$(VENV)/bin/pre-commit install; \
+	fi
+	@echo "==> Dev environment ready. Use 'source $(VENV)/bin/activate' to start."
 
 install: ## Install Galaxy dependencies only (roles + collections)
-	ansible-galaxy role install -r requirements.yml --force
-	ansible-galaxy collection install -r requirements.yml --force
+	$(BIN)ansible-galaxy role install -r requirements.yml --force
+	$(BIN)ansible-galaxy collection install -r requirements.yml --force
 
 # ── Code quality ─────────────────────────────────────────────────────────────
 lint: ## Run ansible-lint
-	ansible-lint --profile production
+	$(BIN)ansible-lint --profile production
 
 syntax: ## Syntax check (does not execute)
-	ansible-playbook playbooks/site.yml --syntax-check
+	$(BIN)ansible-playbook playbooks/site.yml --syntax-check
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 test: ## Run default Molecule scenario (common)
-	molecule test -s common
+	$(BIN)molecule test -s common
 
 molecule-all: ## Run all Molecule scenarios
-	molecule test -s common
-	molecule test -s webserver
-	molecule test -s database
+	$(BIN)molecule test -s common
+	$(BIN)molecule test -s webserver
+	$(BIN)molecule test -s database
 
 # ── Deploy ───────────────────────────────────────────────────────────────────
 dry-run: ## Dry-run (--check mode, no actual changes)
-	ansible-playbook playbooks/site.yml --check --diff
+	$(BIN)ansible-playbook playbooks/site.yml --check --diff
 
 deploy-staging: ## Deploy to Staging
-	ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook playbooks/site.yml -i inventory/staging --diff
+	ANSIBLE_HOST_KEY_CHECKING=False $(BIN)ansible-playbook playbooks/site.yml -i inventory/staging --diff
 
 deploy-prod: ## Deploy to Production (requires confirmation)
 	@read -p "Deploy to PRODUCTION? [y/N] " ans && [ $${ans:-N} = y ]
-	ansible-playbook playbooks/site.yml -i inventory/production --diff
+	$(BIN)ansible-playbook playbooks/site.yml -i inventory/production --diff
 
 tags: ## Run only tasks with the given tag, e.g. make tags TAGS=nginx
-	ansible-playbook playbooks/site.yml --tags "$(TAGS)"
+	$(BIN)ansible-playbook playbooks/site.yml --tags "$(TAGS)"
 
 # ── Execution Environment ────────────────────────────────────────────────────
 ee-build: ## Build the Execution Environment container image
-	ansible-builder build -t ansispire-ee:latest -f execution-environment.yml -v3
+	$(BIN)ansible-builder build -t ansispire-ee:latest -f execution-environment.yml -v3
 
 navigator: ## Run via ansible-navigator (EE mode)
-	ansible-navigator run playbooks/site.yml
+	$(BIN)ansible-navigator run playbooks/site.yml
 
 navigator-local: ## Run via ansible-navigator (local mode, no EE)
-	ansible-navigator run playbooks/site.yml --ee false
+	$(BIN)ansible-navigator run playbooks/site.yml --ee false
 
 # ── Vault ────────────────────────────────────────────────────────────────────
 vault-edit: ## Edit an encrypted file, e.g. make vault-edit FILE=inventory/production/group_vars/all/vault.yml
-	ansible-vault edit $(FILE)
+	$(BIN)ansible-vault edit $(FILE)
 
 vault-encrypt: ## Encrypt a single variable value
-	ansible-vault encrypt_string --ask-vault-pass
+	$(BIN)ansible-vault encrypt_string --ask-vault-pass
 
 # ── Control plane (Semaphore) ────────────────────────────────────────────────
 controller-net: ## Ensure the shared control-plane docker network exists
@@ -121,7 +121,7 @@ controller-reset: ## Stop and wipe Semaphore data (!! deletes all project/job hi
 
 controller-bootstrap: ## Bootstrap Semaphore project/inventory/template via API (incl. Round 8 RBAC)
 	@test -f $(CONTROLLER_ENV) || { echo "Missing $(CONTROLLER_ENV)"; exit 1; }
-	ansible-playbook $(CONTROLLER_DIR)/bootstrap.yml \
+	$(BIN)ansible-playbook $(CONTROLLER_DIR)/bootstrap.yml \
 		-e semaphore_url=http://localhost:$$(grep '^SEMAPHORE_PORT' $(CONTROLLER_ENV) | cut -d= -f2 | grep -o '[0-9]*' || echo 3000) \
 		-e semaphore_user=$$(grep '^SEMAPHORE_ADMIN=' $(CONTROLLER_ENV) | cut -d= -f2) \
 		-e semaphore_password=$$(grep '^SEMAPHORE_ADMIN_PASSWORD=' $(CONTROLLER_ENV) | cut -d= -f2)
@@ -153,10 +153,10 @@ controller-loop-smoke: ## Verify Semaphore action → relay → audit JSONL (≤
 
 # ── Utilities ────────────────────────────────────────────────────────────────
 ping: ## Test connectivity to all hosts
-	ansible all -m ansible.builtin.ping
+	$(BIN)ansible all -m ansible.builtin.ping
 
 clean: ## Clean temp files and caches
-	rm -rf .cache/ .molecule/ __pycache__/ *.egg-info/
+	rm -rf $(VENV) .cache/ .molecule/ __pycache__/ *.egg-info/
 	find . -name "*.pyc" -delete
 	find . -name "*.retry" -delete
 	@echo "Cleanup done"

@@ -42,6 +42,7 @@ For all L1 and L2 tasks, adhere to the **Research -> Strategy -> Execution -> Va
 - **Research**: Do not assume codebase structure. Use `grep_search` and `glob` extensively. For complex dependencies (especially L2 tasks), invoke the `codebase_investigator` sub-agent. For bugs, empirically reproduce the failure first.
 - **Strategy**: Define the plan according to the Tiered Governance (L0/L1/L2).
 - **Execution**: Apply surgical changes. **Refactor Globally, Do Not Append**: When modifying configurations (e.g., tox, lint rules) or this very file, review the entire file to deduplicate and improve structure rather than just appending new lines at the bottom.
+- **Documentation Synchronicity**: Every infrastructure or workflow change MUST be accompanied by a corresponding update to `README.md` and `docs/AI_WORKFLOW.md` in the same turn. Never leave the documentation in a legacy state.
 - **Validation**: Validation is the only path to finality. You must execute project-specific checks (e.g., `tox`, `molecule test -s <scenario>`).
 
 ---

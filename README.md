@@ -10,7 +10,7 @@ An Ansible-based reference control system split into a **data plane** (roles/pla
 
 `controller/` provides a **lightweight open-source control plane** that upgrades Ansible from "scripts + SSH" into a system with a real API, job history, and credential management.
 
-Current implementation: **Semaphore + Docker Compose + SQLite** (about 200 MB RAM).
+Current implementation: **Semaphore + Docker Compose + BoltDB** (about 200 MB RAM).
 
 ```bash
 # Quick start
@@ -156,55 +156,44 @@ ansispire/
 
 ### Prerequisites
 
+Ansispire uses a **self-bootstrapping** workflow via a Python virtual environment to ensure toolchain consistency.
+
 ```bash
-# Install tooling (pipx for isolation is recommended)
-pip install ansible ansible-lint molecule[docker] pre-commit ansible-navigator
+# 1. Full bootstrap (creates .venv, installs Ansible + Lint + Molecule)
+make setup
 
-# Install Galaxy dependencies
-ansible-galaxy role install -r requirements.yml
-ansible-galaxy collection install -r requirements.yml
-
-# Initialize pre-commit
-pre-commit install
+# 2. (Optional) Activate the environment for ad-hoc commands
+source .venv/bin/activate
 ```
 
 ### Vault Workflow (Option B: do not commit plaintext vault.yml)
 
 ```bash
-# 1. Copy the structural example
+# 1. Create a dummy or real vault password file
+echo "your-password" > .vault_pass
+chmod 600 .vault_pass
+
+# 2. Copy the structural example
 cp inventory/production/group_vars/all/vault.example.yml \
    inventory/production/group_vars/all/vault.yml
 
-# 2. Fill in real secrets
-vim inventory/production/group_vars/all/vault.yml
-
-# 3. Create a vault password file (add to .gitignore)
-echo "your-vault-password" > .vault_pass
-chmod 600 .vault_pass
-
-# 4. Encrypt (vault.yml becomes committable only after this; it is in .gitignore by default)
+# 3. Encrypt
 ansible-vault encrypt inventory/production/group_vars/all/vault.yml
-
-# vault.yml is excluded in .gitignore (inventory/**/vault.yml).
-# To commit the encrypted vault.yml, remove that entry from .gitignore.
 ```
 
-### Run
+### Run & Verify
 
 ```bash
-# Dry-run
-ansible-playbook playbooks/site.yml --check --diff
+# Verify project integrity
+make syntax
+make lint
 
-# Full deployment
-ansible-playbook playbooks/site.yml
+# Run by tag
+make tags TAGS=preflight,packages
 
 # Molecule tests
-molecule test -s common     # Ubuntu 22 + Rocky 9
-molecule test -s webserver  # Ubuntu 22
-molecule test -s database   # Ubuntu 22
-
-# Lint
-make lint
+make test             # Ubuntu 22 + Rocky 9 (common scenario)
+make molecule-all     # All scenarios
 ```
 
 ---

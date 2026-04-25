@@ -1,4 +1,4 @@
-# Semaphore control-plane minimal deployment (SQLite backend)
+# Semaphore control-plane minimal deployment (BoltDB backend)
 #
 # Purpose:      learn Ansible control-plane concepts (project / inventory / template / job)
 # Resources:    ~200 MB RAM, single process
@@ -16,7 +16,7 @@ services:
     ports:
       - "${SEMAPHORE_PORT:-3000}:3000"
     environment:
-      # Database: SQLite (zero external dependencies)
+      # Database: BoltDB (embedded, zero external dependencies)
       SEMAPHORE_DB_DIALECT: bolt
       SEMAPHORE_DB_PATH: /var/lib/semaphore/database.boltdb
 
