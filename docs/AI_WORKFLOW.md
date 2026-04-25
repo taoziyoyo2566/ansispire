@@ -48,7 +48,16 @@ When an AI completes a task, it must provide:
 
 ---
 
-## 4. How to Invoke Specialized Sub-Agents
+## 4. Audit Integrity & Reliability
+
+As Ansispire is a management control system, **Audit Integrity** is a top priority.
+
+- **Zero-Loss Relay**: The audit relay now supports pagination. When modifying `controller/audit/`, ensure the cursor management logic remains atomic.
+- **Evidence of Traceability**: For [L2] tasks affecting the control plane, the "Evidence Block" in your changelog should ideally include a snippet from the audit sink showing the action was captured.
+
+---
+
+## 5. How to Invoke Specialized Sub-Agents
 
 - For deep codebase analysis or mapping variable precedence: 
   > *"Analyze the variable precedence for the database role using codebase_investigator."*

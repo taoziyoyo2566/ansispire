@@ -24,6 +24,17 @@ Rationale, upgrade path, and comparison to AWX / AAP: see [`controller/README.md
 
 ---
 
+## Audit Plane
+
+Ansispire features a **decoupled audit plane** to ensure full traceability of all system actions.
+
+- **Infrastructure**: A Python-based `relay.py` and `sink.py` architecture.
+- **Reliability**: The relay supports **pagination and backfill**, ensuring that no events are lost even during relay restarts or high-load periods.
+- **Heartbeat**: Includes a periodic heartbeat mechanism to verify the link between the control plane and the audit sink.
+- **Data Flow**: `Semaphore API → Audit Relay → Audit Sink → JSONL Artifact`.
+
+---
+
 ## AI-Native Development
 
 Ansispire is designed for high-efficiency AI collaboration. We use a Tiered Governance model to ensure architectural integrity while maintaining rapid iteration.

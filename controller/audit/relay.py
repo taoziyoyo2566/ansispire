@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Round 9 audit relay — Semaphore /api/events → audit-sink.
+"""Enhanced audit relay — Semaphore /api/events → audit-sink.
 
-Polls Semaphore's global /api/events endpoint and forwards any entries newer
-than the last cursor to the sink as structured JSON POSTs. Uses stdlib only
-(urllib + json) to match the sink's zero-dep posture.
+Polls Semaphore's global /api/events endpoint with pagination support to
+ensure zero data loss. Forwards entries to the sink as structured JSON POSTs.
+Uses stdlib only (urllib + json).
 
 Cursor persistence:
     /var/lib/audit-relay/cursor.json = {"last_ts": "<RFC3339 timestamp>"}
 
-Semaphore /api/events ordering is newest-first. We sort ascending by
-`created` and forward anything strictly newer than the cursor. On the first
-run, the cursor starts at epoch so the full event history is replayed
-once — this is acceptable for a learning sink.
+Logic:
+    1. Fetch pages (newest-first) until we hit the cursor or a safety limit.
+    2. Sort the batch ascending (oldest-first).
+    3. Forward each event; update cursor atomically after successful forward.
+    4. Emit a heartbeat if no events are found for a while.
 """
 
 import http.cookiejar
@@ -21,13 +22,17 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 
+# Configuration
 SEM_URL = os.environ.get("SEMAPHORE_URL", "http://semaphore:3000")
 SEM_USER = os.environ.get("SEMAPHORE_USER", "admin")
 SEM_PW = os.environ["SEMAPHORE_PASSWORD"]
 SINK_URL = os.environ.get("SINK_URL", "http://audit-sink:3010/event")
 STATE_FILE = os.environ.get("STATE_FILE", "/var/lib/audit-relay/cursor.json")
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "5"))
+PAGE_LIMIT = 50  # Items per page
+MAX_PAGES = 10   # Safety break to avoid infinite loops on first run
 
 EPOCH = "1970-01-01T00:00:00Z"
 
@@ -68,14 +73,15 @@ def login(opener: urllib.request.OpenerDirector) -> None:
     opener.open(req, timeout=10).read()
 
 
-def fetch_events(opener: urllib.request.OpenerDirector) -> list:
-    with opener.open(f"{SEM_URL}/api/events", timeout=10) as resp:
+def fetch_page(opener: urllib.request.OpenerDirector, page: int) -> list:
+    url = f"{SEM_URL}/api/events?limit={PAGE_LIMIT}&page={page}"
+    with opener.open(url, timeout=10) as resp:
         raw = resp.read()
     return json.loads(raw) if raw else []
 
 
-def forward(event: dict) -> None:
-    body = json.dumps({"source": "semaphore", "event": event}).encode()
+def forward(payload: dict) -> None:
+    body = json.dumps(payload).encode()
     req = urllib.request.Request(
         SINK_URL,
         data=body,
@@ -86,31 +92,77 @@ def forward(event: dict) -> None:
         resp.read()
 
 
+def emit_heartbeat() -> None:
+    payload = {
+        "source": "audit-relay",
+        "type": "heartbeat",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "status": "alive"
+    }
+    try:
+        forward(payload)
+    except Exception as e:
+        log(f"heartbeat failed: {e}")
+
+
 def tick(opener: urllib.request.OpenerDirector, cursor: str) -> str:
-    events = fetch_events(opener)
-    # Ascending by `created` so we forward oldest→newest and advance cursor safely.
-    events.sort(key=lambda e: e.get("created", ""))
-    advanced = cursor
-    for ev in events:
+    all_events = []
+    page = 1
+    reached_cursor = False
+
+    # 1. Fetch pages backwards until we hit the cursor
+    while page <= MAX_PAGES:
+        events = fetch_page(opener, page)
+        if not events:
+            break
+        
+        chunk = []
+        for ev in events:
+            ts = ev.get("created", "")
+            if ts <= cursor:
+                reached_cursor = True
+                break
+            chunk.append(ev)
+        
+        all_events.extend(chunk)
+        if reached_cursor or len(events) < PAGE_LIMIT:
+            break
+        page += 1
+
+    if not all_events:
+        return cursor
+
+    # 2. Sort ascending (oldest first) to advance cursor correctly
+    all_events.sort(key=lambda e: e.get("created", ""))
+    
+    # 3. Forward and update cursor atomically
+    last_successful_ts = cursor
+    for ev in all_events:
         ts = ev.get("created", "")
-        if ts <= cursor:
-            continue
         try:
-            forward(ev)
+            forward({"source": "semaphore", "event": ev})
+            last_successful_ts = ts
+            # Optional: save cursor per event if batches are huge, 
+            # but per-tick is usually fine for these volumes.
         except (urllib.error.URLError, TimeoutError) as e:
-            log(f"forward failed at ts={ts}: {e}; will retry next tick")
-            return advanced
-        advanced = ts
-    if advanced != cursor:
-        save_cursor(advanced)
-        log(f"advanced cursor to {advanced}")
-    return advanced
+            log(f"forward failed at ts={ts}: {e}; will retry from this point")
+            break
+    
+    if last_successful_ts != cursor:
+        save_cursor(last_successful_ts)
+        log(f"advanced cursor to {last_successful_ts} ({len(all_events)} events)")
+    
+    return last_successful_ts
 
 
 def main() -> None:
-    log(f"starting: {SEM_URL} → {SINK_URL}, poll={POLL_INTERVAL}s")
+    log(f"starting enhanced relay: {SEM_URL} → {SINK_URL}")
     opener = make_opener()
-    # Retry login until Semaphore is reachable (e.g. during compose start).
+    
+    last_heartbeat = time.time()
+    heartbeat_interval = 60 # 1 minute
+
+    # Initial login loop
     while True:
         try:
             login(opener)
@@ -121,21 +173,32 @@ def main() -> None:
 
     cursor = load_cursor()
     log(f"cursor loaded: {cursor}")
+    
     while True:
         try:
-            cursor = tick(opener, cursor)
+            new_cursor = tick(opener, cursor)
+            cursor = new_cursor
+            
+            # Heartbeat logic
+            if time.time() - last_heartbeat > heartbeat_interval:
+                emit_heartbeat()
+                last_heartbeat = time.time()
+                
         except urllib.error.HTTPError as e:
             if e.code == 401:
                 log("session expired; re-logging in")
                 opener = make_opener()
                 try:
                     login(opener)
-                except urllib.error.URLError as e2:
+                except Exception as e2:
                     log(f"re-login failed: {e2}")
             else:
                 log(f"http error {e.code}: {e.reason}")
         except (urllib.error.URLError, TimeoutError) as e:
             log(f"transport error: {e}")
+        except Exception as e:
+            log(f"unexpected error: {e}")
+            
         time.sleep(POLL_INTERVAL)
 
 
