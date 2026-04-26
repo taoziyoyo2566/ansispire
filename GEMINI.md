@@ -14,11 +14,11 @@ Changes MUST occur in purpose-driven branches: `<type>/<subsystem>-<target>`.
 
 | Type | Semantic Constraints |
 | :--- | :--- |
-| **feat** | Business logic addition. Requires updated Feature Map. |
-| **fix** | Bug fixing. Must include regression proof. |
+| **feat** | **Design RFC Mandate**: Before implementation, AI must provide a design covering Goal, Proposed Logic, and Trade-offs. |
+| **fix** | **RCA Mandate**: Before fixing, AI must output a Root Cause Analysis and regression proof plan. |
 | **refactor** | NO NEW FEATURES. Changes must be behaviorally equivalent. |
 | **security** | Strict data-masking. No secrets in logs/commit msgs. |
-| **hotfix** | Emergency only. Can skip L2 planning but requires post-mortem. |
+| **hotfix** | Emergency only. Can skip RFC planning but requires post-mortem. |
 
 ## 2. Layered Context Governance (Lazy-loading)
 1. **Global Map**: `SUMMARY.md` (Design Truth - **Read first**).
@@ -30,7 +30,7 @@ Changes MUST occur in purpose-driven branches: `<type>/<subsystem>-<target>`.
 ## 3. Engineering Standards
 - **Control vs. Data**: Strict decoupling of Controller and Roles.
 - **Audit Integrity**: Zero-data-loss and full traceability.
-- **Documentation Synchronicity**: README (Operational) and Maps (Logical) must stay in sync with code.
+- **Documentation Synchronicity**: Update README and Feature Maps in the same turn as code changes.
 - **Vendor Integrity**: Note local patches to external roles in SUMMARY.md; prevent regression.
 
 ## 4. Validation & Finality

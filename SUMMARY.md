@@ -7,7 +7,7 @@ Ansispire is a **Multi-Server Management Control System** designed for high-avai
 - **Control Plane**: API-driven management via Semaphore (BoltDB backend).
 - **Data Plane**: Execution logic via modular Ansible Roles and Playbooks.
 - **Audit Plane**: Zero-data-loss event tracking (Relay + Sink).
-- **Reaction Plane (EDA)**: Lightweight reactor that triggers autonomous actions based on audit events.
+- **Reaction Plane (EDA)**: Lightweight reactor that triggers autonomous actions based on audit events (e.g., Nginx auto-restart on health-check failure).
 
 ## 3. Ground Truths & Environment
 - **Runtime**: Docker-containerized services on Linux.
