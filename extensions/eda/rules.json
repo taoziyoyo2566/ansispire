@@ -1,6 +1,21 @@
 {
   "rules": [
     {
+      "name": "Healing: Auto-Restart Nginx",
+      "condition": {
+        "type": "task_completed",
+        "status": "error",
+        "template_name": "Nginx Health Check"
+      },
+      "actions": [
+        {
+          "type": "shell",
+          "name": "Action: Restart Nginx Service",
+          "command": "ansible-playbook playbooks/remediation/fix_nginx.yml"
+        }
+      ]
+    },
+    {
       "name": "Audit: Critical Resource Modified",
       "condition": {
         "type": "project_updated"
@@ -21,18 +36,6 @@
         {
           "type": "webhook",
           "name": "Alert: A security key was removed from the system"
-        }
-      ]
-    },
-    {
-      "name": "Auto-Healing: Project Creation Hook",
-      "condition": {
-        "type": "project_created"
-      },
-      "actions": [
-        {
-          "type": "shell",
-          "command": "echo 'Self-healing or auto-config playbook would run here for project id: ' $(echo $EDA_EVENT_JSON | jq -r '.event.project_id')"
         }
       ]
     }

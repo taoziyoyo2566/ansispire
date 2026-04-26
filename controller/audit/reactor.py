@@ -98,6 +98,7 @@ def trigger_shell(action: dict, event_payload: dict) -> None:
 def process_event(event_line: str, rules: list) -> None:
     try:
         payload = json.loads(event_line)
+        # log(f"debug: processing event type={payload.get('event', {}).get('type')}")
     except json.JSONDecodeError:
         return
 

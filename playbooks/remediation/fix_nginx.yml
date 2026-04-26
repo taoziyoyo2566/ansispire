@@ -1,0 +1,17 @@
+---
+- name: Remediation | Fix Nginx Service
+  hosts: webservers
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Ensure Nginx is started and enabled
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+    - name: Log remediation success to syslog
+      community.general.syslogger:
+        msg: "[ansispire-eda] Nginx service was successfully restarted via auto-remediation."
+        priority: info
