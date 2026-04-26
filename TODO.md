@@ -12,7 +12,8 @@
 ### 🟡 Pending / Future Tasks
 
 #### 🚀 Stability & Infrastructure (Priority 1)
-- [TASK-004] **Robust Bootstrap 2.0**
+- [TASK-004] **[IN_PROGRESS] Robust Bootstrap 2.0**
+    - **Current Branch**: `refactor/infra-bootstrap-v2`
     - Description: Create a foolproof initialization script/Makefile target that handles venv, shell path exports, and ANSIBLE_COLLECTIONS_PATH consistency to fix Molecule execution.
 - [TASK-005] **Production Deployment Blueprint**
     - Description: Detailed documentation/playbook for deploying the entire system on a clean host.
