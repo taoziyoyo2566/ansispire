@@ -13,6 +13,7 @@ Ansispire is a **Multi-Server Management Control System** designed for high-avai
 - [Audit Plane Reliability](docs/features/audit-plane/summary.md)
 - [EDA Core Engine](docs/features/eda-core/summary.md)
 - [Test Infrastructure & Stability](docs/features/test-infra/summary.md)
+- [Test Specifications (TSVS)](docs/test-specs/) — *Mandatory verification records*
 
 ## 4. Operational Integrity (Lessons Learned)
 - **Environment Sensing**: Never assume a feature (IPv6, SSH, Cron) is available in test containers. Use `stat` and `stat.exists` to make roles adaptive.

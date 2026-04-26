@@ -17,7 +17,13 @@ The system is designed to "sense" its environment rather than failing:
 - **molecule.yml**: Uses `host_vars` for granular platform overrides, ensuring high precedence.
 - **verify.yml**: Assertions are wrapped in `when` conditions to match the platform's specific configuration.
 
-## 4. Key Learnings (The "Don't Repeat" List)
+## 4. Test Documentation Standards (TSVS)
+Starting from April 2026, all functional and loopback tests must follow the **TSVS** template:
+- **Location**: `docs/test-specs/`
+- **Template**: `docs/test-specs/TEMPLATE.md`
+- **Requirements**: Must include Software Stack versions, specific Methodology, and evidence-based Actual Results.
+
+## 5. Key Learnings (The "Don't Repeat" List)
 1. Do NOT symlink `ansible` to other tools in `bootstrap.sh`; let pip manage the entrypoints.
 2. Molecule does NOT inherit project-level `PYTHONPATH`. Explicitly map plugins in `molecule.yml`.
 3. In Docker, RHEL 9 (Rocky/Alma) PAM management is often restricted by the host kernel; use standard VM tests for heavy security validation.
