@@ -3,38 +3,33 @@
 This file is the foundational mandate for all Gemini CLI sessions. It takes precedence over general defaults.
 
 ## 0. AI Behavioral Protocol (The Peer Rule)
-- **Proactive Challenge**: AI MUST NOT blindly implement architectural or process changes suggested by the user. 
-- **Impact Analysis**: AI must first output a concise "Impact & Trade-off Analysis" (ROI, Maintenance Cost, Potential Conflicts). 
-- **Confirmation**: AI only updates governance files after the user provides secondary confirmation based on the analysis.
+- **Proactive Challenge**: AI MUST NOT blindly implement changes. Perform an Impact Analysis first.
+- **Sync Guard (Consistency)**: Before marking any task as "Done", AI MUST verify:
+    1. Does the change affect `SUMMARY.md` (Architecture)? If yes, sync it.
+    2. Does the change affect `README.md` (Operational)? If yes, sync it.
+    3. Is there a relevant `Feature Map`? Create/Update it.
+    **Only after all three are confirmed can the task be closed in the ledger.**
 
 ## 1. Workload Classification & Branch Constraints
 
+### The Task Ledger (Branch: `todo`)
+- **SSOT**: The authoritative task list is `TODO.md` on the `todo` branch. 
+- **Isolation**: `TODO.md` MUST NOT exist on `master` or other code branches.
+- **Operation**: Use `git show todo:TODO.md` to read, and `git checkout todo -- TODO.md` to update progress.
+
 ### Branch Naming & Semantics
-Changes MUST occur in purpose-driven branches: `<type>/<subsystem>-<target>`.
-
-| Type | Semantic Constraints |
-| :--- | :--- |
-| **feat** | **Design RFC Mandate**: Before implementation, AI must provide a design covering Goal, Proposed Logic, and Trade-offs. |
-| **fix** | **RCA Mandate**: Before fixing, AI must output a Root Cause Analysis and regression proof plan. |
-| **refactor** | NO NEW FEATURES. Changes must be behaviorally equivalent. |
-| **security** | Strict data-masking. No secrets in logs/commit msgs. |
-| **hotfix** | Emergency only. Can skip RFC planning but requires post-mortem. |
-
-### Master Stability & Handover
-- `master` branch contains only roadmap and done tasks in `TODO.md`.
-- **Session Entry Protocol**: Every new session MUST run `git branch` to discover active `feat/` or `refactor/` branches. If a branch exists for a pending task, AI MUST switch to it and resume the Design RFC process.
+- Pattern: `<type>/<subsystem>-<target>`.
+- **feat**: Requires Design RFC.
+- **fix**: Requires RCA (Root Cause Analysis).
+- **refactor**: No new features. Behavioral equivalence only.
 
 ## 2. Layered Context Governance (Lazy-loading)
-1. **Global Map**: `SUMMARY.md` (Design Truth - **Read first**).
-2. **Roadmap**: `TODO.md` (What's next - **Read second**).
-3. **Feature Maps**: `docs/features/<name>/summary.md` (Logic Truth - **Read during research**).
-4. **Deep Details**: `docs/features/<name>/details.md` (Deep-dive on demand only).
+1. **Design Truth**: `SUMMARY.md` (Global architecture - Read FIRST).
+2. **Dynamic Truth**: `todo branch / TODO.md` (Task state - Read SECOND).
+3. **Logic Truth**: `docs/features/<name>/summary.md` (Module scope).
+4. **Deep Implementation**: `details.md` or Code (Deep-dive on demand).
 
 ## 3. Engineering Standards
-- **Control vs. Data**: Strict decoupling of Controller and Roles.
-- **Audit Integrity**: Zero-data-loss and full traceability.
-- **Documentation Synchronicity**: Update README and Feature Maps in the same turn as code changes.
-- **Vendor Integrity**: Note local patches to external roles in SUMMARY.md; prevent regression.
-
-## 4. Validation & Finality
-- A task is NOT done until **Evidence-based Verification** is provided (terminal logs).
+- **Control vs. Data**: Decouple Controller from Roles.
+- **Vendor Integrity**: Note local patches to external roles in SUMMARY.md.
+- **Evidence-based Verification**: Every unit must provide terminal logs (lint/syntax/test).
