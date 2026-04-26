@@ -178,6 +178,11 @@ ansispire/
 
 ## Quick Start
 
+### Operational Notes
+- **SSH Configuration**: If using a custom SSH port (like `32798`), ensure it is **explicitly reserved** in the kernel or moved **BELOW 32768** to avoid collisions with ephemeral ports during heavy automation.
+- **Resource Limits**: Audit Plane services (Sink/Relay/Reactor) now enforce memory limits. Monitor `docker stats` during high-load periods.
+- **Logrotate**: Host-mounted logrotate configs must have `644` permissions to be accepted by the container's security policy.
+
 ### Prerequisites
 
 Ansispire uses a **self-bootstrapping** workflow via a Python virtual environment to ensure toolchain consistency.

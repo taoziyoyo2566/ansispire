@@ -19,6 +19,8 @@ platforms:
 
 provisioner:
   name: ansible
+  playbooks:
+    prepare: prepare.yml
   inventory:
     host_vars:
       ubuntu22-database:

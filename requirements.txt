@@ -1,0 +1,13 @@
+# Ansispire Local Toolchain Requirements (SSOT)
+# Core Ansible
+ansible-core>=2.16.0,<2.17.0
+ansible-lint>=6.22.0
+
+# Testing & Drivers
+molecule>=24.0.0
+molecule-plugins[docker]>=23.5.0
+
+# System Libraries
+cryptography>=42.0.0
+requests>=2.31.0
+PyYAML>=6.0.1

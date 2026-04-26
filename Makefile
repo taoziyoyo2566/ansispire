@@ -21,8 +21,16 @@ CONTROLLER_ENV := $(CONTROLLER_DIR)/.env
 CONTROLLER_COMPOSE := docker compose -f $(CONTROLLER_DIR)/docker-compose.yml --env-file $(CONTROLLER_ENV)
 
 # Virtual environment handling
-VENV := .venv
-BIN := $(shell [ -f $(VENV)/bin/ansible ] && echo $(VENV)/bin/ || echo "")
+VENV_NAME := .venv
+PROJECT_PATH := $(shell pwd)
+VENV_BIN := $(PROJECT_PATH)/$(VENV_NAME)/bin
+BIN := $(VENV_BIN)/
+
+# Force PATH to prioritize VENV and set SSOT paths
+export PATH := $(VENV_BIN):$(PATH)
+export ANSIBLE_CONFIG := $(PROJECT_PATH)/ansible.cfg
+export ANSIBLE_ROLES_PATH := $(PROJECT_PATH)/roles
+export ANSIBLE_COLLECTIONS_PATH := $(PROJECT_PATH)/collections
 
 # Round 8: audit sink (+ Round 9 relay)
 AUDIT_DIR := controller/audit
@@ -33,20 +41,8 @@ AUDIT_CONTAINER := ansispire-audit-sink
 CONTROLLER_NET := controller-net
 
 # ── Bootstrap ────────────────────────────────────────────────────────────────
-setup: ## Bootstrap full dev environment (venv + Python deps + Galaxy + pre-commit)
-	@echo "==> Setting up virtual environment..."
-	@python3 -m venv $(VENV)
-	@$(VENV)/bin/pip install --upgrade pip ansible-core ansible-lint molecule-docker cryptography
-	@echo "==> Installing Ansible Galaxy dependencies..."
-	@$(VENV)/bin/ansible-galaxy role install -r requirements.yml --force
-	@$(VENV)/bin/ansible-galaxy collection install -r requirements.yml --force
-	@echo "==> Configuring pre-commit hooks..."
-	@if command -v pre-commit > /dev/null 2>&1; then \
-		pre-commit install; \
-	elif [ -f $(VENV)/bin/pre-commit ]; then \
-		$(VENV)/bin/pre-commit install; \
-	fi
-	@echo "==> Dev environment ready. Use 'source $(VENV)/bin/activate' to start."
+setup: ## Bootstrap full dev environment (venv + Paths + Dependencies + Galaxy)
+	@bash scripts/bootstrap.sh
 
 install: ## Install Galaxy dependencies only (roles + collections)
 	$(BIN)ansible-galaxy role install -r requirements.yml --force
@@ -156,7 +152,7 @@ ping: ## Test connectivity to all hosts
 	$(BIN)ansible all -m ansible.builtin.ping
 
 clean: ## Clean temp files and caches
-	rm -rf $(VENV) .cache/ .molecule/ __pycache__/ *.egg-info/
+	rm -rf $(VENV_NAME) .cache/ .molecule/ __pycache__/ *.egg-info/
 	find . -name "*.pyc" -delete
 	find . -name "*.retry" -delete
 	@echo "Cleanup done"

@@ -72,28 +72,42 @@ def trigger_shell(action: dict, event_payload: dict) -> None:
     if not command:
         return
     
-    # Security: In a production system, we should use a template/whitelist approach.
-    # For this POC, we allow limited commands defined in the rules file.
+    max_retries = action.get("retries", 2)
+    retry_delay = 5
+    
     log(f"executing reactive command: {command}")
-    try:
-        # Pass event data as environment variable to the subprocess
-        env = os.environ.copy()
-        env["EDA_EVENT_JSON"] = json.dumps(event_payload)
-        
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            env=env
-        )
-        if result.returncode == 0:
-            log("command executed successfully")
-        else:
-            log(f"command failed (rc={result.returncode}): {result.stderr}")
-    except Exception as e:
-        log(f"shell execution error: {e}")
+    
+    for attempt in range(max_retries + 1):
+        try:
+            # Pass event data as environment variable to the subprocess
+            env = os.environ.copy()
+            env["EDA_EVENT_JSON"] = json.dumps(event_payload)
+            env["EDA_ATTEMPT"] = str(attempt + 1)
+            
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=60, # Increased timeout for heavy playbooks
+                env=env
+            )
+            
+            if result.returncode == 0:
+                log(f"command success (attempt {attempt + 1})")
+                return
+            else:
+                log(f"command failed (rc={result.returncode}, attempt {attempt + 1}): {result.stderr.strip()}")
+                if attempt < max_retries:
+                    time.sleep(retry_delay)
+                    
+        except subprocess.TimeoutExpired:
+            log(f"command timed out (attempt {attempt + 1})")
+        except Exception as e:
+            log(f"shell execution error: {e}")
+            break # Non-recoverable error
+    
+    log(f"ERROR: command failed after {max_retries + 1} attempts: {command}")
 
 def process_event(event_line: str, rules: list) -> None:
     try:

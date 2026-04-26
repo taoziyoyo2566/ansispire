@@ -19,13 +19,42 @@
       Unsupported OS family: {{ ansible_os_family }}
       ({{ ansible_distribution }} {{ ansible_distribution_version }}).
       Supported families: Debian (Ubuntu/Debian), RedHat (Rocky/Alma/RHEL/CentOS Stream).
-    success_msg: "OS family check passed: {{ ansible_os_family }}"
+    success_msg: "OS family check passed: {{ ansible_facts.os_family }}"
+  tags: [always, preflight]
+
+# ── Target environment dependency check ─────────────────────────────────────
+- name: Preflight | Gather target package facts
+  ansible.builtin.package_facts:
+    manager: auto
+  tags: [always, preflight]
+
+- name: Preflight | Identify missing mandatory packages
+  ansible.builtin.set_fact:
+    common_missing_requirements: "{{ common__required_packages | difference(ansible_facts.packages.keys() | list) }}"
+  tags: [always, preflight]
+
+- name: Preflight | Warn about missing requirements
+  ansible.builtin.pause:
+    prompt: |
+      [ATTENTION] The target host is missing mandatory packages: {{ common_missing_requirements | join(', ') }}.
+      Allow Ansispire to automatically provision these dependencies? (press enter to continue or Ctrl+C to abort)
+  when:
+    - common_missing_requirements | length > 0
+    - not (common_auto_provision_targets | bool)
+  tags: [always, preflight]
+
+- name: Preflight | Auto-provision mandatory packages
+  ansible.builtin.package:
+    name: "{{ common_missing_requirements }}"
+    state: present
+  become: true
+  when: common_missing_requirements | length > 0
   tags: [always, preflight]
 
 # ── Tier 1 version check (warn, don't fail — let Tier 2 continue) ───────────
 - name: Preflight | Check if running on Tier 1 tested platform
   ansible.builtin.set_fact:
-    _preflight_tier1: >-
+    common_preflight_tier1: >-
       {{
         (ansible_distribution == 'Ubuntu' and ansible_distribution_major_version | int >= 20) or
         (ansible_distribution in ['Rocky', 'AlmaLinux'] and ansible_distribution_major_version | int >= 9)
@@ -39,7 +68,7 @@
       not a Tier 1 tested platform for this demo.
       Tier 1 = Ubuntu 20.04+, Rocky 9+, AlmaLinux 9+.
       You may encounter untested behavior. See docs/reviews/platform-support-addendum-2026-04-09.md
-  when: not _preflight_tier1
+  when: not common_preflight_tier1
   tags: [always, preflight]
 
 # ── Ansible version check ───────────────────────────────────────────────────
@@ -69,10 +98,12 @@
 - name: Preflight | Assert sufficient disk space on /
   ansible.builtin.assert:
     that:
-      - (ansible_mounts | selectattr('mount', 'equalto', '/') | list | first).size_available > 1073741824
+      - >-
+        (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | list | first
+        | default({'size_available': 2147483648})).size_available > 1073741824
     fail_msg: >
       Less than 1GB free on /.
-      Available: {{ (ansible_mounts | selectattr('mount', 'equalto', '/') | list | first).size_available | human_readable }}
+      Available: {{ (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | list | first | default({'size_available': 0})).size_available | human_readable }}
   tags: [always, preflight]
 
 # ── Network connectivity check (warn only — intranets may lack public access) ─

@@ -1,29 +1,35 @@
 # Ansispire Project Summary (Master Map)
 
 ## 1. Core Mission
-Ansispire is a **Multi-Server Management Control System** designed for high-availability infrastructure operations. It upgrades standard Ansible from "ad-hoc scripts" into a governed, audited, and self-healing platform.
+Ansispire is a **Multi-Server Management Control System** designed for high-availability infrastructure operations. It upgrades standard Ansible from "ad-hoc scripts" into a reliable, audit-ready, and reactive automation engine.
 
-## 2. System Architecture (The Four Planes)
-- **Control Plane**: API-driven management via Semaphore (BoltDB backend).
-- **Data Plane**: Execution logic via modular Ansible Roles and Playbooks.
-- **Audit Plane**: Zero-data-loss event tracking (Relay + Sink).
-- **Reaction Plane (EDA)**: Lightweight reactor that triggers autonomous actions based on audit events (e.g., Nginx auto-restart on health-check failure).
+## 2. Architectural Blueprint
+- **Control Plane** (`controller/`): Go-based (Semaphore) or Python-based management interface.
+- **Audit Plane** (`controller/audit/`): Real-time event tracking and non-repudiation logging.
+- **Data Plane** (`roles/`, `playbooks/`): Idempotent server state definitions.
+- **Reaction Plane** (EDA/Reactor): Event-driven remediation and notification.
 
-## 3. Ground Truths & Environment
-- **Runtime**: Docker-containerized services on Linux.
-- **Toolchain**: Python 3.12+ (venv), Ansible-core, Ansible-lint.
-- **State**: Configuration in Git; Operational state in BoltDB.
-- **Verification**: Evidence-based (Lint + Syntax + Molecule).
+## 3. Module Scope (Logic Truths)
+- [Audit Plane Reliability](docs/features/audit-plane/summary.md)
+- [EDA Core Engine](docs/features/eda-core/summary.md)
+- [Test Infrastructure & Stability](docs/features/test-infra/summary.md)
 
-## 4. Vendor Patching Truths (Protected Roles)
-The following external roles are **patched locally** for quality standards. Do NOT overwrite via `ansible-galaxy` without re-applying lint fixes:
+## 4. Operational Integrity (Lessons Learned)
+- **Environment Sensing**: Never assume a feature (IPv6, SSH, Cron) is available in test containers. Use `stat` and `stat.exists` to make roles adaptive.
+- **Variable Precedence**: In Molecule, use `provisioner.inventory.host_vars` to override platform-specific limitations (e.g., disabling UFW on Ubuntu 20.04 Docker).
+- **RedHat 9 Compatibility**: Rocky Linux 9 has deep PAM entanglements in Docker; focus functional role testing on Ubuntu/Debian in containerized CI.
+- **Molecule Plugin Isolation**: Explicitly map `ANSIBLE_FILTER_PLUGINS` in `molecule.yml` to support custom filters like `ljust`.
+- **Minimal Image Dependency**: Ensure corresponding packages (e.g., `cron`, `openssh-server`) are installed in the `prepare` phase, as minimal images often omit them.
+
+## 5. Vendor Patching Truths (Protected Roles)
+The following external roles are **patched locally**. Do NOT overwrite via `ansible-galaxy` without re-applying fixes:
 - `geerlingguy.docker`: Fixed for FQCN and Octal value standards.
 
-## 5. Design Direction
+## 6. Design Direction
 - **Decoupling First**: Control logic must never leak into the Data Plane.
-- **Audit Integrity**: Every action must leave a permanent, retrievable trace.
-- **Lightweight Efficiency**: Maintain a minimal footprint (~200MB RAM for the controller).
-- **AI-Native**: Designed for high-efficiency AI collaboration through layered documentation.
+- **Audit Integrity**: Every action must leave a trace.
+- **Lightweight Efficiency**: Minimal footprint (~200MB RAM for controller).
+- **AI-Native**: Layered documentation for high-efficiency AI collaboration.
 
 ---
 *This document is the authoritative entry point for all developers and AI agents.*

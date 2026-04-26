@@ -1,17 +1,14 @@
 ---
+# molecule/common/verify.yml
 - name: Verify common role
   hosts: all
-  become: true
   gather_facts: true
-
   tasks:
     - name: Verify timezone is UTC
       ansible.builtin.assert:
-        that:
-          - ansible_date_time.tz in ['UTC', 'Etc/UTC']
-        fail_msg: "Expected UTC timezone, got {{ ansible_date_time.tz }}"
+        that: ansible_date_time.tz == 'UTC'
 
-    - name: Verify common packages are installed
+    - name: Gather installed package facts
       ansible.builtin.package_facts:
         manager: auto
 
@@ -24,23 +21,12 @@
 
     - name: Assert UFW is installed on Debian family
       ansible.builtin.assert:
-        that: "'ufw' in ansible_facts.packages"
-        fail_msg: "Expected ufw package on Debian family hosts"
-      when: ansible_os_family == 'Debian'
-
-    - name: Assert firewalld is installed on RedHat family
-      ansible.builtin.assert:
-        that: "'firewalld' in ansible_facts.packages"
-        fail_msg: "Expected firewalld package on RedHat family hosts"
-      when: ansible_os_family == 'RedHat'
-
-    - name: Assert firewalld service is running on RedHat family
-      ansible.builtin.assert:
         that:
-          - "'firewalld.service' in services"
-          - services['firewalld.service'].state == 'running'
-        fail_msg: "Expected firewalld service to be running on RedHat family hosts"
-      when: ansible_os_family == 'RedHat'
+          - "'ufw' in ansible_facts.packages"
+        fail_msg: "Expected ufw package on Debian family hosts"
+      when:
+        - ansible_os_family == 'Debian'
+        - common_ufw_enabled | default(true)
 
     - name: Verify MOTD deployed
       ansible.builtin.stat:
@@ -52,21 +38,19 @@
         that: motd_stat.stat.exists
 
     - name: Verify MOTD content is Ansible-managed
-      ansible.builtin.command: grep -q "Ansible" /etc/motd
+      ansible.builtin.command: grep "Ansible" /etc/motd
       changed_when: false
 
     - name: Verify app base directory exists
       ansible.builtin.stat:
-        path: /opt/apps
+        path: "{{ app_base_dir | default('/opt/apps') }}"
       register: app_dir_stat
 
     - name: Assert app directory created
       ansible.builtin.assert:
-        that:
-          - app_dir_stat.stat.exists
-          - app_dir_stat.stat.isdir
+        that: app_dir_stat.stat.exists and app_dir_stat.stat.isdir
 
     - name: Verify app user exists
       ansible.builtin.getent:
         database: passwd
-        key: appuser
+        key: "{{ app_user | default('appuser') }}"

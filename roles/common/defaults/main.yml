@@ -3,6 +3,19 @@
 # Convention: prefix every role variable with the role name to avoid naming collisions.
 
 ---
+# ── System requirements (checked during preflight) ──────────────────────────
+common__required_packages:
+  - acl            # For become_user support
+  - tar            # For unarchive
+  - unzip          # For unarchive
+  - curl           # For URL checks
+
+# Set to true via -e to skip the interactive pause and auto-install dependencies
+common_auto_provision_targets: false
+
+# Firewall toggle (set to false to skip UFW tasks in restricted environments)
+common_ufw_enabled: true
+
 # ── System packages ─────────────────────────────────────────────────────────
 common__extra_packages: []          # lets callers append extra packages; empty by default
 
@@ -21,10 +34,3 @@ common__sysctl_settings:
 
 # ── User management ─────────────────────────────────────────────────────────
 common__deploy_users: []
-# Example:
-# common__deploy_users:
-#   - name: deploy
-#     uid: 1001
-#     groups: [sudo]
-#     authorized_keys:
-#       - "ssh-ed25519 AAAA... deploy@laptop"

@@ -1,0 +1,20 @@
+---
+- name: Prepare
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Ubuntu | Update apt and install minimal dependencies
+      ansible.builtin.raw: |
+        apt-get update && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata ca-certificates sudo
+      register: apt_prep
+      failed_when: false
+      changed_when: false
+
+    - name: Rocky | Refresh dnf cache and install minimal dependencies
+      ansible.builtin.raw: |
+        dnf makecache && \
+        dnf install -y sudo tzdata
+      register: dnf_prep
+      failed_when: false
+      changed_when: false

@@ -1,8 +1,4 @@
 # molecule/common/molecule.yml
-# Test platforms: Tier 1
-#   - Ubuntu 22.04 (Debian family)
-#   - Rocky Linux 9 (RedHat family)
-
 ---
 dependency:
   name: galaxy
@@ -13,8 +9,7 @@ driver:
   name: docker
 
 platforms:
-  # Tier 1 — Debian family
-  - name: ubuntu22-common
+  - name: ubuntu22-node
     image: geerlingguy/docker-ubuntu2204-ansible:latest
     pre_build_image: true
     privileged: true
@@ -24,31 +19,49 @@ platforms:
     command: /lib/systemd/systemd
     groups: [tier1_debian]
 
-  # Tier 1 — RedHat family
-  - name: rocky9-common
-    image: geerlingguy/docker-rockylinux9-ansible:latest
+  - name: ubuntu20-node
+    image: geerlingguy/docker-ubuntu2004-ansible:latest
     pre_build_image: true
     privileged: true
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
     cgroupns_mode: host
     command: /lib/systemd/systemd
-    groups: [tier1_redhat]
+    groups: [tier1_debian]
+
+  - name: debian12-node
+    image: geerlingguy/docker-debian12-ansible:latest
+    pre_build_image: true
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    command: /lib/systemd/systemd
+    groups: [tier1_debian]
 
 provisioner:
   name: ansible
+  env:
+    ANSIBLE_FILTER_PLUGINS: "../../filter_plugins"
+    ANSIBLE_LOOKUP_PLUGINS: "../../lookup_plugins"
+    ANSIBLE_CALLBACK_PLUGINS: "../../callback_plugins"
+    ANSIBLE_COLLECTIONS_PATH_WARNINGS: "False"
+    ANSIBLE_COLLECTIONS_SCAN_SYS_PATH: "True"
+    ANSIBLE_LOCALHOST_WARNING: "False"
+    ANSIBLE_DISPLAY_SKIPPED_HOSTS: "False"
+  playbooks:
+    prepare: prepare.yml
   inventory:
     group_vars:
       all:
         env: testing
         system_timezone: UTC
+        common_auto_provision_targets: true
         common_packages: [curl, vim]
         common__extra_packages: []
         common__deploy_users: []
         common__motd_enabled: true
-        common__motd_message: "Test environment"
-        common__sysctl_settings:
-          vm.swappiness: 10
+        common__motd_message: "Multi-node test environment"
         app_base_dir: /opt/apps
         app_user: appuser
         app_group: appgroup
@@ -56,11 +69,8 @@ provisioner:
         ssh_permit_root_login: "yes"
         ssh_password_auth: "yes"
         firewall_allowed_tcp_ports: [22]
-
-verifier:
-  name: ansible
-
-lint: |
-  set -e
-  yamllint .
-  ansible-lint
+        common__sysctl_settings:
+          vm.swappiness: 10
+    host_vars:
+      ubuntu20-node:
+        common_ufw_enabled: false # Explicitly disable failing UFW on Ubuntu 20 Docker

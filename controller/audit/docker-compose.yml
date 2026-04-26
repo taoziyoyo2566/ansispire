@@ -28,7 +28,7 @@ services:
       - "127.0.0.1:${AUDIT_PORT:-3010}:3010"
     volumes:
       - ./sink.py:/app/sink.py:ro
-      - ./logrotate.conf:/etc/logrotate.d/audit:ro
+      - ./logrotate.conf:/etc/logrotate.d/audit
       - audit-data:/var/log/semaphore
     working_dir: /app
     environment:
@@ -88,6 +88,11 @@ services:
     image: python:3.12-alpine
     container_name: ansispire-audit-reactor
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
     depends_on:
       audit-sink:
         condition: service_healthy

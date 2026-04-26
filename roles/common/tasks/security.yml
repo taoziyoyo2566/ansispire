@@ -9,6 +9,12 @@
 
 ---
 # ── SSH hardening (cross-platform) ──────────────────────────────────────────
+- name: Check if sshd_config exists
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config
+  register: sshd_config_stat
+  tags: [ssh, hardening]
+
 - name: Configure SSH hardening
   ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
@@ -25,21 +31,51 @@
     - { key: ClientAliveCountMax, value: "2" }
     - { key: LoginGraceTime, value: "60" }
   notify: "Restart {{ _common__ssh_service }} service"
+  when: sshd_config_stat.stat.exists
   tags: [ssh, hardening]
 
 # ── Firewall: UFW (Debian/Ubuntu only) ──────────────────────────────────────
+- name: Debug UFW status
+  ansible.builtin.debug:
+    msg: "UFW Enabled: {{ common_ufw_enabled | default(true) }} for {{ inventory_hostname }}"
+  tags: [firewall]
+
 - name: Install UFW (Debian)
   ansible.builtin.package:
     name: ufw
     state: present
-  when: ansible_os_family == 'Debian'
+  when: 
+    - ansible_os_family == 'Debian'
+    - common_ufw_enabled | default(true)
+  tags: [firewall]
+
+- name: Detect IPv6 support
+  ansible.builtin.stat:
+    path: /proc/net/if_inet6
+  register: common_ipv6_stat
+  when: 
+    - ansible_os_family == 'Debian'
+    - common_ufw_enabled | default(true)
+  tags: [firewall]
+
+- name: Configure UFW IPv6 support
+  ansible.builtin.lineinfile:
+    path: /etc/default/ufw
+    regexp: "^IPV6="
+    line: "IPV6={{ 'yes' if common_ipv6_stat.stat.exists else 'no' }}"
+  when: 
+    - ansible_os_family == 'Debian'
+    - common_ufw_enabled | default(true)
+    - common_ipv6_stat.stat is defined
   tags: [firewall]
 
 - name: Set UFW default incoming policy to deny (Debian)
   community.general.ufw:
     default: deny
     direction: incoming
-  when: ansible_os_family == 'Debian'
+  when: 
+    - ansible_os_family == 'Debian'
+    - common_ufw_enabled | default(true)
   tags: [firewall]
 
 - name: Allow defined TCP ports via UFW (Debian)
@@ -48,13 +84,17 @@
     port: "{{ item | string }}"
     proto: tcp
   loop: "{{ firewall_allowed_tcp_ports | default([22]) }}"
-  when: ansible_os_family == 'Debian'
+  when: 
+    - ansible_os_family == 'Debian'
+    - common_ufw_enabled | default(true)
   tags: [firewall]
 
 - name: Enable UFW (Debian)
   community.general.ufw:
     state: enabled
-  when: ansible_os_family == 'Debian'
+  when: 
+    - ansible_os_family == 'Debian'
+    - common_ufw_enabled | default(true)
   tags: [firewall]
 
 # ── Firewall: firewalld (RedHat/Rocky/Alma only) ────────────────────────────

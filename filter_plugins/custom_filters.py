@@ -118,6 +118,16 @@ def to_systemd_bool(value):
     return "yes" if s in ('true', 'yes', '1', 'on') else "no"
 
 
+def ljust(value, width, fillchar=' '):
+    """Left-justify a string."""
+    return str(value).ljust(width, fillchar)
+
+
+def rjust(value, width, fillchar=' '):
+    """Right-justify a string."""
+    return str(value).rjust(width, fillchar)
+
+
 class FilterModule(object):
     """Ansible discovers filters through this class."""
 
@@ -129,4 +139,6 @@ class FilterModule(object):
             'env_badge':        env_badge,
             'parse_version':    parse_version,
             'to_systemd_bool':  to_systemd_bool,
+            'ljust':            ljust,
+            'rjust':            rjust,
         }

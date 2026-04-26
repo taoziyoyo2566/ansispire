@@ -11,7 +11,7 @@
 # ── OS-specific packages (loaded from vars/os/) + common packages ───────────
 - name: Install OS-specific and common packages
   ansible.builtin.package:
-    name: "{{ (_common__os_packages + common_packages + common__extra_packages) | unique }}"
+    name: "{{ (_common__os_packages + common_packages + [_common__cron_service] + common__extra_packages) | unique }}"
     state: present
   tags: [packages]
 

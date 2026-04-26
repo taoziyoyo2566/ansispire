@@ -1,0 +1,27 @@
+---
+- name: Prepare
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Ubuntu | Update apt and install minimal dependencies
+      ansible.builtin.raw: |
+        apt-get update && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata ca-certificates sudo python3
+      register: apt_prep
+      failed_when: false
+      changed_when: false
+
+    - name: Rocky | Refresh dnf cache and install minimal dependencies
+      ansible.builtin.raw: |
+        dnf makecache && \
+        dnf install -y sudo tzdata python3 openssh-server
+      register: dnf_prep
+      failed_when: false
+      changed_when: false
+
+    - name: Rocky | Disable pam_loginuid in Docker (standard fix)
+      ansible.builtin.raw: |
+        sed -i 's/^session.*required.*pam_loginuid.so/session    optional     pam_loginuid.so/' /etc/pam.d/sudo || true
+      register: pam_fix
+      failed_when: false
+      changed_when: false
