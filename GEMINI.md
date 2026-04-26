@@ -20,12 +20,15 @@ Changes MUST occur in purpose-driven branches: `<type>/<subsystem>-<target>`.
 | **security** | Strict data-masking. No secrets in logs/commit msgs. |
 | **hotfix** | Emergency only. Can skip RFC planning but requires post-mortem. |
 
+### Master Stability & Handover
+- `master` branch contains only roadmap and done tasks in `TODO.md`.
+- **Session Entry Protocol**: Every new session MUST run `git branch` to discover active `feat/` or `refactor/` branches. If a branch exists for a pending task, AI MUST switch to it and resume the Design RFC process.
+
 ## 2. Layered Context Governance (Lazy-loading)
 1. **Global Map**: `SUMMARY.md` (Design Truth - **Read first**).
-2. **Feature Maps**: `docs/features/<name>/summary.md` (Logic Truth - **Read during research**).
-3. **Deep Details**: `docs/features/<name>/details.md` or Code (**Deep-dive on demand only**).
-
-**AI Constraint**: State *"I am entering the implementation context of <module>"* before deep-diving.
+2. **Roadmap**: `TODO.md` (What's next - **Read second**).
+3. **Feature Maps**: `docs/features/<name>/summary.md` (Logic Truth - **Read during research**).
+4. **Deep Details**: `docs/features/<name>/details.md` (Deep-dive on demand only).
 
 ## 3. Engineering Standards
 - **Control vs. Data**: Strict decoupling of Controller and Roles.
