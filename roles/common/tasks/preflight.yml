@@ -101,9 +101,10 @@
       - >-
         (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | list | first
         | default({'size_available': 2147483648})).size_available > 1073741824
-    fail_msg: >
+    fail_msg: |
       Less than 1GB free on /.
-      Available: {{ (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | list | first | default({'size_available': 0})).size_available | human_readable }}
+      Available: {{ (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | list | first
+      | default({'size_available': 0})).size_available | human_readable }}
   tags: [always, preflight]
 
 # ── Network connectivity check (warn only — intranets may lack public access) ─
