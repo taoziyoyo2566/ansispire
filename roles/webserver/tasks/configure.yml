@@ -19,7 +19,7 @@
 - name: Check for existing SSL DH parameters
   ansible.builtin.stat:
     path: /etc/nginx/dhparam.pem
-  register: dhparam_stat
+  register: webserver_dhparam_stat
   tags: [nginx, ssl]
 
 # Only generate the file if it does not exist (openssl dhparam is slow)
