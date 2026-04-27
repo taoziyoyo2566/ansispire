@@ -8,6 +8,6 @@ molecule>=24.0.0
 molecule-plugins[docker]>=23.5.0
 
 # System Libraries
-cryptography>=42.0.0
+cryptography>=47.0.0
 requests>=2.31.0
 PyYAML>=6.0.1
