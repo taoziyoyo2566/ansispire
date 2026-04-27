@@ -10,7 +10,7 @@ ignore: |
 
 rules:
   line-length:
-    max: 160               
+    max: 160
     level: warning
 
   truthy:
@@ -18,7 +18,7 @@ rules:
       - "true"
       - "false"
       - "yes"
-      - "no"               
+      - "no"
     check-keys: false
 
   comments:
@@ -30,5 +30,5 @@ rules:
     max-spaces-inside: 1
 
   octal-values:
-    forbid-implicit-octal: true   
+    forbid-implicit-octal: true
     forbid-explicit-octal: true
