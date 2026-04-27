@@ -11,6 +11,7 @@ exclude_paths:
   - .cache/
   - molecule/
   - collections/
+  - roles/geerlingguy.docker/
 
 # Rules to skip or treat as warnings
 warn_list:

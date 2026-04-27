@@ -33,3 +33,4 @@ This file is the foundational mandate for all Gemini CLI sessions. It takes prec
 - **Control vs. Data**: Decouple Controller from Roles.
 - **Vendor Integrity**: Note local patches to external roles in SUMMARY.md.
 - **Evidence-based Verification**: Every unit must provide terminal logs (lint/syntax/test).
+- **Test Governance (TSVS)**: ALL functional, loopback, and integration tests MUST be documented using the `docs/test-specs/TEMPLATE.md` format. No task involving "testing" is considered "Done" without a corresponding PASS record in `docs/test-specs/`.

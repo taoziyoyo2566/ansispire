@@ -44,7 +44,7 @@
   ansible.builtin.package:
     name: ufw
     state: present
-  when: 
+  when:
     - ansible_os_family == 'Debian'
     - common_ufw_enabled | default(true)
   tags: [firewall]
@@ -53,7 +53,7 @@
   ansible.builtin.stat:
     path: /proc/net/if_inet6
   register: common_ipv6_stat
-  when: 
+  when:
     - ansible_os_family == 'Debian'
     - common_ufw_enabled | default(true)
   tags: [firewall]
@@ -63,7 +63,7 @@
     path: /etc/default/ufw
     regexp: "^IPV6="
     line: "IPV6={{ 'yes' if common_ipv6_stat.stat.exists else 'no' }}"
-  when: 
+  when:
     - ansible_os_family == 'Debian'
     - common_ufw_enabled | default(true)
     - common_ipv6_stat.stat is defined
@@ -73,7 +73,7 @@
   community.general.ufw:
     default: deny
     direction: incoming
-  when: 
+  when:
     - ansible_os_family == 'Debian'
     - common_ufw_enabled | default(true)
   tags: [firewall]
@@ -84,7 +84,7 @@
     port: "{{ item | string }}"
     proto: tcp
   loop: "{{ firewall_allowed_tcp_ports | default([22]) }}"
-  when: 
+  when:
     - ansible_os_family == 'Debian'
     - common_ufw_enabled | default(true)
   tags: [firewall]
@@ -92,7 +92,7 @@
 - name: Enable UFW (Debian)
   community.general.ufw:
     state: enabled
-  when: 
+  when:
     - ansible_os_family == 'Debian'
     - common_ufw_enabled | default(true)
   tags: [firewall]

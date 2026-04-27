@@ -4,9 +4,13 @@
 ---
 extends: default
 
+ignore: |
+  roles/geerlingguy.docker/
+  .ansible/roles/geerlingguy.docker/
+
 rules:
   line-length:
-    max: 160               # relaxed line length (Ansible task names can be long)
+    max: 160
     level: warning
 
   truthy:
@@ -14,16 +18,17 @@ rules:
       - "true"
       - "false"
       - "yes"
-      - "no"               # Ansible historically uses yes/no heavily; allow it
+      - "no"
     check-keys: false
 
   comments:
     min-spaces-from-content: 1
+  comments-indentation: false
 
   braces:
     min-spaces-inside: 0
     max-spaces-inside: 1
 
   octal-values:
-    forbid-implicit-octal: true   # forbid implicit octal (file modes must be quoted)
-    forbid-explicit-octal: false
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true

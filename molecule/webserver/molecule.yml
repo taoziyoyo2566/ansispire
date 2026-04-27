@@ -34,6 +34,8 @@ provisioner:
   name: ansible
   playbooks:
     prepare: prepare.yml
+    converge: converge.yml
+    verify: verify.yml
   inventory:
     group_vars:
       all:
@@ -45,9 +47,6 @@ provisioner:
         app_group: appgroup
         ssh_allowed_users: [root]
         firewall_allowed_tcp_ports: [22, 80, 443]
-  playbooks:
-    converge: converge.yml
-    verify: verify.yml
 
 verifier:
   name: ansible               # testinfra (Python) is also an option
