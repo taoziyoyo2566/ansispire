@@ -396,9 +396,9 @@
   vars:
     users:
       - { name: alice, role: admin, active: true, score: 95 }
-      - { name: bob,  role: user,  active: false, score: 72 }
+      - { name: bob, role: user, active: false, score: 72 }
       - { name: carol, role: admin, active: true, score: 88 }
-      - { name: dave, role: user,  active: true, score: 60 }
+      - { name: dave, role: user, active: true, score: 60 }
 
     app_config:
       base:

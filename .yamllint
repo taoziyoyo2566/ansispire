@@ -4,6 +4,10 @@
 ---
 extends: default
 
+ignore: |
+  roles/geerlingguy.docker/
+  .ansible/roles/geerlingguy.docker/
+
 rules:
   line-length:
     max: 160               # relaxed line length (Ansible task names can be long)
