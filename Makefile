@@ -58,7 +58,13 @@ syntax: ## Syntax check both staging and production
 	@echo "==> Syntax checking Production..."
 	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/production
 
-verify: lint syntax dry-run ## Run all CI-equivalent checks (lint + multi-env syntax + dry-run)
+verify: lint syntax dry-run ## Run CI-equivalent checks (lint + syntax + dry-run)
+
+verify-quick: syntax ## Quick save-point check (Syntax only)
+
+verify-full: verify molecule-all ## Full-bore verification (All quality checks + All molecule scenarios)
+	@echo "==> Generating verification report..."
+	@python3 scripts/verify_report.py
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 test: ## Run default Molecule scenario (common)
