@@ -58,5 +58,7 @@
   ansible.builtin.command: nginx -t
   changed_when: false
   register: webserver_nginx_validate_result
-  failed_when: webserver_nginx_validate_result.rc != 0
+  failed_when:
+    - not ansible_check_mode
+    - webserver_nginx_validate_result.rc != 0
   tags: [nginx, vhosts, verify]
