@@ -12,6 +12,9 @@
 ### 🟡 Pending / Future Tasks
 
 #### 🚀 Stability & Infrastructure (Priority 1)
+- [TASK-006] **[PENDING] 升级至 Ansible-Core 2.20.5 (2026 LTS)**
+    - **Priority**: 0 (Critical)
+    - **Description**: 升级核心引擎至 2026 稳定版，锁定 requirements.yml 中的插件版本，彻底消除版本不匹配告警。
 - [TASK-004] **[IN_PROGRESS] Robust Bootstrap 2.0**
     - **Current Branch**: `refactor/infra-bootstrap-v2`
     - Description: Create a foolproof initialization script/Makefile target that handles venv, shell path exports, and ANSIBLE_COLLECTIONS_PATH consistency to fix Molecule execution.
