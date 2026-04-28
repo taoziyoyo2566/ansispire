@@ -52,10 +52,13 @@ install: ## Install Galaxy dependencies only (roles + collections)
 lint: ## Run ansible-lint
 	$(BIN)ansible-lint --profile production
 
-syntax: ## Syntax check (does not execute)
-	$(BIN)ansible-playbook playbooks/site.yml --syntax-check
+syntax: ## Syntax check both staging and production
+	@echo "==> Syntax checking Staging..."
+	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/staging
+	@echo "==> Syntax checking Production..."
+	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/production
 
-verify: lint syntax dry-run ## Run all CI-equivalent checks (lint + syntax + dry-run)
+verify: lint syntax dry-run ## Run all CI-equivalent checks (lint + multi-env syntax + dry-run)
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 test: ## Run default Molecule scenario (common)
@@ -67,8 +70,8 @@ molecule-all: ## Run all Molecule scenarios
 	$(BIN)molecule test -s database
 
 # ── Deploy ───────────────────────────────────────────────────────────────────
-dry-run: ## Dry-run (--check mode, no actual changes)
-	$(BIN)ansible-playbook playbooks/site.yml --check --diff
+dry-run: ## Dry-run (--check mode, no actual changes, local connection for logic verification)
+	$(BIN)ansible-playbook playbooks/site.yml --check --diff --connection=local -e "ansible_python_interpreter=$(which python3)"
 
 deploy-staging: ## Deploy to Staging
 	ANSIBLE_HOST_KEY_CHECKING=False $(BIN)ansible-playbook playbooks/site.yml -i inventory/staging --diff

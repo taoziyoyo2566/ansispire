@@ -30,7 +30,7 @@
     - { key: ClientAliveInterval, value: "300" }
     - { key: ClientAliveCountMax, value: "2" }
     - { key: LoginGraceTime, value: "60" }
-  notify: "Restart {{ _common__ssh_service }} service"
+  notify: Restart SSH service
   when: common__sshd_config_stat.stat.exists
   tags: [ssh, hardening]
 

@@ -43,7 +43,7 @@ export PATH="$PROJECT_ROOT/$VENV/bin:$PATH"
 
 echo "==> Setup complete. Running integrity check..."
 
-"$VENV/bin/ansible-playbook" playbooks/site.yml --syntax-check
+make syntax
 
 echo "----------------------------------------------------------------"
 echo " SUCCESS: Ansispire environment is ready (Venv-Locked)."
