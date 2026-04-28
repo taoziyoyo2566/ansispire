@@ -5,9 +5,9 @@ name: CI
 
 on:
   push:
-    branches: [dev, master]
+    branches: [dev, master, "hotfix/*"]
   pull_request:
-    branches: [stg, master]
+    branches: [dev, stg, master]
 
 jobs:
   yamllint:
