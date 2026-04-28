@@ -20,6 +20,14 @@ We classify every task by its **Blast Radius** to determine the required level o
   3. Verification via `molecule` or `tox`.
   4. AI summarizes results in the chat.
 
+### 🔍 [L1.5] Investigation (Empirical)
+- **Scope**: Root Cause Analysis (RCA), performance spikes, compatibility research, or feasibility studies.
+- **Workflow**:
+  1. AI creates `docs/investigations/IVG-<TASK_ID>-<SLUG>.md` based on `TEMPLATE.md`.
+  2. Document all hypotheses, experiments, and terminal logs in the file.
+  3. **Lazy-loading**: These reports are loaded in future turns ONLY if they are relevant to the current bug or subsystem.
+  4. Final conclusion must provide a clear recommendation (e.g., "Implement Fix X" or "Task is unfeasible").
+
 ### 🔴 [L2] Strict (Architecture)
 - **Scope**: New subsystems, cross-component interface changes, `controller/` logic, RBAC/Audit shifts, or NFR changes.
 - **Workflow**:

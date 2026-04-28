@@ -54,6 +54,7 @@ Ansispire is designed for high-efficiency AI collaboration. We use a Tiered Gove
 
 - **AI Policy**: See [`GEMINI.md`](./GEMINI.md) for the core project mandates.
 - **Workflow Guide**: See [`docs/AI_WORKFLOW.md`](./docs/AI_WORKFLOW.md) for details on L0-L2 task classification and evidence-based verification.
+- **Empirical Truths**: Technical investigations and Root Cause Analysis (RCA) are documented in [`docs/investigations/`](./docs/investigations/) to maintain a searchable history of problem-solving.
 - **Context Optimization**: `.geminiignore` is used to maintain a high signal-to-noise ratio for AI agents.
 
 ---

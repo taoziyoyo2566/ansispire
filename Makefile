@@ -55,6 +55,8 @@ lint: ## Run ansible-lint
 syntax: ## Syntax check (does not execute)
 	$(BIN)ansible-playbook playbooks/site.yml --syntax-check
 
+verify: lint syntax dry-run ## Run all CI-equivalent checks (lint + syntax + dry-run)
+
 # ── Tests ────────────────────────────────────────────────────────────────────
 test: ## Run default Molecule scenario (common)
 	$(BIN)molecule test -s common

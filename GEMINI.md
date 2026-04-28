@@ -26,11 +26,18 @@ This file is the foundational mandate for all Gemini CLI sessions. It takes prec
 ## 2. Layered Context Governance (Lazy-loading)
 1. **Design Truth**: `SUMMARY.md` (Global architecture - Read FIRST).
 2. **Dynamic Truth**: `todo branch / TODO.md` (Task state - Read SECOND).
-3. **Logic Truth**: `docs/features/<name>/summary.md` (Module scope).
-4. **Deep Implementation**: `details.md` or Code (Deep-dive on demand).
+3. **Investigation Truth**: `docs/investigations/` (Empirical history - Always check `INDEX.md` first; lazy-load full reports ONLY when task relates to same subsystem or RCA).
+4. **Logic Truth**: `docs/features/<name>/summary.md` (Module scope).
+5. **Deep Implementation**: `details.md` or Code (Deep-dive on demand).
 
 ## 3. Engineering Standards
 - **Control vs. Data**: Decouple Controller from Roles.
 - **Vendor Integrity**: Note local patches to external roles in SUMMARY.md.
+- **Investigation Protocol**: Any task involving "investigation", "analysis", or "RCA" MUST generate a report in `docs/investigations/IVG-<TASK_ID>-<SLUG>.md` using the project template. These files are strictly for empirical discovery and MUST NOT be placed in `docs/reviews/`.
+- **Cross-AI Audit (Corrective Action)**: When an AI agent identifies structural violations or factual errors in an existing Investigation Report (IVG), it MUST NOT proceed with the implementation. It MUST:
+    1. Document the violations and present a corrective action plan (Option A or B) to the user.
+    2. **Obtain explicit user confirmation BEFORE executing any corrective action.**
+    3. **Option A (Archive)**: Downgrade the IVG to a design note and move it to `docs/reviews/` if it lacks empirical evidence.
+    4. **Option B (Rectify)**: Update the IVG to meet TEMPLATE.md standards before continuing.
 - **Evidence-based Verification**: Every unit must provide terminal logs (lint/syntax/test).
 - **Test Governance (TSVS)**: ALL functional, loopback, and integration tests MUST be documented using the `docs/test-specs/TEMPLATE.md` format. No task involving "testing" is considered "Done" without a corresponding PASS record in `docs/test-specs/`.

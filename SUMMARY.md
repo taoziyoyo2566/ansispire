@@ -13,13 +13,16 @@ Ansispire is a **Multi-Server Management Control System** designed for high-avai
 - [Audit Plane Reliability](docs/features/audit-plane/summary.md)
 - [EDA Core Engine](docs/features/eda-core/summary.md)
 - [Test Infrastructure & Stability](docs/features/test-infra/summary.md)
+- [Empirical Truths (Investigations)](docs/investigations/) — *Root cause analysis and feasibility spike history*
 - [Test Specifications (TSVS)](docs/test-specs/) — *Mandatory verification records*
 
 ## 4. Operational Integrity (Lessons Learned)
-- **Environment Sensing**: Never assume a feature (IPv6, SSH, Cron) is available in test containers. Use `stat` and `stat.exists` to make roles adaptive.
+- **AI-Native Governance**: Integrated Gemini and Claude rules.
+- **Cross-AI Audit**: Mandatory peer-review and archiving protocol for multi-AI investigation consistency.
+- **Environment Sensing**: Never assume a feature (IPv6, SSH, Cron) is available in test containers. Use `stat` and `stat.exists` to make roles adaptive. Specifically: roles that modify `/etc/ssh/sshd_config` must guard with `stat` or be skipped entirely in Docker where `openssh-server` may not be installed.
 - **Variable Precedence**: In Molecule, use `provisioner.inventory.host_vars` to override platform-specific limitations (e.g., disabling UFW on Ubuntu 20.04 Docker).
-- **RedHat 9 Compatibility**: Rocky Linux 9 has deep PAM entanglements in Docker; focus functional role testing on Ubuntu/Debian in containerized CI.
-- **Molecule Plugin Isolation**: Explicitly map `ANSIBLE_FILTER_PLUGINS` in `molecule.yml` to support custom filters like `ljust`.
+- **RedHat 9 Compatibility**: Rocky Linux 9 has deep PAM entanglements in Docker; focus functional role testing on Ubuntu/Debian in containerized CI. Rocky Linux 9 is moved to Tier 2 for functional validation only.
+- **Molecule Plugin Isolation**: Docker does not inherit the local `PYTHONPATH` or `ANSIBLE_FILTER_PLUGINS`; both must be explicitly mapped in `molecule.yml` (e.g., to support custom filters like `ljust`).
 - **Minimal Image Dependency**: Ensure corresponding packages (e.g., `cron`, `openssh-server`) are installed in the `prepare` phase, as minimal images often omit them.
 
 ## 5. Vendor Patching Truths (Protected Roles)
