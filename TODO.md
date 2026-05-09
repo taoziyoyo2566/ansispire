@@ -8,16 +8,12 @@
 - zero-data-loss audit relay with pagination
 - lightweight EDA reaction engine core
 - basic Nginx auto-remediation logic (feat/eda-remediation-nginx)
+- [TASK-006] 升级至 Ansible-Core 2.20.5 (2026 LTS)
+- [TASK-004] Robust Bootstrap 2.1 (venv isolation & path consistency)
 
 ### 🟡 Pending / Future Tasks
 
 #### 🚀 Stability & Infrastructure (Priority 1)
-- [TASK-006] **[PENDING] 升级至 Ansible-Core 2.20.5 (2026 LTS)**
-    - **Priority**: 0 (Critical)
-    - **Description**: 升级核心引擎至 2026 稳定版，锁定 requirements.yml 中的插件版本，彻底消除版本不匹配告警。
-- [TASK-004] **[IN_PROGRESS] Robust Bootstrap 2.0**
-    - **Current Branch**: `refactor/infra-bootstrap-v2`
-    - Description: Create a foolproof initialization script/Makefile target that handles venv, shell path exports, and ANSIBLE_COLLECTIONS_PATH consistency to fix Molecule execution.
 - [TASK-005] **Production Deployment Blueprint**
     - Description: Detailed documentation/playbook for deploying the entire system on a clean host.
 
