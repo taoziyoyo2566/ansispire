@@ -24,9 +24,9 @@
     os_vars_files:
       files:
         # exact match: Ubuntu-22
-        - "os/{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml"
+        - "os/{{ ansible_facts['distribution'] }}-{{ ansible_facts['distribution_major_version'] }}.yml"
         # OS family match: Debian
-        - "os/{{ ansible_os_family }}.yml"
+        - "os/{{ ansible_facts['os_family'] }}.yml"
         # fallback default
         - "os/default.yml"
       paths:

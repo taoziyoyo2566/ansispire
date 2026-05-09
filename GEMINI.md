@@ -33,6 +33,11 @@ This file is the foundational mandate for all Gemini CLI sessions. It takes prec
 ## 3. Engineering Standards
 - **Control vs. Data**: Decouple Controller from Roles.
 - **Vendor Integrity**: Note local patches to external roles in SUMMARY.md.
+- **Resource Decoupling (Volatile Resource Rule)**: Test VPS, temporary IPs, and developer-specific credentials MUST NOT be committed to the repository. Use git-ignored `inventory/local/*.ini` or `-i "host,"` for volatile testing.
+- **Upgrade Safety Protocol (Mandatory Interaction)**: For ANY software or architectural upgrade (Ansible core, Python, major packages):
+    1. AI MUST first analyze the upgrade and present a "Risk & Discovery Report" to the user.
+    2. AI MUST explicitly ask: "What specific constraints or legacy behaviors should I protect during this upgrade?"
+    3. AI MUST NOT proceed with the implementation until the user provides a Directive after reviewing the AI's suggestions and adding their own.
 - **Investigation Protocol**: Any task involving "investigation", "analysis", or "RCA" MUST generate a report in `docs/investigations/IVG-<TASK_ID>-<SLUG>.md` using the project template. These files are strictly for empirical discovery and MUST NOT be placed in `docs/reviews/`.
 - **Cross-AI Audit (Corrective Action)**: When an AI agent identifies structural violations or factual errors in an existing Investigation Report (IVG), it MUST NOT proceed with the implementation. It MUST:
     1. Document the violations and present a corrective action plan (Option A or B) to the user.

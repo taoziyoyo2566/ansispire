@@ -20,7 +20,8 @@ Ansispire is a **Multi-Server Management Control System** designed for high-avai
 - **AI-Native Governance**: Integrated Gemini and Claude rules.
 - **Cross-AI Audit**: Mandatory peer-review and archiving protocol for multi-AI investigation consistency.
 - **Environment Sensing**: Never assume a feature (IPv6, SSH, Cron) is available in test containers. Use `stat` and `stat.exists` to make roles adaptive. Specifically: roles that modify `/etc/ssh/sshd_config` must guard with `stat` or be skipped entirely in Docker where `openssh-server` may not be installed.
-- **Variable Precedence**: In Molecule, use `provisioner.inventory.host_vars` to override platform-specific limitations (e.g., disabling UFW on Ubuntu 20.04 Docker).
+- **Variable Precedence**: In Molecule, use `provisioner.inventory.host_vars` to override platform-specific limitations.
+- **Python 3.9+ Baseline**: Following the 2026 LTS upgrade (Ansible-Core 2.20.5), managed nodes MUST have Python 3.9+. Ubuntu 20.04 is dropped from Tier 1 support.
 - **RedHat 9 Compatibility**: Rocky Linux 9 has deep PAM entanglements in Docker; focus functional role testing on Ubuntu/Debian in containerized CI. Rocky Linux 9 is moved to Tier 2 for functional validation only.
 - **Molecule Plugin Isolation**: Docker does not inherit the local `PYTHONPATH` or `ANSIBLE_FILTER_PLUGINS`; both must be explicitly mapped in `molecule.yml` (e.g., to support custom filters like `ljust`).
 - **Core Engine (2026 LTS)**: Upgraded to Ansible-Core 2.20.5. Dependencies and collections are strictly locked in `requirements.txt` and `requirements.yml` to prevent version drift. Config-level `ansible_managed` is deprecated in 2.20 and moved to `group_vars/all/vars.yml`.

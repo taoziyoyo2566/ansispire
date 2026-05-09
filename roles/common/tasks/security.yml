@@ -45,7 +45,7 @@
     name: ufw
     state: present
   when:
-    - ansible_os_family == 'Debian'
+    - ansible_facts['os_family'] == 'Debian'
     - common_ufw_enabled | default(true)
   tags: [firewall]
 
@@ -54,7 +54,7 @@
     path: /proc/net/if_inet6
   register: common_ipv6_stat
   when:
-    - ansible_os_family == 'Debian'
+    - ansible_facts['os_family'] == 'Debian'
     - common_ufw_enabled | default(true)
   tags: [firewall]
 
@@ -64,7 +64,7 @@
     regexp: "^IPV6="
     line: "IPV6={{ 'yes' if common_ipv6_stat.stat.exists else 'no' }}"
   when:
-    - ansible_os_family == 'Debian'
+    - ansible_facts['os_family'] == 'Debian'
     - common_ufw_enabled | default(true)
     - common_ipv6_stat.stat is defined
   tags: [firewall]
@@ -74,7 +74,7 @@
     default: deny
     direction: incoming
   when:
-    - ansible_os_family == 'Debian'
+    - ansible_facts['os_family'] == 'Debian'
     - common_ufw_enabled | default(true)
   ignore_errors: "{{ ansible_check_mode }}"
   tags: [firewall]
@@ -86,7 +86,7 @@
     proto: tcp
   loop: "{{ firewall_allowed_tcp_ports | default([22]) }}"
   when:
-    - ansible_os_family == 'Debian'
+    - ansible_facts['os_family'] == 'Debian'
     - common_ufw_enabled | default(true)
   ignore_errors: "{{ ansible_check_mode }}"
   tags: [firewall]
@@ -95,7 +95,7 @@
   community.general.ufw:
     state: enabled
   when:
-    - ansible_os_family == 'Debian'
+    - ansible_facts['os_family'] == 'Debian'
     - common_ufw_enabled | default(true)
   ignore_errors: "{{ ansible_check_mode }}"
   tags: [firewall]
@@ -105,7 +105,7 @@
   ansible.builtin.package:
     name: firewalld
     state: present
-  when: ansible_os_family == 'RedHat'
+  when: ansible_facts['os_family'] == 'RedHat'
   tags: [firewall]
 
 - name: Start and enable firewalld (RedHat)
@@ -113,7 +113,7 @@
     name: firewalld
     state: started
     enabled: true
-  when: ansible_os_family == 'RedHat'
+  when: ansible_facts['os_family'] == 'RedHat'
   tags: [firewall]
 
 - name: Allow defined TCP ports via firewalld (RedHat)
@@ -123,7 +123,7 @@
     state: enabled
     immediate: true
   loop: "{{ firewall_allowed_tcp_ports | default([22]) }}"
-  when: ansible_os_family == 'RedHat'
+  when: ansible_facts['os_family'] == 'RedHat'
   ignore_errors: "{{ ansible_check_mode }}"
   tags: [firewall]
 
@@ -163,7 +163,7 @@
 - name: Compute host identity facts
   ansible.builtin.set_fact:
     common_host_role: "{{ 'primary' if db_role is defined and db_role == 'primary' else 'secondary' }}"
-    common_os_label: "{{ ansible_distribution }}-{{ ansible_distribution_major_version }}"
+    common_os_label: "{{ ansible_facts['distribution'] }}-{{ ansible_facts['distribution_major_version'] }}"
     common_deploy_env: "{{ env | default('unknown') }}"
   tags: [facts]
 
@@ -184,7 +184,7 @@
   async: 900
   poll: 0
   register: common_upgrade_job_debian
-  when: ansible_os_family == 'Debian'
+  when: ansible_facts['os_family'] == 'Debian'
   tags: [upgrade, never]
 
 - name: Run full OS upgrade (async, RedHat)
@@ -194,14 +194,14 @@
   async: 900
   poll: 0
   register: common_upgrade_job_redhat
-  when: ansible_os_family == 'RedHat'
+  when: ansible_facts['os_family'] == 'RedHat'
   tags: [upgrade, never]
 
 - name: Wait for OS upgrade to complete
   ansible.builtin.async_status:
     jid: >-
       {{ common_upgrade_job_debian.ansible_job_id
-         if ansible_os_family == 'Debian'
+         if ansible_facts['os_family'] == 'Debian'
          else common_upgrade_job_redhat.ansible_job_id }}
   register: common_upgrade_result
   until: common_upgrade_result.finished

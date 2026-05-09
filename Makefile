@@ -32,6 +32,9 @@ export ANSIBLE_CONFIG := $(PROJECT_PATH)/ansible.cfg
 export ANSIBLE_ROLES_PATH := $(PROJECT_PATH)/roles
 export ANSIBLE_COLLECTIONS_PATH := $(PROJECT_PATH)/collections
 
+# Molecule runner wrapper (ensure it finds ansible-config in VENV)
+MOLECULE := PATH=$(PATH) $(BIN)molecule
+
 # Round 8: audit sink (+ Round 9 relay)
 AUDIT_DIR := controller/audit
 # Relay reads SEMAPHORE_ADMIN_PASSWORD from the Semaphore .env so both stacks
@@ -68,12 +71,12 @@ verify-full: verify molecule-all ## Full-bore verification (All quality checks +
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 test: ## Run default Molecule scenario (common)
-	$(BIN)molecule test -s common
+	$(MOLECULE) test -s common
 
 molecule-all: ## Run all Molecule scenarios
-	$(BIN)molecule test -s common
-	$(BIN)molecule test -s webserver
-	$(BIN)molecule test -s database
+	$(MOLECULE) test -s common
+	$(MOLECULE) test -s webserver
+	$(MOLECULE) test -s database
 
 # ── Deploy ───────────────────────────────────────────────────────────────────
 dry-run: ## Dry-run (--check mode, no actual changes, local connection for logic verification)

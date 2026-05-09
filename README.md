@@ -63,10 +63,11 @@ Ansispire is designed for high-efficiency AI collaboration. We use a Tiered Gove
 
 | Tier | Platform | CI / Molecule | Notes |
 |------|----------|:-------------:|-------|
-| **Tier 1** | Ubuntu 20.04 / 22.04 | ✅ | Default test target |
+| **Tier 1** | Ubuntu 22.04 / 24.04 | ✅ | Default test target (Python 3.10+) |
 | **Tier 1** | Rocky Linux 9 | ✅ | Verified via molecule/common |
+| **Tier 1** | Debian 11 / 12 | ✅ | Verified via molecule/common |
 | **Tier 2** | AlmaLinux 9 | ⚠ | Expected compatible; not yet in CI |
-| **Tier 2** | Debian 11 / 12 | Not tested | Code skeleton present; expected compatible |
+| **Tier 2** | Ubuntu 20.04 | ❌ | Dropped in 2026 LTS (requires Python 3.9+) |
 | **Tier 2** | AlmaLinux 8 / CentOS Stream 9 | Not tested | Code skeleton present |
 | **Tier 3** | Alpine / no systemd / no Python | ❌ | Requires additional bootstrap; see `examples/` |
 

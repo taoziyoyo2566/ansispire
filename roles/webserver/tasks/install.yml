@@ -3,7 +3,7 @@
 ---
 - name: Install Nginx package
   ansible.builtin.package:
-    name: "{{ _webserver__nginx_packages[ansible_os_family] }}"
+    name: "{{ _webserver__nginx_packages[ansible_facts['os_family']] }}"
     state: present
   notify: systemd daemon reload
 
