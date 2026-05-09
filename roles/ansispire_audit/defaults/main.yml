@@ -1,0 +1,4 @@
+# roles/ansispire_audit/defaults/main.yml
+---
+ansispire_audit_port: 3310
+ansispire_audit_base_dir: "{{ ansispire_hub_base_dir }}"

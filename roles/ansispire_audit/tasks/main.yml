@@ -1,0 +1,11 @@
+# roles/ansispire_audit/tasks/main.yml
+---
+- name: Audit | Start Audit Plane via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ ansispire_audit_base_dir }}/controller/audit"
+    state: present
+    wait: true
+  environment:
+    AUDIT_PORT: "{{ ansispire_audit_port | string }}"
+    # We pass SEMAPHORE_ADMIN_PASSWORD from Ansible to maintain SSOT
+    SEMAPHORE_ADMIN_PASSWORD: "{{ ansispire_hub_admin_password }}"

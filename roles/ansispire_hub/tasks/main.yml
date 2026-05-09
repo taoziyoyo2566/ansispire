@@ -1,0 +1,38 @@
+# roles/ansispire_hub/tasks/main.yml
+---
+- name: Hub | Create application directory
+  ansible.builtin.file:
+    path: "{{ ansispire_hub_base_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Hub | Synchronize project code
+  ansible.builtin.synchronize:
+    src: "{{ playbook_dir }}/../"
+    dest: "{{ ansispire_hub_base_dir }}/"
+    recursive: true
+    delete: true
+    rsync_opts:
+      - "--exclude=.git"
+      - "--exclude=.venv"
+      - "--exclude=.cache"
+      - "--exclude=*.tmp"
+
+- name: Hub | Generate Semaphore .env
+  ansible.builtin.template:
+    src: semaphore_env.j2
+    dest: "{{ ansispire_hub_base_dir }}/controller/semaphore/.env"
+    mode: '0600'
+
+- name: Hub | Ensure controller-net exists
+  ansible.builtin.command:
+    cmd: docker network create controller-net
+  register: _hub_net_create
+  failed_when: false
+  changed_when: "'already exists' not in _hub_net_create.stderr"
+
+- name: Hub | Start Semaphore via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ ansispire_hub_base_dir }}/controller/semaphore"
+    state: present
+    wait: true

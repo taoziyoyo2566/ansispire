@@ -1,0 +1,9 @@
+# roles/ansispire_hub/defaults/main.yml
+---
+ansispire_hub_base_dir: /opt/ansispire
+ansispire_hub_port: 3300
+ansispire_hub_admin_user: admin
+ansispire_hub_admin_email: admin@ansispire.local
+
+# These should be defined in inventory/local/vault.yml
+ansispire_hub_admin_password: "{{ vault_semaphore_admin_password }}"

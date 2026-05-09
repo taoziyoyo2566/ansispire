@@ -1,0 +1,17 @@
+# roles/infra_baseline/defaults/main.yml
+---
+# Minimal versions (based on 2026 LTS requirements)
+infra_baseline_python_min_version: "3.10"
+infra_baseline_docker_min_version: "24.0.0"
+
+# Target system optimization
+infra_baseline_configure_swap: true
+infra_baseline_swap_size_mb: 2048
+
+# APT repository for Docker (standard Ubuntu/Debian logic)
+infra_baseline_docker_repo_url: "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}"
+infra_baseline_docker_gpg_url: "{{ infra_baseline_docker_repo_url }}/gpg"
+
+# Management User (Evolution toward non-root)
+infra_baseline_mgr_user: ansible
+infra_baseline_mgr_shell: /bin/bash

@@ -19,6 +19,8 @@ This file is the foundational mandate for all Gemini CLI sessions. It takes prec
 
 ### Branch Naming & Semantics
 - Pattern: `<type>/<subsystem>-<target>`.
+- **Branch Flow**: `feat/*` (or `fix/*`) MUST merge into `dev` first.
+- **Promotion**: `dev` -> `stg` (after successful functional tests). `stg` -> `master` (final stable production).
 - **feat**: Requires Design RFC.
 - **fix**: Requires RCA (Root Cause Analysis).
 - **refactor**: No new features. Behavioral equivalence only.
