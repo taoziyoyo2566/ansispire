@@ -32,6 +32,9 @@ export ANSIBLE_CONFIG := $(PROJECT_PATH)/ansible.cfg
 export ANSIBLE_ROLES_PATH := $(PROJECT_PATH)/roles
 export ANSIBLE_COLLECTIONS_PATH := $(PROJECT_PATH)/collections
 
+# Molecule runner wrapper (ensure it finds ansible-config in VENV)
+MOLECULE := PATH=$(PATH) $(BIN)molecule
+
 # Round 8: audit sink (+ Round 9 relay)
 AUDIT_DIR := controller/audit
 # Relay reads SEMAPHORE_ADMIN_PASSWORD from the Semaphore .env so both stacks
@@ -52,21 +55,32 @@ install: ## Install Galaxy dependencies only (roles + collections)
 lint: ## Run ansible-lint
 	$(BIN)ansible-lint --profile production
 
-syntax: ## Syntax check (does not execute)
-	$(BIN)ansible-playbook playbooks/site.yml --syntax-check
+syntax: ## Syntax check both staging and production
+	@echo "==> Syntax checking Staging..."
+	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/staging
+	@echo "==> Syntax checking Production..."
+	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/production
+
+verify: lint syntax dry-run ## Run CI-equivalent checks (lint + syntax + dry-run)
+
+verify-quick: syntax ## Quick save-point check (Syntax only)
+
+verify-full: verify molecule-all ## Full-bore verification (All quality checks + All molecule scenarios)
+	@echo "==> Generating verification report..."
+	@python3 scripts/verify_report.py
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 test: ## Run default Molecule scenario (common)
-	$(BIN)molecule test -s common
+	$(MOLECULE) test -s common
 
 molecule-all: ## Run all Molecule scenarios
-	$(BIN)molecule test -s common
-	$(BIN)molecule test -s webserver
-	$(BIN)molecule test -s database
+	$(MOLECULE) test -s common
+	$(MOLECULE) test -s webserver
+	$(MOLECULE) test -s database
 
 # ── Deploy ───────────────────────────────────────────────────────────────────
-dry-run: ## Dry-run (--check mode, no actual changes)
-	$(BIN)ansible-playbook playbooks/site.yml --check --diff
+dry-run: ## Dry-run (--check mode, no actual changes, local connection for logic verification)
+	$(BIN)ansible-playbook playbooks/site.yml --check --diff --connection=local -e "ansible_python_interpreter=$(which python3)"
 
 deploy-staging: ## Deploy to Staging
 	ANSIBLE_HOST_KEY_CHECKING=False $(BIN)ansible-playbook playbooks/site.yml -i inventory/staging --diff

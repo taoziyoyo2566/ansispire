@@ -2,6 +2,7 @@
 
 ---
 env: staging
+ansible_managed: "Ansible managed: modified on %Y-%m-%d %H:%M:%S"
 
 # Staging does not need strict security
 ssh_permit_root_login: "yes"

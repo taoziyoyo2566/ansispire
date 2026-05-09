@@ -14,10 +14,10 @@
 - name: Preflight | Assert supported OS family
   ansible.builtin.assert:
     that:
-      - ansible_os_family in ['Debian', 'RedHat']
+      - ansible_facts['os_family'] in ['Debian', 'RedHat']
     fail_msg: >
-      Unsupported OS family: {{ ansible_os_family }}
-      ({{ ansible_distribution }} {{ ansible_distribution_version }}).
+      Unsupported OS family: {{ ansible_facts['os_family'] }}
+      ({{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}).
       Supported families: Debian (Ubuntu/Debian), RedHat (Rocky/Alma/RHEL/CentOS Stream).
     success_msg: "OS family check passed: {{ ansible_facts.os_family }}"
   tags: [always, preflight]
@@ -56,15 +56,15 @@
   ansible.builtin.set_fact:
     common_preflight_tier1: >-
       {{
-        (ansible_distribution == 'Ubuntu' and ansible_distribution_major_version | int >= 20) or
-        (ansible_distribution in ['Rocky', 'AlmaLinux'] and ansible_distribution_major_version | int >= 9)
+        (ansible_facts['distribution'] == 'Ubuntu' and ansible_facts['distribution_major_version'] | int >= 20) or
+        (ansible_facts['distribution'] in ['Rocky', 'AlmaLinux'] and ansible_facts['distribution_major_version'] | int >= 9)
       }}
   tags: [always, preflight]
 
 - name: Preflight | Warn if not on Tier 1 platform
   ansible.builtin.debug:
     msg: >
-      WARNING: {{ ansible_distribution }} {{ ansible_distribution_version }} is
+      WARNING: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }} is
       not a Tier 1 tested platform for this demo.
       Tier 1 = Ubuntu 20.04+, Rocky 9+, AlmaLinux 9+.
       You may encounter untested behavior. See docs/reviews/platform-support-addendum-2026-04-09.md
@@ -101,15 +101,16 @@
       - >-
         (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | list | first
         | default({'size_available': 2147483648})).size_available > 1073741824
-    fail_msg: >
+    fail_msg: |
       Less than 1GB free on /.
-      Available: {{ (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | list | first | default({'size_available': 0})).size_available | human_readable }}
+      Available: {{ (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | list | first
+      | default({'size_available': 0})).size_available | human_readable }}
   tags: [always, preflight]
 
 # ── Network connectivity check (warn only — intranets may lack public access) ─
 - name: Preflight | Check internet connectivity
   ansible.builtin.uri:
-    url: https://{{ 'archive.ubuntu.com' if ansible_os_family == 'Debian' else 'dl.rockylinux.org' }}
+    url: https://{{ 'archive.ubuntu.com' if ansible_facts['os_family'] == 'Debian' else 'dl.rockylinux.org' }}
     method: HEAD
     timeout: 10
   register: common_internet_check
@@ -127,6 +128,6 @@
 - name: Preflight | Assert Python 3 is available
   ansible.builtin.assert:
     that:
-      - ansible_python_version is version('3.6', '>=')
-    fail_msg: "Python 3.6+ required on target host, found {{ ansible_python_version }}"
+      - ansible_facts['python_version'] is version('3.6', '>=')
+    fail_msg: "Python 3.6+ required on target host, found {{ ansible_facts['python_version'] }}"
   tags: [always, preflight]

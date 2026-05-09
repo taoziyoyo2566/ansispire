@@ -54,6 +54,7 @@ Ansispire is designed for high-efficiency AI collaboration. We use a Tiered Gove
 
 - **AI Policy**: See [`GEMINI.md`](./GEMINI.md) for the core project mandates.
 - **Workflow Guide**: See [`docs/AI_WORKFLOW.md`](./docs/AI_WORKFLOW.md) for details on L0-L2 task classification and evidence-based verification.
+- **Empirical Truths**: Technical investigations and Root Cause Analysis (RCA) are documented in [`docs/investigations/`](./docs/investigations/) to maintain a searchable history of problem-solving.
 - **Context Optimization**: `.geminiignore` is used to maintain a high signal-to-noise ratio for AI agents.
 
 ---
@@ -62,10 +63,11 @@ Ansispire is designed for high-efficiency AI collaboration. We use a Tiered Gove
 
 | Tier | Platform | CI / Molecule | Notes |
 |------|----------|:-------------:|-------|
-| **Tier 1** | Ubuntu 20.04 / 22.04 | ✅ | Default test target |
+| **Tier 1** | Ubuntu 22.04 / 24.04 | ✅ | Default test target (Python 3.10+) |
 | **Tier 1** | Rocky Linux 9 | ✅ | Verified via molecule/common |
+| **Tier 1** | Debian 11 / 12 | ✅ | Verified via molecule/common |
 | **Tier 2** | AlmaLinux 9 | ⚠ | Expected compatible; not yet in CI |
-| **Tier 2** | Debian 11 / 12 | Not tested | Code skeleton present; expected compatible |
+| **Tier 2** | Ubuntu 20.04 | ❌ | Dropped in 2026 LTS (requires Python 3.9+) |
 | **Tier 2** | AlmaLinux 8 / CentOS Stream 9 | Not tested | Code skeleton present |
 | **Tier 3** | Alpine / no systemd / no Python | ❌ | Requires additional bootstrap; see `examples/` |
 
@@ -179,6 +181,8 @@ ansispire/
 ## Quick Start
 
 ### Operational Notes
+- **Core Engine (2026 LTS)**: This project is optimized for **Ansible-Core 2.20.5**. Always use `make setup` to ensure the correct version is locked in your virtual environment.
+- **ansible_managed**: Starting with Ansible 2.20, `ansible_managed` in `ansible.cfg` is deprecated. It is now defined as a global variable in `inventory/*/group_vars/all/vars.yml`.
 - **SSH Configuration**: If using a custom SSH port (like `32798`), ensure it is **explicitly reserved** in the kernel or moved **BELOW 32768** to avoid collisions with ephemeral ports during heavy automation.
 - **Resource Limits**: Audit Plane services (Sink/Relay/Reactor) now enforce memory limits. Monitor `docker stats` during high-load periods.
 - **Logrotate**: Host-mounted logrotate configs must have `644` permissions to be accepted by the container's security policy.

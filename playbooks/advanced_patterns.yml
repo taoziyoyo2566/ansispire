@@ -1,7 +1,14 @@
+---
 # playbooks/advanced_patterns.yml
 #
 # This file has been relocated to examples/advanced_patterns.yml.
-# The stub is kept here so existing references do not break.
-#
-# For the full advanced-patterns teaching reference, see:
-#   examples/advanced_patterns.yml
+# The stub is kept here as a valid empty playbook so existing references
+# do not break and linting passes.
+
+- name: Advanced patterns stub
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Stub notification
+      ansible.builtin.debug:
+        msg: "Full patterns available in examples/advanced_patterns.yml"

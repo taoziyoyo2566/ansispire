@@ -19,7 +19,7 @@
   gather_facts: true
   gather_subset:
     - min          # always includes os, python, platform
-    - hardware     # needed: ansible_processor_vcpus, ansible_mounts
+    - hardware     # needed: ansible_facts['processor_vcpus'], ansible_mounts
     - network      # needed: ansible_default_ipv4, ansible_interfaces
 
   # any_errors_fatal: if any host fails, stop the whole play immediately
@@ -35,7 +35,7 @@
       ansible.builtin.apt:
         update_cache: true
         cache_valid_time: 3600   # skip if updated within the last hour
-      when: ansible_os_family == "Debian"
+      when: ansible_facts['os_family'] == "Debian"
       tags: [packages, always]
 
   roles:
@@ -46,7 +46,7 @@
     - name: Verify timezone configured correctly
       ansible.builtin.assert:
         that:
-          - ansible_date_time.tz is defined
+          - ansible_facts['date_time']['tz'] is defined
         fail_msg: "Timezone check failed"
       tags: [verify]
 
