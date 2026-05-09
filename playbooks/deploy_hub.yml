@@ -2,7 +2,7 @@
 # Usage: ansible-playbook playbooks/deploy_hub.yml -i inventory/hosts.ini --ask-vault-pass
 ---
 - name: Deploy Ansispire Management Hub (All-in-One)
-  hosts: webservers  # Target VPS
+  hosts: hub  # Target the explicit management group
   become: true
   gather_facts: true
 
@@ -12,10 +12,10 @@
   roles:
     - role: infra_baseline
       tags: [infra, baseline]
-    
+
     - role: ansispire_hub
       tags: [hub, semaphore]
-    
+
     - role: ansispire_audit
       tags: [audit, eda]
 

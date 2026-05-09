@@ -24,7 +24,12 @@
 
 - name: Baseline | Add Docker repository
   ansible.builtin.apt_repository:
-    repo: "deb [arch={{ 'amd64' if ansible_facts['architecture'] == 'x86_64' else 'arm64' }} signed-by=/etc/apt/keyrings/docker.asc] {{ infra_baseline_docker_repo_url }} {{ ansible_facts['distribution_release'] }} stable"
+    repo: >-
+      deb [arch={{ 'amd64' if ansible_facts['architecture'] == 'x86_64' else 'arm64' }}
+      signed-by=/etc/apt/keyrings/docker.asc]
+      {{ infra_baseline_docker_repo_url }}
+      {{ ansible_facts['distribution_release'] }}
+      stable
     state: present
     filename: docker
 
@@ -65,8 +70,13 @@
     mode: '0440'
     validate: /usr/sbin/visudo -cf %s
 
-- name: Baseline | Set authorized key for management user (copy from current root)
+- name: Baseline | Set authorized key for management user
   ansible.builtin.shell:
-    cmd: "mkdir -p /home/{{ infra_baseline_mgr_user }}/.ssh && cp /root/.ssh/authorized_keys /home/{{ infra_baseline_mgr_user }}/.ssh/ && chown -R {{ infra_baseline_mgr_user }}:{{ infra_baseline_mgr_user }} /home/{{ infra_baseline_mgr_user }}/.ssh && chmod 700 /home/{{ infra_baseline_mgr_user }}/.ssh && chmod 600 /home/{{ infra_baseline_mgr_user }}/.ssh/authorized_keys"
+    cmd: >-
+      mkdir -p /home/{{ infra_baseline_mgr_user }}/.ssh &&
+      cp /root/.ssh/authorized_keys /home/{{ infra_baseline_mgr_user }}/.ssh/ &&
+      chown -R {{ infra_baseline_mgr_user }}:{{ infra_baseline_mgr_user }}
+      /home/{{ infra_baseline_mgr_user }}/.ssh &&
+      chmod 700 /home/{{ infra_baseline_mgr_user }}/.ssh &&
+      chmod 600 /home/{{ infra_baseline_mgr_user }}/.ssh/authorized_keys
     creates: "/home/{{ infra_baseline_mgr_user }}/.ssh/authorized_keys"
-

@@ -180,6 +180,9 @@ ansispire/
 
 ## Quick Start
 
+For a complete, step-by-step walkthrough from initial `git clone` to full production deployment, please see:
+👉 **[Getting Started Guide](./docs/GETTING_STARTED.md)**
+
 ### Operational Notes
 - **Core Engine (2026 LTS)**: This project is optimized for **Ansible-Core 2.20.5**. Always use `make setup` to ensure the correct version is locked in your virtual environment.
 - **ansible_managed**: Starting with Ansible 2.20, `ansible_managed` in `ansible.cfg` is deprecated. It is now defined as a global variable in `inventory/*/group_vars/all/vars.yml`.

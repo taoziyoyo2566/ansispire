@@ -7,7 +7,7 @@
     mode: '0755'
 
 - name: Hub | Synchronize project code
-  ansible.builtin.synchronize:
+  ansible.posix.synchronize:
     src: "{{ playbook_dir }}/../"
     dest: "{{ ansispire_hub_base_dir }}/"
     recursive: true
@@ -27,9 +27,9 @@
 - name: Hub | Ensure controller-net exists
   ansible.builtin.command:
     cmd: docker network create controller-net
-  register: _hub_net_create
+  register: ansispire_hub_net_create
   failed_when: false
-  changed_when: "'already exists' not in _hub_net_create.stderr"
+  changed_when: "'already exists' not in ansispire_hub_net_create.stderr"
 
 - name: Hub | Start Semaphore via Docker Compose
   community.docker.docker_compose_v2:
