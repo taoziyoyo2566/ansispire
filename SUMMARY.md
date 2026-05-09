@@ -23,6 +23,7 @@ Ansispire is a **Multi-Server Management Control System** designed for high-avai
 - **Variable Precedence**: In Molecule, use `provisioner.inventory.host_vars` to override platform-specific limitations (e.g., disabling UFW on Ubuntu 20.04 Docker).
 - **RedHat 9 Compatibility**: Rocky Linux 9 has deep PAM entanglements in Docker; focus functional role testing on Ubuntu/Debian in containerized CI. Rocky Linux 9 is moved to Tier 2 for functional validation only.
 - **Molecule Plugin Isolation**: Docker does not inherit the local `PYTHONPATH` or `ANSIBLE_FILTER_PLUGINS`; both must be explicitly mapped in `molecule.yml` (e.g., to support custom filters like `ljust`).
+- **Core Engine (2026 LTS)**: Upgraded to Ansible-Core 2.20.5. Dependencies and collections are strictly locked in `requirements.txt` and `requirements.yml` to prevent version drift. Config-level `ansible_managed` is deprecated in 2.20 and moved to `group_vars/all/vars.yml`.
 - **Minimal Image Dependency**: Ensure corresponding packages (e.g., `cron`, `openssh-server`) are installed in the `prepare` phase, as minimal images often omit them.
 
 ## 5. Vendor Patching Truths (Protected Roles)

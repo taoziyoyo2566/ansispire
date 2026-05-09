@@ -14,6 +14,7 @@ The system is designed to "sense" its environment rather than failing:
 
 ## 3. Configuration Best Practices
 - **ansible.cfg**: Uses `result_format = yaml` (ansible-core 2.13+) and suppresses collection/localhost warnings.
+- **Ansible 2.20.5 (2026 LTS)**: The core engine is locked to 2.20.5. This version deprecates `ansible_managed` in the INI config; we handle this by moving the header string to `group_vars/all/vars.yml`.
 - **molecule.yml**: Uses `host_vars` for granular platform overrides, ensuring high precedence.
 - **verify.yml**: Assertions are wrapped in `when` conditions to match the platform's specific configuration.
 
