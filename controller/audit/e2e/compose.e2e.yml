@@ -1,5 +1,5 @@
 # controller/audit/e2e/compose.e2e.yml — disposable end-to-end stack
-# for TEST-EDA-004 (L4). Spec: docs/test-specs/eda-reactor-e2e.md.
+# for TEST-EDA-004 (L4). Spec: docs/reference/test-specs/eda-reactor-e2e.md.
 #
 # Isolation from the dev control plane:
 #   - compose project name:  ansispire-e2e        (vs ansispire-* dev)

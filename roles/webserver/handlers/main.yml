@@ -1,17 +1,28 @@
 ---
 # Recommended: handlers do service operations only, no complex logic
 # Tip: use FQCN module names (ansible.builtin.systemd), per Ansible 2.12+ guidance
+#
+# Check-mode guard: in --check mode, package install tasks claim "would install"
+# but do not actually install nginx / php-fpm, so the systemd unit is not
+# present. Handlers must skip gracefully in that case; in real runs the
+# service is always present after the install task, so the guard never trips.
 
 - name: Reload Nginx
   ansible.builtin.systemd:
     name: nginx
     state: reloaded
+  when: >
+    (not ansible_check_mode)
+    or ('nginx.service' in (ansible_facts.services | default({})))
   listen: Reload Nginx
 
 - name: Restart Nginx
   ansible.builtin.systemd:
     name: nginx
     state: restarted
+  when: >
+    (not ansible_check_mode)
+    or ('nginx.service' in (ansible_facts.services | default({})))
   listen: Restart Nginx
 
 # Multiple handlers listening on the same event (listen mechanism)
@@ -19,10 +30,16 @@
   ansible.builtin.systemd:
     name: php8.2-fpm
     state: restarted
+  when: >
+    (not ansible_check_mode)
+    or ('php8.2-fpm.service' in (ansible_facts.services | default({})))
   listen: Restart app services
 
 - name: Restart Nginx after PHP restart
   ansible.builtin.systemd:
     name: nginx
     state: reloaded
+  when: >
+    (not ansible_check_mode)
+    or ('nginx.service' in (ansible_facts.services | default({})))
   listen: Restart app services

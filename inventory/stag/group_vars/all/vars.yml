@@ -1,7 +1,7 @@
 # staging overrides on top of production defaults
 
 ---
-env: staging
+env: stag
 ansible_managed: "Ansible managed: modified on %Y-%m-%d %H:%M:%S"
 
 # Staging does not need strict security

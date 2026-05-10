@@ -48,6 +48,12 @@ AUDIT_COMPOSE := docker compose -f $(AUDIT_DIR)/docker-compose.yml --env-file $(
 AUDIT_CONTAINER := ansispire-audit-sink
 CONTROLLER_NET := controller-net
 
+# ── Help ─────────────────────────────────────────────────────────────────────
+help: ## Show this help (auto-generated from each target's doc comment)
+	@awk 'BEGIN {FS = ":.*?## "; printf "Available targets:\n\n"} \
+	  /^[a-zA-Z][a-zA-Z0-9_-]*:.*?## / {printf "  \033[36m%-26s\033[0m %s\n", $$1, $$2}' \
+	  $(MAKEFILE_LIST)
+
 # ── Bootstrap ────────────────────────────────────────────────────────────────
 setup: ## Bootstrap full dev environment (venv + Paths + Dependencies + Galaxy)
 	@bash scripts/bootstrap.sh
@@ -84,7 +90,7 @@ molecule-all: ## Run all Molecule scenarios
 	$(MOLECULE) test -s database
 
 # ── EDA test pyramid (no docker, no external deps) ───────────────────────────
-# Specs in docs/test-specs/eda-{reactor-unit,rules-contract,reactor-component}.md
+# Specs in docs/reference/test-specs/eda-{reactor-unit,rules-contract,reactor-component}.md
 test-eda-unit: ## L1 — reactor pure-Python (match_rule, cooldown, process_event)
 	$(BIN)python3 controller/audit/test_reactor.py
 
@@ -100,8 +106,16 @@ test-eda-e2e: ## L4 — disposable end-to-end (real docker; ~60–90s; NOT in `m
 	@bash controller/audit/e2e/run.sh
 
 # ── Deploy ───────────────────────────────────────────────────────────────────
-dry-run: ## Dry-run (--check mode, no actual changes, local connection for logic verification)
-	$(BIN)ansible-playbook playbooks/site.yml --check --diff --connection=local -e "ansible_python_interpreter=$(which python3)"
+dry-run: ## Dry-run (--check; common baseline against hub_local — layered hosts.ini + dev vars)
+	# Layered inventory:
+	#   - inventory/hosts.ini provides the [hub_local] group (control_node)
+	#   - inventory/dev provides the [all] group_vars (system_timezone, etc.)
+	# --limit hub_local scopes to control_node only. The webservers/dbservers
+	# plays match no hosts (control_node is in neither) and skip cleanly,
+	# avoiding "service not installed locally" failures.
+	$(BIN)ansible-playbook playbooks/site.yml --check --diff --connection=local \
+	  -i inventory/hosts.ini -i inventory/dev --limit hub_local \
+	  -e "ansible_python_interpreter=$(shell which python3)"
 
 # Hub deploy — Path A (Ansible role-based). HUB_NODE selects scope:
 #   make hub-deploy HUB_NODE=local      → only the workstation (hub_local)
@@ -158,7 +172,7 @@ navigator-local: ## Run via ansible-navigator (local mode, no EE)
 	$(BIN)ansible-navigator run playbooks/site.yml --ee false
 
 # ── Vault ────────────────────────────────────────────────────────────────────
-vault-edit: ## Edit an encrypted file, e.g. make vault-edit FILE=inventory/prod/group_vars/all/vault.yml
+vault-edit: ## Edit an encrypted file, e.g. make vault-edit FILE=inventory/local/vault.yml
 	$(BIN)ansible-vault edit $(FILE)
 
 vault-encrypt: ## Encrypt a single variable value

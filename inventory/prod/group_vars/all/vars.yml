@@ -5,7 +5,7 @@
 
 ---
 # ── Environment identity ─────────────────────────────────────────────────────
-env: production
+env: prod
 datacenter: us-east-1
 ansible_managed: "Ansible managed: modified on %Y-%m-%d %H:%M:%S"
 

@@ -31,7 +31,7 @@
     2. `[ ]` `roles/infra_baseline/tasks/redhat.yml` 实现（dnf 装 docker / 用户）；删 RHEL fail 占位
     3. `[ ]` `roles/infra_baseline/tasks/alpine.yml` 实现（apk + openrc）；删 Alpine fail 占位
     4. `[ ]` 写 `playbooks/deploy_target.yml`（applies infra_baseline only，不装 hub）
-    5. `[ ]` Makefile 加 `target-deploy NODE=<group>` 包装
+    5. `[ ]` Makefile 加 `target-deploy TARGET_NODE=<group>` 包装
     6. `[ ]` 在 ans-hk01 hub 上从 Semaphore 调度对全 targets 的安全任务（demo: ansible all -m ping）
     7. `[ ]` 写 round1-changelog 闭环
 - **依赖**：用户提供 4 台 VPS 的 SSH config alias
@@ -57,7 +57,7 @@
 ## 🔵 待规划 (Backlog)
 
 ### TASK-005 — Production Deployment Blueprint  *(scope shrinking after Round 4)*
-- **当前状态**：Round 4 已实现 Path A 真部署（`make hub-deploy NODE=...`） + 完整 operator-guide。原 TASK-005 大部分已被 TASK-001 闭环吸收。
+- **当前状态**：Round 4 已实现 Path A 真部署（`make hub-deploy HUB_NODE=...`） + 完整 operator-guide。原 TASK-005 大部分已被 TASK-001 闭环吸收。
 - **剩余 scope**：
     1. `[ ]` `make verify` 的 vault 密码集成（让 `ansible-lint` 能解开 `inventory/local/vault.yml`）— 当前 lint 因密码缺失 fail
     2. `[ ]` 部署后健康监控（hub 上一个 cron / systemd timer 定期查 audit-relay/sink/reactor 还活着）

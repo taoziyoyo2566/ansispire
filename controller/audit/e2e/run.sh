@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # controller/audit/e2e/run.sh — disposable end-to-end harness for TASK-001.
-# Spec: docs/test-specs/eda-reactor-e2e.md (TEST-EDA-004, L4).
+# Spec: docs/reference/test-specs/eda-reactor-e2e.md (TEST-EDA-004, L4).
 #
 # Steps:
 #   1. clean — ensure no leftover from previous runs
