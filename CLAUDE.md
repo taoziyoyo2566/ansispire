@@ -9,7 +9,7 @@ This file governs every Claude session. It is the **foundational mandate** for A
 <protocol>
 - **Proactive Challenge**: AI MUST NOT blindly implement changes. Perform an **Impact Analysis** first.
 - **Sync Guard**: Before closing a task, AI MUST verify:
-    1. Does the change affect `SUMMARY.md` (Architecture)? If yes, sync.
+    1. Does the change affect `ARCHITECTURE.md` (Architecture)? If yes, sync.
     2. Does the change affect `README.md` (Operational)? If yes, sync.
     3. Update or create the relevant **Feature Map** in `docs/features/`.
 - **Chain of Thought**: For all [L2] and [L1.5] tasks, use `<thinking>` blocks to analyze trade-offs before acting.
@@ -34,7 +34,7 @@ This file governs every Claude session. It is the **foundational mandate** for A
 
 To optimize context and cost, load information in this specific hierarchy:
 
-1.  **Design Truth**: `SUMMARY.md` (Global architecture - Read FIRST).
+1.  **Design Truth**: `ARCHITECTURE.md` (Global architecture - Read FIRST).
 2.  **Dynamic Truth**: `todo` branch / `TODO.md` (Current tasks - Read SECOND).
 3.  **Investigation Truth**: `docs/investigations/INDEX.md` (Empirical history - **If status is `Applied`, skip deep-reading**; findings are already in the 「应用位置」column target. Only load the full IVG if status is `Active` and the task is related).
 4.  **Logic Truth**: `docs/features/<name>/summary.md` (Module scope).
@@ -45,7 +45,7 @@ To optimize context and cost, load information in this specific hierarchy:
 ## 3. Engineering Standards
 
 - **Control vs. Data**: Maintain strict decoupling between `controller/` logic and execution `roles/`.
-- **Investigation Protocol**: Any RCA or analysis task MUST follow the `docs/investigations/TEMPLATE.md` and be logged in `INDEX.md`. When findings are applied to CLAUDE.md, SUMMARY.md, or other rule files, update INDEX.md status to `Applied` and fill in the 「应用位置」column so future agents can skip deep-reading.
+- **Investigation Protocol**: Any RCA or analysis task MUST follow the `docs/investigations/TEMPLATE.md` and be logged in `INDEX.md`. When findings are applied to CLAUDE.md, ARCHITECTURE.md, or other rule files, update INDEX.md status to `Applied` and fill in the 「应用位置」column so future agents can skip deep-reading.
 - **Evidence-based Verification**: Every change must be backed by terminal logs (lint/test/syntax).
 - **TSVS Mandatory**: No functional test is "Done" without a record in `docs/test-specs/` using the project template.
 

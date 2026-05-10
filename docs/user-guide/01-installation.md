@@ -201,5 +201,5 @@ docker logs --tail 50 ansispire-audit-reactor        # MATCH then triggered task
 - **Day-2 operations** (commands you will run repeatedly): [`docs/features/eda-core/operations.md`](../features/eda-core/operations.md), [`docs/features/hub-deployment/operations.md`](../features/hub-deployment/operations.md).
 - **Adding new self-healing rules**: see operator-guide §8 ("常见运维任务").
 - **Per-environment differences** (dev / stag / prod): [`docs/operations/environments.md`](../operations/environments.md).
-- **Architecture rationale**: [`SUMMARY.md`](../../SUMMARY.md).
+- **Architecture rationale**: [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 - **When something breaks**: [`docs/features/eda-core/operator-guide.md`](../features/eda-core/operator-guide.md) §10 (Troubleshooting).

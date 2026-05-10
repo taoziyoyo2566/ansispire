@@ -84,8 +84,8 @@
 - Round 1：Path B 底盘修复（bootstrap 回滚 + token mint + manifest SSOT 前身 + image pin）
 - Round 2：测试金字塔 L1+L2+L3
 - Round 3：events.schema.json + rule.enabled + L4 e2e harness
-- Round 4：Path A 全面硬化（rsync excludes + state migration + manifest SSOT 扩展 + inventory taxonomy + OS-family 守门 + Makefile NODE 包装）
-- Doc sync：`operator-guide.md`（新增）+ `operations.md` × 2（修订）+ `summary.md` × 1（重写）+ `SUMMARY.md` / `README.md` 同步
+- Round 4：Path A 全面硬化（rsync excludes + state migration + manifest SSOT 扩展 + inventory taxonomy + OS-family 守门 + Makefile HUB_NODE 包装）
+- Doc sync：`operator-guide.md`（新增）+ `operations.md` × 2（修订）+ `summary.md` × 1（重写）+ `ARCHITECTURE.md`（前 SUMMARY.md）/ `README.md` 同步
 
 **测试状态**：
 - ✅ `make test-eda` 28 cases (L1+L2+L3) PASS < 1 s
@@ -96,13 +96,13 @@
 **已知 NOT done（不阻塞 closure）**：
 - DB Failover rule 仍 `enabled: false`（追到 TASK-008）
 - `make verify` 整链路绿（追到 TASK-005）
-- 真跑 `make hub-deploy NODE=remote` 上 ans-hk01（待用户授权）
+- 真跑 `make hub-deploy HUB_NODE=remote` 上 ans-hk01（待用户授权）
 
 ---
 
 ## 🗂 索引
 
-- **架构主图**：[`SUMMARY.md`](SUMMARY.md)
+- **架构主图**：[`ARCHITECTURE.md`](ARCHITECTURE.md)
 - **EDA 自愈用户向 guide**：[`docs/features/eda-core/operator-guide.md`](docs/features/eda-core/operator-guide.md)
 - **Hub 部署速查**：[`docs/features/hub-deployment/operations.md`](docs/features/hub-deployment/operations.md)
 - **测试规格 (TSVS)**：[`docs/test-specs/`](docs/test-specs/)

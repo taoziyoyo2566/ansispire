@@ -5,7 +5,7 @@
 ## 0. AI 行为协议 (The Peer Rule)
 - **主动挑战**：AI 严禁盲目执行指令。任何修改必须先进行影响分析（Impact Analysis）。
 - **交付门禁 (Delivery Gate)**：任何修改在向用户交付前，必须经过 100% 全链路验证。
-- **一致性保护**：任务关闭前必须确认：1. SUMMARY.md 已更新；2. README.md 已更新；3. 验证经验已整理入对应的 operations.md（最终参考手册）。
+- **一致性保护**：任务关闭前必须确认：1. ARCHITECTURE.md 已更新；2. README.md 已更新；3. 验证经验已整理入对应的 operations.md（最终参考手册）。
 
 ## 1. 验证与知识沉淀 (Testing & Codification)
 - **强制规程**：执行验证阶段时，必须强制遵循 `docs/TESTING_GOVERNANCE.md`。

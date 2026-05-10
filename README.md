@@ -15,7 +15,7 @@ It is intended for teams managing a fleet of Linux servers who want one operatio
 - **Two deployment paths**: Path A (Ansible role-based hub deploy onto a remote VPS) and Path B (docker-compose dev stack on your workstation). Same control plane image, same audit plane, different bootstrap.
 - **Bearer-token machine identity**: the reactor talks to the control plane API with a scoped token minted by IaC bootstrap. The admin password never enters the reaction loop.
 
-For the architecture-level picture, see [SUMMARY.md](./SUMMARY.md).
+For the architecture-level picture, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ---
 
@@ -61,7 +61,7 @@ To deploy the same hub onto a remote VPS (Path A) instead, follow [`docs/feature
 
 | You want to... | Read |
 |---|---|
-| Understand the architecture in 5 minutes | [SUMMARY.md](./SUMMARY.md) |
+| Understand the architecture in 5 minutes | [ARCHITECTURE.md](./ARCHITECTURE.md) |
 | Install Ansispire on a clean machine | [docs/user-guide/01-installation.md](./docs/user-guide/01-installation.md) |
 | Understand EDA self-healing end-to-end (rationale + failure modes) | [docs/features/eda-core/operator-guide.md](./docs/features/eda-core/operator-guide.md) |
 | Look up a specific operational command (maintainer view) | [docs/features/eda-core/operations.md](./docs/features/eda-core/operations.md) · [docs/features/hub-deployment/operations.md](./docs/features/hub-deployment/operations.md) |
