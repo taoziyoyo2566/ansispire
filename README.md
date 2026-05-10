@@ -62,8 +62,10 @@ To deploy the same hub onto a remote VPS (Path A) instead, follow [`docs/feature
 | You want to... | Read |
 |---|---|
 | Understand the architecture in 5 minutes | [SUMMARY.md](./SUMMARY.md) |
-| Go from a clean machine to working self-healing | [docs/features/eda-core/operator-guide.md](./docs/features/eda-core/operator-guide.md) |
+| Install Ansispire on a clean machine | [docs/user-guide/01-installation.md](./docs/user-guide/01-installation.md) |
+| Understand EDA self-healing end-to-end (rationale + failure modes) | [docs/features/eda-core/operator-guide.md](./docs/features/eda-core/operator-guide.md) |
 | Look up a specific operational command (maintainer view) | [docs/features/eda-core/operations.md](./docs/features/eda-core/operations.md) · [docs/features/hub-deployment/operations.md](./docs/features/hub-deployment/operations.md) |
+| Choose which inventory / Make target for dev / stag / prod | [docs/operations/environments.md](./docs/operations/environments.md) |
 | Know what's planned next | [TODO.md](./TODO.md) |
 | Contribute code or docs | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) |
 | Run the tests and understand the test pyramid | [docs/TESTING_GOVERNANCE.md](./docs/TESTING_GOVERNANCE.md) · [docs/test-specs/](./docs/test-specs/) |

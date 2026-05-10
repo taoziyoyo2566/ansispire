@@ -1,8 +1,9 @@
 # Ansispire Project Summary (Master Map)
 
 ## 0. Quick Start
-- [Getting Started Guide](docs/GETTING_STARTED.md) — *Zero-to-One Lifecycle*
-- **[EDA Self-Healing Operator Guide](docs/features/eda-core/operator-guide.md)** — *TASK-001 详细 guideline，零基础入门 → 生产部署*
+- [Installation Guide](docs/user-guide/01-installation.md) — *clean machine → working self-healing (Path B + Path A)*
+- **[EDA Self-Healing Operator Guide](docs/features/eda-core/operator-guide.md)** — *deep dive: rationale, failure modes, recovery*
+- [Environments Reference](docs/operations/environments.md) — *which inventory / Make target for dev / stag / prod*
 
 ## 1. Core Mission
 Ansispire is a **Multi-Server Management Control System** designed for high-availability infrastructure operations. It upgrades standard Ansible from "ad-hoc scripts" into a reliable, audit-ready, and reactive automation engine.
