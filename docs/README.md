@@ -16,10 +16,11 @@ Top-of-repo documents that are NOT under `docs/`:
 
 - [`README.md`](../README.md) — product entry, capabilities, quickstart, document map
 - [`ARCHITECTURE.md`](../ARCHITECTURE.md) — global architecture truth
+- [`CHANGELOG.md`](../CHANGELOG.md) — release history
+- [`SECURITY.md`](../SECURITY.md) — vulnerability reporting policy
+- [`LICENSE`](../LICENSE) — Apache-2.0
 - [`TODO.md`](../TODO.md) — current task list and branch readiness
 - [`CLAUDE.md`](../CLAUDE.md) / [`GEMINI.md`](../GEMINI.md) — AI collaborator mandates
-
-(`CHANGELOG.md` and `SECURITY.md` are added in the P6 step of the in-progress docs refactor; see [`reviews/refactor-docs-enterprise/plan-2026-05-10.md`](reviews/refactor-docs-enterprise/plan-2026-05-10.md).)
 
 ---
 

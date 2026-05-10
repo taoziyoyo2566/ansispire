@@ -83,3 +83,11 @@ This project follows a layered governance model. The relevant files:
 - [docs/governance/ai-workflow.md](./docs/governance/ai-workflow.md) — how AI collaborators should operate inside this repo
 
 Contributions must follow the workflow in [docs/governance/contributing.md](./docs/governance/contributing.md): scope-defined commits, mandatory diff self-check, evidence-backed test claims.
+
+---
+
+## Project meta
+
+- [LICENSE](./LICENSE) — Apache-2.0
+- [SECURITY.md](./SECURITY.md) — vulnerability reporting policy
+- [CHANGELOG.md](./CHANGELOG.md) — release history
