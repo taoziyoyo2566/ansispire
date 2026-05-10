@@ -549,7 +549,7 @@ make verify               # lint + syntax + L1+L2+L3 + dry-run
 
 L4 用独立 compose project (`ansispire-e2e`)、独立 network (`controller-net-e2e`)、独立端口 (3320/3330)，**不影响**正在跑的 dev 栈。
 
-每层都有 TSVS 规格说明书：`docs/test-specs/eda-reactor-{unit,component,e2e}.md` + `eda-rules-contract.md`。
+每层都有 TSVS 规格说明书：`docs/reference/test-specs/eda-reactor-{unit,component,e2e}.md` + `eda-rules-contract.md`。
 
 ---
 
@@ -574,7 +574,7 @@ L4 用独立 compose project (`ansispire-e2e`)、独立 network (`controller-net
 | `ansible.posix.synchronize` 抛 `to_text` deprecation | collection 内部 import 路径滞后；无新版可升 | 静默忽略；ansible-core 2.24 之前不会真破。upstream issue 待跟进。|
 | `infra_baseline` 在 Alpine / Rocky 上立即 fail with NOT IMPLEMENTED | 这是 Round 4 的故意守门 | 等 TASK-007 实现 RHEL/Alpine 分支；目前不要把那两类 OS 加入 hub 部署 |
 
-更多硬故障（控制不住的）：去 [`docs/investigations/INDEX.md`](../../investigations/INDEX.md) 检索关键字。
+更多硬故障（控制不住的）：去 [`docs/reference/investigations/INDEX.md`](../reference/investigations/INDEX.md) 检索关键字。
 
 ---
 
@@ -672,7 +672,7 @@ make hub-deploy HUB_NODE=remote                # 重跑会重新 mint
 | `infra_baseline` OS 兼容性 | apt-only，Alpine/Rocky 直接报错 | apt 块用 `os_family == "Debian"` 守门；RHEL/Alpine 显式 fail 占位 |
 | ans-hk01 Python 解释器 | 自动发现（warn） | inventory 钉死 `/usr/bin/python3.13` |
 
-变更原因详见 [`docs/reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md`](../../reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md)。
+变更原因详见 [`docs/reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md`](../reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md)。
 
 ---
 
@@ -702,10 +702,10 @@ make hub-deploy HUB_NODE=remote                # 重跑会重新 mint
 ### 13.2 测试规格
 | 文件 | 层 |
 |---|---|
-| `docs/test-specs/eda-reactor-unit.md` | L1 |
-| `docs/test-specs/eda-rules-contract.md` | L2 |
-| `docs/test-specs/eda-reactor-component.md` | L3 |
-| `docs/test-specs/eda-reactor-e2e.md` | L4 |
+| `docs/reference/test-specs/eda-reactor-unit.md` | L1 |
+| `docs/reference/test-specs/eda-rules-contract.md` | L2 |
+| `docs/reference/test-specs/eda-reactor-component.md` | L3 |
+| `docs/reference/test-specs/eda-reactor-e2e.md` | L4 |
 
 ### 13.3 设计文档（演进史）
 | 文件 | 内容 |
@@ -715,8 +715,8 @@ make hub-deploy HUB_NODE=remote                # 重跑会重新 mint
 | `docs/reviews/feat-eda-advanced-healing/round2-2026-05-09.changelog.md` | L1+L2+L3 测试金字塔 |
 | `docs/reviews/feat-eda-advanced-healing/round3-2026-05-09.changelog.md` | L4 e2e + schema + rule.enabled |
 | `docs/reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md` | Path A 全面硬化 + manifest SSOT |
-| `docs/features/eda-core/operations.md` | maintainer 速查（短） |
-| `docs/features/eda-core/summary.md` | feature map |
+| `docs/operations/eda-core.md` | maintainer 速查（短） |
+| `docs/reference/feature-map/eda-core.md` | feature map |
 | **本文件** | 用户向 operator guide（长） |
 
 ---

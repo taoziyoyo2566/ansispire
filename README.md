@@ -53,7 +53,7 @@ make test-eda-e2e                                        # disposable e2e on por
 
 Expected: `make test-eda-e2e` exits zero in ~60 s and leaves a Semaphore UI running at <http://localhost:3320> for inspection.
 
-To deploy the same hub onto a remote VPS (Path A) instead, follow [`docs/features/eda-core/operator-guide.md`](./docs/features/eda-core/operator-guide.md).
+To deploy the same hub onto a remote VPS (Path A) instead, follow [`docs/user-guide/02-quickstart-eda.md`](./docs/user-guide/02-quickstart-eda.md).
 
 ---
 
@@ -63,13 +63,13 @@ To deploy the same hub onto a remote VPS (Path A) instead, follow [`docs/feature
 |---|---|
 | Understand the architecture in 5 minutes | [ARCHITECTURE.md](./ARCHITECTURE.md) |
 | Install Ansispire on a clean machine | [docs/user-guide/01-installation.md](./docs/user-guide/01-installation.md) |
-| Understand EDA self-healing end-to-end (rationale + failure modes) | [docs/features/eda-core/operator-guide.md](./docs/features/eda-core/operator-guide.md) |
-| Look up a specific operational command (maintainer view) | [docs/features/eda-core/operations.md](./docs/features/eda-core/operations.md) · [docs/features/hub-deployment/operations.md](./docs/features/hub-deployment/operations.md) |
+| Understand EDA self-healing end-to-end (rationale + failure modes) | [docs/user-guide/02-quickstart-eda.md](./docs/user-guide/02-quickstart-eda.md) |
+| Look up a specific operational command (maintainer view) | [docs/operations/eda-core.md](./docs/operations/eda-core.md) · [docs/operations/hub-deployment.md](./docs/operations/hub-deployment.md) |
 | Choose which inventory / Make target for dev / stag / prod | [docs/operations/environments.md](./docs/operations/environments.md) |
 | Know what's planned next | [TODO.md](./TODO.md) |
-| Contribute code or docs | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) |
-| Run the tests and understand the test pyramid | [docs/TESTING_GOVERNANCE.md](./docs/TESTING_GOVERNANCE.md) · [docs/test-specs/](./docs/test-specs/) |
-| Review past incidents and decisions | [docs/investigations/INDEX.md](./docs/investigations/INDEX.md) |
+| Contribute code or docs | [docs/governance/contributing.md](./docs/governance/contributing.md) |
+| Run the tests and understand the test pyramid | [docs/governance/testing-governance.md](./docs/governance/testing-governance.md) · [docs/reference/test-specs/](./docs/reference/test-specs/) |
+| Review past incidents and decisions | [docs/reference/investigations/INDEX.md](./docs/reference/investigations/INDEX.md) |
 | Read in 中文 | [docs/reference-cn/](./docs/reference-cn/) |
 
 ---
@@ -80,6 +80,6 @@ This project follows a layered governance model. The relevant files:
 
 - [CLAUDE.md](./CLAUDE.md) — workload classification (L0–L2), mandatory plan-first / changelog protocol
 - [GEMINI.md](./GEMINI.md) — Gemini-specific operating directives
-- [docs/AI_WORKFLOW.md](./docs/AI_WORKFLOW.md) — how AI collaborators should operate inside this repo
+- [docs/governance/ai-workflow.md](./docs/governance/ai-workflow.md) — how AI collaborators should operate inside this repo
 
-Contributions must follow the workflow in [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md): scope-defined commits, mandatory diff self-check, evidence-backed test claims.
+Contributions must follow the workflow in [docs/governance/contributing.md](./docs/governance/contributing.md): scope-defined commits, mandatory diff self-check, evidence-backed test claims.

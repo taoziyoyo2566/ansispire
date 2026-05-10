@@ -2,7 +2,7 @@
 
 ## 0. Quick Start
 - [Installation Guide](docs/user-guide/01-installation.md) — *clean machine → working self-healing (Path B + Path A)*
-- **[EDA Self-Healing Operator Guide](docs/features/eda-core/operator-guide.md)** — *deep dive: rationale, failure modes, recovery*
+- **[EDA Self-Healing Operator Guide](docs/user-guide/02-quickstart-eda.md)** — *deep dive: rationale, failure modes, recovery*
 - [Environments Reference](docs/operations/environments.md) — *which inventory / Make target for dev / stag / prod*
 
 ## 1. Core Mission
@@ -23,13 +23,13 @@ Ansispire is a **Multi-Server Management Control System** for high-availability 
 - **Inventory taxonomy**: `[hub_local]` / `[hub_remote]` / `[hub:children]` for management nodes; `[targets_debian|rhel|alpine]` placeholders for managed VPS.
 
 ## 3. Module Scope (Logic Truths)
-- [Hub Deployment & Ops](docs/features/hub-deployment/operations.md) — maintainer 速查
-- [Audit Plane Reliability](docs/features/audit-plane/summary.md)
-- [EDA Core Engine](docs/features/eda-core/summary.md) — feature map
-- **[EDA Self-Healing Operator Guide](docs/features/eda-core/operator-guide.md)** — long-form user guide (zero-knowledge → production)
-- [Test Infrastructure & Stability](docs/features/test-infra/summary.md)
-- [Empirical Investigations Index](docs/investigations/INDEX.md) — root cause analysis and feasibility spike history
-- [Test Specifications (TSVS)](docs/test-specs/) — mandatory verification records
+- [Hub Deployment & Ops](docs/operations/hub-deployment.md) — maintainer 速查
+- [Audit Plane Reliability](docs/reference/feature-map/audit-plane.md)
+- [EDA Core Engine](docs/reference/feature-map/eda-core.md) — feature map
+- **[EDA Self-Healing Operator Guide](docs/user-guide/02-quickstart-eda.md)** — long-form user guide (zero-knowledge → production)
+- [Test Infrastructure & Stability](docs/reference/feature-map/test-infra.md)
+- [Empirical Investigations Index](docs/reference/investigations/INDEX.md) — root cause analysis and feasibility spike history
+- [Test Specifications (TSVS)](docs/reference/test-specs/) — mandatory verification records
 
 ## 4. Design Direction
 - **Decoupling First**: Control logic must never leak into the Data Plane.

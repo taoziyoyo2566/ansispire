@@ -36,7 +36,7 @@
 - **经验教训**: 避免同类问题的建议。
 
 ## 7. 关联验证 (Linked Verification)
-- **TSVS 引用**: [关联的测试规格文件路径，例如: `docs/test-specs/TEST-XYZ-001.md`]
+- **TSVS 引用**: [关联的测试规格文件路径，例如: `docs/reference/test-specs/TEST-XYZ-001.md`]
 - **验证结果**: [PASS / FAIL / N/A]
 
 ---

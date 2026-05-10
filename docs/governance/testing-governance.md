@@ -1,4 +1,4 @@
-# docs/TESTING_GOVERNANCE.md — 验证阶段强制规约
+# docs/governance/testing-governance.md — 验证阶段强制规约
 
 本文件定义了 Ansispire 项目在验证阶段的行为红线。
 
@@ -7,7 +7,7 @@
 - **全链路闭环**：验证必须覆盖从“信号产生”到“物理修复”的全流程。
 
 ## 2. 最终参考手册 (The Manual)
-- **Codification**：验证过程中输入的命令、捕获的日志、解决的坑点，**必须** 立即同步至对应的 `docs/features/<name>/operations.md`。
+- **Codification**：验证过程中输入的命令、捕获的日志、解决的坑点，**必须** 立即同步至对应的 `docs/operations/<name>.md`。
 - **手册地位**：`operations.md` 被视为该功能的“最终参考手册”。其内容必须是实战通过的、干净的、无占位符的。
 
 ## 3. 交付标准

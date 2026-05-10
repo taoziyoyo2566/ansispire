@@ -7,8 +7,8 @@
 A lightweight Event-Driven Ansible (EDA) reaction engine that transforms audit events into autonomous remediation actions. The reactor watches `events.jsonl`, matches against `rules.json`, and triggers Semaphore job templates over the REST API using a Bearer token.
 
 ## Operational entry points
-- **第一次接触**：[`operator-guide.md`](operator-guide.md) — long-form user guide, no prior project knowledge assumed
-- **Maintainer 速查**：[`operations.md`](operations.md) — terse command reference
+- **第一次接触**：[`operator-guide.md`](../../user-guide/02-quickstart-eda.md) — long-form user guide, no prior project knowledge assumed
+- **Maintainer 速查**：[`operations.md`](../../operations/eda-core.md) — terse command reference
 
 ## Key triggers
 - New entries in `events.jsonl` matching conditions in `extensions/eda/rules.json` (with `enabled: true`)
@@ -33,10 +33,10 @@ A lightweight Event-Driven Ansible (EDA) reaction engine that transforms audit e
 ## Test pyramid (TSVS-tracked)
 | Layer | Spec | Cases | Wall time |
 |---|---|---|---|
-| L1 reactor unit | [`docs/test-specs/eda-reactor-unit.md`](../../test-specs/eda-reactor-unit.md) | 14 | < 0.01 s |
-| L2 rules contract | [`docs/test-specs/eda-rules-contract.md`](../../test-specs/eda-rules-contract.md) | 9 | < 0.1 s |
-| L3 reactor component | [`docs/test-specs/eda-reactor-component.md`](../../test-specs/eda-reactor-component.md) | 5 | < 1 s |
-| L4 disposable e2e | [`docs/test-specs/eda-reactor-e2e.md`](../../test-specs/eda-reactor-e2e.md) | 1 | ~60 s |
+| L1 reactor unit | [`docs/reference/test-specs/eda-reactor-unit.md`](../test-specs/eda-reactor-unit.md) | 14 | < 0.01 s |
+| L2 rules contract | [`docs/reference/test-specs/eda-rules-contract.md`](../test-specs/eda-rules-contract.md) | 9 | < 0.1 s |
+| L3 reactor component | [`docs/reference/test-specs/eda-reactor-component.md`](../test-specs/eda-reactor-component.md) | 5 | < 1 s |
+| L4 disposable e2e | [`docs/reference/test-specs/eda-reactor-e2e.md`](../test-specs/eda-reactor-e2e.md) | 1 | ~60 s |
 
 L1+L2+L3 entry: `make test-eda` (in `make verify` chain). L4 entry: `make test-eda-e2e` (host-only, NOT in verify).
 

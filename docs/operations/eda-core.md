@@ -2,11 +2,11 @@
 
 > **本手册定位**：给已熟悉本项目的 maintainer 用的速查参考，命令为主、注释稀疏。
 >
-> **第一次接触？** 先去看 [`operator-guide.md`](operator-guide.md) — 那一份从零开始、含原理 + 故障路径，不假设你看过其他文档。
+> **第一次接触？** 先去看 [`operator-guide.md`](../user-guide/02-quickstart-eda.md) — 那一份从零开始、含原理 + 故障路径，不假设你看过其他文档。
 
-本手册按 `docs/TESTING_GOVERNANCE.md` §2，凡验证阶段实际跑过的命令、捕获的日志、踩过的坑，必须立即在此文件同步——本文件即"实战通过的、干净的、无占位符的"操作真相。
+本手册按 `docs/governance/testing-governance.md` §2，凡验证阶段实际跑过的命令、捕获的日志、踩过的坑，必须立即在此文件同步——本文件即"实战通过的、干净的、无占位符的"操作真相。
 
-最近一次端到端验证：2026-05-10 Round 4，含 Path A 真部署 + Path B docker compose 双路径。证据链：[`round4-2026-05-10.changelog.md`](../../reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md) §4 + [`round3-2026-05-09.changelog.md`](../../reviews/feat-eda-advanced-healing/round3-2026-05-09.changelog.md) §6。
+最近一次端到端验证：2026-05-10 Round 4，含 Path A 真部署 + Path B docker compose 双路径。证据链：[`round4-2026-05-10.changelog.md`](../reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md) §4 + [`round3-2026-05-10.changelog.md`](../reviews/feat-eda-advanced-healing/round3-2026-05-10.changelog.md) §6。
 
 ---
 

@@ -11,7 +11,7 @@ This file governs every Claude session. It is the **foundational mandate** for A
 - **Sync Guard**: Before closing a task, AI MUST verify:
     1. Does the change affect `ARCHITECTURE.md` (Architecture)? If yes, sync.
     2. Does the change affect `README.md` (Operational)? If yes, sync.
-    3. Update or create the relevant **Feature Map** in `docs/features/`.
+    3. Update or create the relevant **Feature Map** in `docs/reference/feature-map/`.
 - **Chain of Thought**: For all [L2] and [L1.5] tasks, use `<thinking>` blocks to analyze trade-offs before acting.
 </protocol>
 
@@ -24,7 +24,7 @@ This file governs every Claude session. It is the **foundational mandate** for A
 | :--- | :--- | :--- |
 | **🟢 [L0] Hygiene** | Typos, comments, non-functional formatting | Direct execution. |
 | **🟡 [L1] Engineering** | Bug fixes, single-role refactor | Strategy -> Act -> Verification. |
-| **🔍 [L1.5] Investigation** | Root Cause Analysis (RCA), Technical Spikes | **Mandatory**: Create `docs/investigations/IVG-*.md`. |
+| **🔍 [L1.5] Investigation** | Root Cause Analysis (RCA), Technical Spikes | **Mandatory**: Create `docs/reference/investigations/IVG-*.md`. |
 | **🔴 [L2] Architecture** | New subsystems, API shifts, NFR changes | **Mandatory**: Design RFC in `docs/reviews/`. |
 </classification>
 
@@ -36,8 +36,8 @@ To optimize context and cost, load information in this specific hierarchy:
 
 1.  **Design Truth**: `ARCHITECTURE.md` (Global architecture - Read FIRST).
 2.  **Dynamic Truth**: `todo` branch / `TODO.md` (Current tasks - Read SECOND).
-3.  **Investigation Truth**: `docs/investigations/INDEX.md` (Empirical history - **If status is `Applied`, skip deep-reading**; findings are already in the 「应用位置」column target. Only load the full IVG if status is `Active` and the task is related).
-4.  **Logic Truth**: `docs/features/<name>/summary.md` (Module scope).
+3.  **Investigation Truth**: `docs/reference/investigations/INDEX.md` (Empirical history - **If status is `Applied`, skip deep-reading**; findings are already in the 「应用位置」column target. Only load the full IVG if status is `Active` and the task is related).
+4.  **Logic Truth**: `docs/reference/feature-map/<name>.md` (Module scope).
 5.  **Implementation**: Source code or `details.md`.
 
 ---
@@ -45,9 +45,9 @@ To optimize context and cost, load information in this specific hierarchy:
 ## 3. Engineering Standards
 
 - **Control vs. Data**: Maintain strict decoupling between `controller/` logic and execution `roles/`.
-- **Investigation Protocol**: Any RCA or analysis task MUST follow the `docs/investigations/TEMPLATE.md` and be logged in `INDEX.md`. When findings are applied to CLAUDE.md, ARCHITECTURE.md, or other rule files, update INDEX.md status to `Applied` and fill in the 「应用位置」column so future agents can skip deep-reading.
+- **Investigation Protocol**: Any RCA or analysis task MUST follow the `docs/reference/investigations/TEMPLATE.md` and be logged in `INDEX.md`. When findings are applied to CLAUDE.md, ARCHITECTURE.md, or other rule files, update INDEX.md status to `Applied` and fill in the 「应用位置」column so future agents can skip deep-reading.
 - **Evidence-based Verification**: Every change must be backed by terminal logs (lint/test/syntax).
-- **TSVS Mandatory**: No functional test is "Done" without a record in `docs/test-specs/` using the project template.
+- **TSVS Mandatory**: No functional test is "Done" without a record in `docs/reference/test-specs/` using the project template.
 
 ---
 
@@ -62,8 +62,8 @@ Content: `plan-*.md` and `*.changelog.md`.
 Location: `docs/reviews/claude-config-<topic>-*.review/changelog.md`.
 
 ### Pattern D — Empirical Investigation
-Location: `docs/investigations/IVG-<TASK_ID>-<SLUG>.md`.
-**Note**: Always register in `docs/investigations/INDEX.md`.
+Location: `docs/reference/investigations/IVG-<TASK_ID>-<SLUG>.md`.
+**Note**: Always register in `docs/reference/investigations/INDEX.md`.
 </patterns>
 
 ---

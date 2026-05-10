@@ -8,7 +8,7 @@
 - **一致性保护**：任务关闭前必须确认：1. ARCHITECTURE.md 已更新；2. README.md 已更新；3. 验证经验已整理入对应的 operations.md（最终参考手册）。
 
 ## 1. 验证与知识沉淀 (Testing & Codification)
-- **强制规程**：执行验证阶段时，必须强制遵循 `docs/TESTING_GOVERNANCE.md`。
+- **强制规程**：执行验证阶段时，必须强制遵循 `docs/governance/testing-governance.md`。
 - **消灭“口传知识”**：严禁将复杂的命令序列留在聊天记录中。所有被证实有效的操作路径必须沉淀为功能指南，作为系统的最终参考手册。
 
 ## 2. 工程标准 (Engineering Standards)

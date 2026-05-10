@@ -20,8 +20,8 @@ The system is designed to "sense" its environment rather than failing:
 
 ## 4. Test Documentation Standards (TSVS)
 Starting from April 2026, all functional and loopback tests must follow the **TSVS** template:
-- **Location**: `docs/test-specs/`
-- **Template**: `docs/test-specs/TEMPLATE.md`
+- **Location**: `docs/reference/test-specs/`
+- **Template**: `docs/reference/test-specs/TEMPLATE.md`
 - **Requirements**: Must include Software Stack versions, specific Methodology, and evidence-based Actual Results.
 
 ## 5. Key Learnings (The "Don't Repeat" List)

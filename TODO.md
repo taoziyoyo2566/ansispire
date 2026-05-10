@@ -46,7 +46,7 @@
     2. `[ ]` 实现 `playbooks/remediation/db_failover.yml`
     3. `[ ]` 翻 rules.json `enabled: false` → `true`，删 `_disabled_reason`
     4. `[ ]` 在 `controller/audit/e2e/run.sh` 加第二个注入步骤 + 第二个 task 轮询
-    5. `[ ]` 更新 `docs/test-specs/eda-reactor-e2e.md` §6（双用例）
+    5. `[ ]` 更新 `docs/reference/test-specs/eda-reactor-e2e.md` §6（双用例）
 - **依赖**：用户决策 failover 模型 + 是否有可演练的 db 拓扑
 - **owner**：Claude（实现） + 用户（决策 + db 环境）
 - **优先级**：P2
@@ -103,9 +103,9 @@
 ## 🗂 索引
 
 - **架构主图**：[`ARCHITECTURE.md`](ARCHITECTURE.md)
-- **EDA 自愈用户向 guide**：[`docs/features/eda-core/operator-guide.md`](docs/features/eda-core/operator-guide.md)
-- **Hub 部署速查**：[`docs/features/hub-deployment/operations.md`](docs/features/hub-deployment/operations.md)
-- **测试规格 (TSVS)**：[`docs/test-specs/`](docs/test-specs/)
+- **EDA 自愈用户向 guide**：[`docs/user-guide/02-quickstart-eda.md`](docs/user-guide/02-quickstart-eda.md)
+- **Hub 部署速查**：[`docs/operations/hub-deployment.md`](docs/operations/hub-deployment.md)
+- **测试规格 (TSVS)**：[`docs/reference/test-specs/`](docs/reference/test-specs/)
 - **变更证据链**：[`docs/reviews/feat-eda-advanced-healing/`](docs/reviews/feat-eda-advanced-healing/)
 - **CLAUDE.md 三层**：`~/.claude/CLAUDE.md` / `~/workspace/CLAUDE.md` / `./CLAUDE.md`
 

@@ -3,7 +3,7 @@
 > **Audience**: anyone setting up Ansispire for the first time, on a clean control node.
 > **Outcome**: by the end you will have a working control plane (Semaphore web UI), an audit + reactor stack, and a verified self-healing loop.
 >
-> For the deep "why does it work this way" explanation see [`docs/features/eda-core/operator-guide.md`](../features/eda-core/operator-guide.md). For maintainer command speed-look-up see [`docs/features/eda-core/operations.md`](../features/eda-core/operations.md).
+> For the deep "why does it work this way" explanation see [`02-quickstart-eda.md`](./02-quickstart-eda.md). For maintainer command speed-look-up see [`../operations/eda-core.md`](../operations/eda-core.md).
 
 ---
 
@@ -198,8 +198,8 @@ docker logs --tail 50 ansispire-audit-reactor        # MATCH then triggered task
 
 ## 6. Where to go next
 
-- **Day-2 operations** (commands you will run repeatedly): [`docs/features/eda-core/operations.md`](../features/eda-core/operations.md), [`docs/features/hub-deployment/operations.md`](../features/hub-deployment/operations.md).
-- **Adding new self-healing rules**: see operator-guide §8 ("常见运维任务").
-- **Per-environment differences** (dev / stag / prod): [`docs/operations/environments.md`](../operations/environments.md).
+- **Day-2 operations** (commands you will run repeatedly): [`eda-core.md`](../operations/eda-core.md), [`hub-deployment.md`](../operations/hub-deployment.md).
+- **Adding new self-healing rules**: see [`02-quickstart-eda.md`](./02-quickstart-eda.md) §8 ("常见运维任务").
+- **Per-environment differences** (dev / stag / prod): [`environments.md`](../operations/environments.md).
 - **Architecture rationale**: [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
-- **When something breaks**: [`docs/features/eda-core/operator-guide.md`](../features/eda-core/operator-guide.md) §10 (Troubleshooting).
+- **When something breaks**: [`02-quickstart-eda.md`](./02-quickstart-eda.md) §10 (Troubleshooting).

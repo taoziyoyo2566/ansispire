@@ -77,7 +77,7 @@ make hub-deploy       HUB_NODE=remote   # apply
 # HUB_NODE ∈ {local, remote, all}; default is local (safe).
 ```
 
-The hub deploy uses [`inventory/hosts.ini`](../../inventory/hosts.ini) (the physical fleet topology), not the `inventory/prod/` overlay — see [`docs/features/hub-deployment/operations.md`](../features/hub-deployment/operations.md) for why.
+The hub deploy uses [`inventory/hosts.ini`](../../inventory/hosts.ini) (the physical fleet topology), not the `inventory/prod/` overlay — see [`hub-deployment.md`](./hub-deployment.md) for why.
 
 ### Data plane (web / db / app stack on the production fleet)
 
