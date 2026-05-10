@@ -23,9 +23,10 @@ Ansispire is a **Multi-Server Management Control System** for high-availability 
 - **Inventory taxonomy**: `[hub_local]` / `[hub_remote]` / `[hub:children]` for management nodes; `[targets_debian|rhel|alpine]` placeholders for managed VPS.
 
 ## 3. Module Scope (Logic Truths)
-- [Hub Deployment & Ops](docs/operations/hub-deployment.md) — maintainer 速查
+- [Hub Deployment](docs/reference/feature-map/hub-deployment.md) — feature map · ops: [`docs/operations/hub-deployment.md`](docs/operations/hub-deployment.md)
 - [Audit Plane Reliability](docs/reference/feature-map/audit-plane.md)
-- [EDA Core Engine](docs/reference/feature-map/eda-core.md) — feature map
+- [EDA Core Engine](docs/reference/feature-map/eda-core.md) — feature map · ops: [`docs/operations/eda-core.md`](docs/operations/eda-core.md)
+- [EDA Remediation (Nginx)](docs/reference/feature-map/eda-remediation.md) — first remediation rule
 - **[EDA Self-Healing Operator Guide](docs/user-guide/02-quickstart-eda.md)** — long-form user guide (zero-knowledge → production)
 - [Test Infrastructure & Stability](docs/reference/feature-map/test-infra.md)
 - [Empirical Investigations Index](docs/reference/investigations/INDEX.md) — root cause analysis and feasibility spike history

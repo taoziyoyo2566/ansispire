@@ -30,6 +30,9 @@ Long-form, with the rationale baked in. Safe to read sequentially. No assumed pr
 
 - [01-installation.md](user-guide/01-installation.md) — clean machine to working hub (Path B + Path A)
 - [02-quickstart-eda.md](user-guide/02-quickstart-eda.md) — EDA self-healing end-to-end (the long form, includes architecture, troubleshooting, glossary)
+- [03-configuration.md](user-guide/03-configuration.md) — change a port, bump a version, manage secrets, add a remediation rule
+- [04-troubleshooting.md](user-guide/04-troubleshooting.md) — symptom → root cause → fix; standalone quick-reference
+- [05-glossary.md](user-guide/05-glossary.md) — concepts, key files, test specs, design docs index
 
 ## operations/ — when you already know the project
 
@@ -43,7 +46,7 @@ Terse command-first references. Optimized for "I need to do X right now, what's 
 
 Lazy-loadable detail. Don't read top-to-bottom; cross-referenced from elsewhere.
 
-- [feature-map/](reference/feature-map/) — one-page summary per feature (audit-plane, eda-core, eda-remediation, test-infra)
+- [feature-map/](reference/feature-map/) — one-page summary per feature (audit-plane, eda-core, eda-remediation, hub-deployment, test-infra)
 - [investigations/INDEX.md](reference/investigations/INDEX.md) — RCA / spike history; rows with `Applied` status route to the active rule location
 - [test-specs/](reference/test-specs/) — TSVS verification records per test layer
 
