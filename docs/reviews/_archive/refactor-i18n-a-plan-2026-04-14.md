@@ -4,7 +4,7 @@ Date: 2026-04-14
 Author: Claude (Opus 4.6)
 Reference:
 - User authorization (2026-04-14): accept layered i18n strategy
-- [CLAUDE.md](../../CLAUDE.md) — target file
+- [CLAUDE.md](../../../CLAUDE.md) — target file
 - [Review Iteration Charter](./review-iteration-charter.md) — target file
 
 ---

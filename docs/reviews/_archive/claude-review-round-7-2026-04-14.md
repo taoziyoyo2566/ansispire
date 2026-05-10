@@ -5,7 +5,7 @@
 参照:
 - [Round 6 架构方案](./claude-review-round-6-2026-04-14.md)
 - [Review Iteration Charter](./review-iteration-charter.md)
-- [CLAUDE.md](../../CLAUDE.md)
+- [CLAUDE.md](../../../CLAUDE.md)
 
 ---
 

@@ -56,7 +56,7 @@ ansible-playbook controller/semaphore/bootstrap.yml \
 After bootstrap completes, Semaphore will contain:
 - **Project**: `ansispire`
 - **Repository**: points to `/workspace` (this repo, mounted into the container)
-- **Inventory**: points to `inventory/production/hosts.ini`
+- **Inventory**: points to `inventory/prod/hosts.ini`
 - **Template**: `site.yml --check` (dry-run task)
 
 You can then trigger this template manually from the Web UI and watch the job output.

@@ -8,7 +8,7 @@
 参照:
 - [Round 7 方案 / 变更](./claude-review-round-7-2026-04-14.md) / [change log](./round-7-change-log-2026-04-14.md)
 - [Round 6 架构方案](./claude-review-round-6-2026-04-14.md)
-- [CLAUDE.md](../../CLAUDE.md)
+- [CLAUDE.md](../../../CLAUDE.md)
 
 ---
 

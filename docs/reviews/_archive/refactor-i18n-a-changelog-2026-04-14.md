@@ -5,7 +5,7 @@ Author: Claude (Opus 4.6)
 Reference:
 - [Plan](./refactor-i18n-a-plan-2026-04-14.md)
 - [Charter](./review-iteration-charter.md)
-- [CLAUDE.md](../../CLAUDE.md)
+- [CLAUDE.md](../../../CLAUDE.md)
 
 ---
 

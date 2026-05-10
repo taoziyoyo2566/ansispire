@@ -1,6 +1,6 @@
 # inventory/dynamic/aws_ec2.yml — AWS EC2 dynamic-inventory plugin config
 # Plugin docs: https://docs.ansible.com/ansible/latest/collections/amazon/aws/aws_ec2_inventory.html
-# Enable: in ansible.cfg, set inventory = inventory/production:inventory/dynamic
+# Enable: in ansible.cfg, set inventory = inventory/prod:inventory/dynamic
 # Prereq: pip install boto3 && ansible-galaxy collection install amazon.aws
 
 ---

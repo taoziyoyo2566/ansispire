@@ -3,19 +3,19 @@
 # Vault command cheat-sheet:
 #
 #   # Encrypt an entire file
-#   ansible-vault encrypt inventory/production/group_vars/all/vault.yml
+#   ansible-vault encrypt inventory/local/vault.yml
 #
 #   # Decrypt a file (in place)
-#   ansible-vault decrypt inventory/production/group_vars/all/vault.yml
+#   ansible-vault decrypt inventory/local/vault.yml
 #
 #   # View an encrypted file (without writing plaintext to disk)
-#   ansible-vault view inventory/production/group_vars/all/vault.yml
+#   ansible-vault view inventory/local/vault.yml
 #
 #   # Edit an encrypted file
-#   ansible-vault edit inventory/production/group_vars/all/vault.yml
+#   ansible-vault edit inventory/local/vault.yml
 #
 #   # Change the vault password
-#   ansible-vault rekey inventory/production/group_vars/all/vault.yml
+#   ansible-vault rekey inventory/local/vault.yml
 #
 #   # Encrypt a single string (inline, for embedding in vars.yml)
 #   ansible-vault encrypt_string 'MySecret123' --name 'db_password'
@@ -37,7 +37,7 @@
   vars:
     # Plain-text variable referencing a vaulted variable.
     # Best practice: prefix with vault_ to mark the source clearly.
-    # vault_db_root_password is defined (encrypted) in inventory/production/group_vars/all/vault.yml
+    # vault_db_root_password is defined (encrypted) in inventory/local/vault.yml
     db_password: "{{ vault_db_root_password }}"
     api_key: "{{ vault_api_secret_key }}"
 

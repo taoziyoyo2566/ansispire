@@ -5,8 +5,8 @@
 #   ansible-playbook playbooks/site.yml --tags nginx              # tag filter
 #   ansible-playbook playbooks/site.yml --limit webservers        # group filter
 #   ansible-playbook playbooks/site.yml --check --diff            # dry-run
-#   ansible-playbook playbooks/site.yml -e "env=staging"          # variable override
-#   ansible-playbook playbooks/site.yml -i inventory/staging      # switch environment
+#   ansible-playbook playbooks/site.yml -e "env=stag"             # variable override
+#   ansible-playbook playbooks/site.yml -i inventory/stag         # switch environment
 
 ---
 # ── Play 1: baseline config for all hosts ────────────────────────────────────

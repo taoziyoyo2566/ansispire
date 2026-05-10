@@ -9,7 +9,7 @@
 - [Review Iteration Charter](./review-iteration-charter.md)
 - [Round 5 方案文档](./claude-review-round-5-2026-04-14.md)
 - [Round 5 变更日志](./round-5-change-log-2026-04-14.md)
-- [CLAUDE.md](../../CLAUDE.md)
+- [CLAUDE.md](../../../CLAUDE.md)
 
 ---
 

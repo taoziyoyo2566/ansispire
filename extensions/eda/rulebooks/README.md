@@ -31,7 +31,7 @@ Consider implementing EDA rules when your infrastructure hits any of the followi
 
 3. Run the rulebook:
    ```bash
-   ansible-rulebook --rulebook extensions/eda/rulebooks/remediation.yml -i inventory/production
+   ansible-rulebook --rulebook extensions/eda/rulebooks/remediation.yml -i inventory/prod
    ```
 
 ## Rulebook Example
