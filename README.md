@@ -10,15 +10,29 @@ An Ansible-based reference control system split into a **data plane** (roles/pla
 
 `controller/` provides a **lightweight open-source control plane** that upgrades Ansible from "scripts + SSH" into a system with a real API, job history, and credential management.
 
-Current implementation: **Semaphore + Docker Compose + BoltDB** (about 200 MB RAM).
+Current implementation: **Semaphore v2.18.2 + Docker Compose + SQLite** (~200 MB RAM). Image version + host ports are managed by `config/manifest.yml` (SSOT) and propagated to `.env` by `make manifest-sync`.
+
+### Path B — dev / testing (docker compose, your workstation)
 
 ```bash
-# Quick start
 cp controller/semaphore/.env.example controller/semaphore/.env
 vim controller/semaphore/.env        # at minimum, change SEMAPHORE_ADMIN_PASSWORD
-make controller-up                    # docker compose up -d
-# Open http://localhost:3000 in a browser
+make controller-up                    # auto-runs manifest-sync + docker compose up -d
+make controller-bootstrap             # IaC provisioning + mints API token to .secrets
+make controller-audit-up              # starts sink + relay + reactor
+# Open http://localhost:3300 in a browser
 ```
+
+### Path A — real deployment (Ansible role to VPS / control_node)
+
+```bash
+echo "your-vault-password" > .vault_pass && chmod 600 .vault_pass
+.venv/bin/ansible-vault edit inventory/local/vault.yml   # set vault_semaphore_admin_password
+make hub-deploy-check NODE=remote      # dry-run
+make hub-deploy NODE=remote            # apply (NODE=local|remote|all)
+```
+
+For the full step-by-step guideline (from a clean machine to verified self-healing), see **[EDA Self-Healing Operator Guide](./docs/features/eda-core/operator-guide.md)**.
 
 Rationale, upgrade path, and comparison to AWX / AAP: see [`controller/README.md`](./controller/README.md).
 
@@ -35,16 +49,30 @@ Ansispire features a **decoupled audit plane** to ensure full traceability of al
 
 ---
 
-## Event-Driven Automation (EDA)
+## Event-Driven Automation (EDA Self-Healing)
 
-Ansispire includes a **lightweight EDA subsystem** that transforms audit events into autonomous actions.
+Ansispire includes a **lightweight EDA subsystem** (v2.3, TASK-001 closed 2026-05-10) that transforms audit events into autonomous remediation.
 
-- **Reactor Engine**: A Python-based `reactor.py` that tails the audit log.
-- **Rulebook**: Configurable via `extensions/eda/rules.json`.
-- **Capabilities**:
-    - **Self-Healing**: Trigger Ansible playbooks or scripts when critical resources are modified.
-    - **Alerting**: Forward critical events to Webhooks (Slack/Teams).
-- **Security**: Actions are strictly limited to predefined commands in the rulebook.
+- **Reactor Engine** (`controller/audit/reactor.py`): Python-based; Bearer Token auth; dynamic `template_name → template_id` resolution; per-rule cooldown; `enabled: false` soft-disable; logs `event schema: <$id>@<version>` at startup.
+- **Rulebook** (`extensions/eda/rules.json`): events → semaphore_api / webhook / shell actions.
+- **Event Contract** (`extensions/eda/events.schema.json`): JSON Schema Draft-07; rules ↔ schema cross-checked at L2 contract test (C9).
+- **Pipeline**:
+    1. **Reset (optional)**: `make controller-reset` (Path B) or remove `/var/lib/ansispire/state/` on hub (Path A) to wipe state.
+    2. **Bootstrap**: `make controller-bootstrap` registers project / templates / mints token (IaC, UI-zero-touch).
+    3. **React**: Reactor matches events from `events.jsonl` and triggers remediation via Semaphore API.
+- **Security**: 100% Bearer-Token-based; admin password never in reaction loop; rsync excludes prevent secrets from leaving workstation; state files (`.eda_token`) live outside the rsync target dir.
+- **Quick demo (after Path B setup)**:
+  ```bash
+  docker exec ansispire-audit-sink sh -c 'printf "%s\n" \
+    "{\"payload\":{\"event\":{\"object_type\":\"task\",\"description\":\"Disk Full on demo\"}}}" \
+    >> /var/log/semaphore/events.jsonl'
+  docker logs --tail 10 ansispire-audit-reactor
+  # Expect: MATCH FOUND → remediation triggered status=201
+  ```
+
+**详细操作指引**：[`docs/features/eda-core/operator-guide.md`](./docs/features/eda-core/operator-guide.md)。
+
+
 
 ---
 

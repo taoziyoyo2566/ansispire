@@ -2,20 +2,29 @@
 
 ## 0. Quick Start
 - [Getting Started Guide](docs/GETTING_STARTED.md) — *Zero-to-One Lifecycle*
+- **[EDA Self-Healing Operator Guide](docs/features/eda-core/operator-guide.md)** — *TASK-001 详细 guideline，零基础入门 → 生产部署*
 
 ## 1. Core Mission
 Ansispire is a **Multi-Server Management Control System** designed for high-availability infrastructure operations. It upgrades standard Ansible from "ad-hoc scripts" into a reliable, audit-ready, and reactive automation engine.
 
 ## 2. Architectural Blueprint
-- **Control Plane** (`controller/`): Go-based (Semaphore) or Python-based management interface.
-- **Audit Plane** (`controller/audit/`): Real-time event tracking and non-repudiation logging.
+- **Control Plane** (`controller/`): Go-based (Semaphore) management interface; deployed via Ansible role (`ansispire_hub`) or directly via docker compose.
+- **Audit Plane** (`controller/audit/`): Real-time event tracking + non-repudiation logging (sink + relay + reactor).
 - **Data Plane** (`roles/`, `playbooks/`): Idempotent server state definitions.
-- **Reaction Plane** (EDA/Reactor): Event-driven remediation and notification.
+- **Reaction Plane** (EDA/Reactor): Event-driven remediation (API-driven via Bearer Token) and notification. Supports dynamic template resolution by name.
+- **Database Backend**: SQLite (BoltDB deprecated upstream).
+- **Config-as-Code (IaC)**: Standardized bootstrap via `controller/semaphore/bootstrap.yml` to automate project/template/token provisioning. UI zero-touch.
+- **SSOT (Round 4+)**: `config/manifest.yml` is the single source of truth for both **host ports** and **image versions**; `make manifest-sync` renders to `.env`.
+- **Two operational paths**:
+  - **Path A** — Ansible role-based real deployment (`make hub-deploy NODE=local|remote|all`); production target.
+  - **Path B** — direct docker compose (`make controller-up && make controller-bootstrap && make controller-audit-up`); dev / testing.
+- **Inventory taxonomy**: `[hub_local]` / `[hub_remote]` / `[hub:children]` for management nodes; `[targets_debian|rhel|alpine]` placeholders for managed VPS (next-stage 4-VPS expansion).
 
 ## 3. Module Scope (Logic Truths)
-- [Hub Deployment & Ops](docs/features/hub-deployment/operations.md)
+- [Hub Deployment & Ops](docs/features/hub-deployment/operations.md) — maintainer 速查
 - [Audit Plane Reliability](docs/features/audit-plane/summary.md)
-- [EDA Core Engine](docs/features/eda-core/summary.md)
+- [EDA Core Engine](docs/features/eda-core/summary.md) — feature map
+- **[EDA Self-Healing Operator Guide](docs/features/eda-core/operator-guide.md)** — **TASK-001 详细 guideline (从零部署 + 故障排查 + 安全注意 + 词汇表)**
 - [Test Infrastructure & Stability](docs/features/test-infra/summary.md)
 - [Empirical Truths (Investigations)](docs/investigations/) — *Root cause analysis and feasibility spike history*
 - [Test Specifications (TSVS)](docs/test-specs/) — *Mandatory verification records*
