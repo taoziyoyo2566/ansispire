@@ -1,8 +1,14 @@
-# Semaphore control-plane minimal deployment (BoltDB backend)
+# Semaphore control-plane minimal deployment (SQLite backend)
 #
 # Purpose:      learn Ansible control-plane concepts (project / inventory / template / job)
 # Resources:    ~200 MB RAM, single process
 # Upgrade path: see controller/README.md
+#
+# Image + port policy: BOTH come from config/manifest.yml via `make
+# manifest-sync` → controller/semaphore/.env. Container side stays at the
+# upstream default 3000. The :-fallback in ${VAR:-default} only kicks in
+# if .env is missing — normal flow has manifest-sync render real values.
+# Bump versions/ports by editing config/manifest.yml then re-running sync.
 #
 # Start: make controller-up   (or docker compose --env-file .env up -d)
 # Stop:  make controller-down
@@ -10,15 +16,15 @@
 ---
 services:
   semaphore:
-    image: semaphoreui/semaphore:v2.10.34
+    image: "semaphoreui/semaphore:${SEMAPHORE_IMAGE_TAG:-latest}"
     container_name: ansispire-semaphore
     restart: unless-stopped
     ports:
-      - "${SEMAPHORE_PORT:-3000}:3000"
+      - "${SEMAPHORE_PORT:-3300}:3000"
     environment:
-      # Database: BoltDB (embedded, zero external dependencies)
-      SEMAPHORE_DB_DIALECT: bolt
-      SEMAPHORE_DB_PATH: /var/lib/semaphore/database.boltdb
+      # Database: SQLite (Recommended for v2.18+, BoltDB is deprecated)
+      SEMAPHORE_DB_DIALECT: sqlite
+      SEMAPHORE_DB_PATH: /var/lib/semaphore/semaphore.db
 
       # Admin account (created on first boot)
       SEMAPHORE_ADMIN: "${SEMAPHORE_ADMIN:-admin}"
@@ -40,6 +46,9 @@ services:
       - semaphore-config:/etc/semaphore
       - semaphore-tmp:/tmp/semaphore
 
+      # Writable home for Ansible environment (collections, logs, cache)
+      - semaphore-home:/home/semaphore
+
       # Mount this repo read-only as the project source
       # Note: Semaphore can also git-clone, but bind-mounting makes repo edits
       # immediately visible during learning sessions.
@@ -59,6 +68,7 @@ volumes:
   semaphore-data:
   semaphore-config:
   semaphore-tmp:
+  semaphore-home:
 
 networks:
   controller-net:

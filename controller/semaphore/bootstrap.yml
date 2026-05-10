@@ -7,15 +7,19 @@
 #   immediately, without having to click through the configuration UI first.
 #
 # Usage:
+#   make controller-bootstrap            # preferred — pulls user/password from .env
 #   ansible-playbook controller/semaphore/bootstrap.yml \
-#     -e semaphore_url=http://localhost:3000 \
 #     -e semaphore_user=admin \
 #     -e semaphore_password=<admin-password>
+#
+# Port comes from config/manifest.yml (SSOT) — no -e semaphore_url needed.
 #
 # Idempotency:
 #   - If a project/repo/inventory/template with the same name already exists,
 #     creation is skipped (guarded by failed_when)
 #   - Re-running after a successful first run does not produce duplicates
+#   - The M2M token is regenerated each run (Semaphore returns the secret only
+#     at creation time); the latest is written to controller/semaphore/.secrets
 #
 # API docs: https://docs.semaphoreui.com/administration-guide/api/
 
@@ -23,9 +27,16 @@
   hosts: localhost
   gather_facts: false
   connection: local
+  # Override the global become=True from ansible.cfg — this play touches
+  # only HTTP APIs and user-owned files in the workspace; sudo would write
+  # those files as root and break subsequent reads (e.g. token in .secrets).
+  become: false
+
+  vars_files:
+    - "{{ playbook_dir }}/../../config/manifest.yml"
 
   vars:
-    semaphore_url: "http://localhost:3000"
+    semaphore_url: "http://localhost:{{ ansispire_ports.semaphore_host }}"
     semaphore_user: "admin"
     # semaphore_password: pass via -e; no default value to avoid accidental use
     project_name: "ansispire"
@@ -468,6 +479,87 @@
         vault_key_create.status == 400 and
         'already exists' not in (vault_key_create.content | default(''))
 
+    # ═══════════════════════════════════════════════════════════════════
+    # TASK-001 — M2M API token + remediation templates
+    # ═══════════════════════════════════════════════════════════════════
+    # The audit relay (relay.py) and EDA reactor (reactor.py) authenticate
+    # via Bearer tokens. This block mints one for the admin user and writes
+    # it to controller/semaphore/.secrets (gitignored). After this runs,
+    # `make controller-audit-down && make controller-audit-up` picks the
+    # token up via --env-file controller/semaphore/.secrets.
+
+    - name: Mint M2M API token for admin
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/user/tokens"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body: {}
+        status_code: [201]
+        return_content: true
+      register: token_response
+      no_log: true
+
+    - name: Persist token to .secrets (default controller/semaphore/.secrets; overridable for e2e)
+      ansible.builtin.copy:
+        dest: "{{ secrets_path | default(playbook_dir + '/.secrets') }}"
+        mode: "0600"
+        content: |
+          # .secrets — machine-generated; do not edit
+          # GITIGNORED. Regenerated each bootstrap run.
+          SEMAPHORE_API_TOKEN={{ token_response.json.id }}
+      no_log: true
+
+    # Remediation templates referenced by extensions/eda/rules.json. Names
+    # must match the rule's template_name field exactly.
+
+    - name: List existing templates in main project (for idempotency check)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: tpl_list
+
+    - name: Register remediation templates (idempotent)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          project_id: "{{ project_id | int }}"
+          inventory_id: "{{ inventory_id | int }}"
+          repository_id: "{{ repo_id | int }}"
+          environment_id: "{{ environment_id | int }}"
+          name: "{{ item.name }}"
+          playbook: "{{ item.playbook }}"
+          description: "{{ item.description }}"
+          arguments: "[]"
+          allow_override_args_in_task: false
+          app: "ansible"
+        status_code: [201, 204, 400]
+      loop:
+        - name: "Auto Remediation: Disk Cleanup"
+          playbook: "playbooks/remediation/disk_cleanup.yml"
+          description: "TASK-001 self-healing: free disk space on the affected host"
+        - name: "Auto Remediation: DB Failover"
+          playbook: "playbooks/remediation/db_failover.yml"
+          description: "TASK-001 self-healing: DB failover (placeholder until real impl)"
+      loop_control:
+        label: "{{ item.name }}"
+      when: (tpl_list.json | selectattr('name', 'equalto', item.name) | list | length) == 0
+      register: remediation_tpl_create
+      failed_when: >
+        remediation_tpl_create.results is defined and
+        (remediation_tpl_create.results
+         | selectattr('status', 'defined')
+         | rejectattr('status', 'in', [201, 204])
+         | list | length) > 0
+
     - name: Bootstrap complete
       ansible.builtin.debug:
         msg:
@@ -484,3 +576,9 @@
           - "Credentials:  controller/rbac/users.yml (gitignored)"
           - "Placeholder keys: ssh_lab_key (SSH), vault_prod_password (login_password)"
           - "Import real SSH/vault material via UI — see controller/rbac/README.md"
+          - ""
+          - "── TASK-001 self-healing ─────────────────────────"
+          - "API token:  controller/semaphore/.secrets (gitignored)"
+          - "Templates:  Auto Remediation: Disk Cleanup, Auto Remediation: DB Failover"
+          - "Restart audit stack to pick up new token:"
+          - "  make controller-audit-down && make controller-audit-up"

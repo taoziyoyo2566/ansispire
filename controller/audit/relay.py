@@ -26,8 +26,7 @@ from datetime import datetime, timezone
 
 # Configuration
 SEM_URL = os.environ.get("SEMAPHORE_URL", "http://semaphore:3000")
-SEM_USER = os.environ.get("SEMAPHORE_USER", "admin")
-SEM_PW = os.environ["SEMAPHORE_PASSWORD"]
+SEM_TOKEN = os.environ.get("SEMAPHORE_API_TOKEN", "")
 SINK_URL = os.environ.get("SINK_URL", "http://audit-sink:3010/event")
 STATE_FILE = os.environ.get("STATE_FILE", "/var/lib/audit-relay/cursor.json")
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "5"))
@@ -57,27 +56,20 @@ def save_cursor(ts: str) -> None:
     os.replace(tmp, STATE_FILE)
 
 
-def make_opener() -> urllib.request.OpenerDirector:
-    jar = http.cookiejar.CookieJar()
-    return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
-
-
-def login(opener: urllib.request.OpenerDirector) -> None:
-    body = json.dumps({"auth": SEM_USER, "password": SEM_PW}).encode()
-    req = urllib.request.Request(
-        f"{SEM_URL}/api/auth/login",
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    opener.open(req, timeout=10).read()
-
-
-def fetch_page(opener: urllib.request.OpenerDirector, page: int) -> list:
+def fetch_page(page: int) -> list:
     url = f"{SEM_URL}/api/events?limit={PAGE_LIMIT}&page={page}"
-    with opener.open(url, timeout=10) as resp:
-        raw = resp.read()
-    return json.loads(raw) if raw else []
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {SEM_TOKEN}"
+    }
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw = resp.read()
+        return json.loads(raw) if raw else []
+    except Exception as e:
+        log(f"fetch error (page {page}): {e}")
+        return []
 
 
 def forward(payload: dict) -> None:
@@ -105,14 +97,18 @@ def emit_heartbeat() -> None:
         log(f"heartbeat failed: {e}")
 
 
-def tick(opener: urllib.request.OpenerDirector, cursor: str) -> str:
+def tick(cursor: str) -> str:
     all_events = []
     page = 1
     reached_cursor = False
 
+    if not SEM_TOKEN:
+        log("waiting for SEMAPHORE_API_TOKEN...")
+        return cursor
+
     # 1. Fetch pages backwards until we hit the cursor
     while page <= MAX_PAGES:
-        events = fetch_page(opener, page)
+        events = fetch_page(page)
         if not events:
             break
         
@@ -142,9 +138,7 @@ def tick(opener: urllib.request.OpenerDirector, cursor: str) -> str:
         try:
             forward({"source": "semaphore", "event": ev})
             last_successful_ts = ts
-            # Optional: save cursor per event if batches are huge, 
-            # but per-tick is usually fine for these volumes.
-        except (urllib.error.URLError, TimeoutError) as e:
+        except Exception as e:
             log(f"forward failed at ts={ts}: {e}; will retry from this point")
             break
     
@@ -156,27 +150,17 @@ def tick(opener: urllib.request.OpenerDirector, cursor: str) -> str:
 
 
 def main() -> None:
-    log(f"starting enhanced relay: {SEM_URL} → {SINK_URL}")
-    opener = make_opener()
+    log(f"starting token-driven relay: {SEM_URL} → {SINK_URL}")
     
     last_heartbeat = time.time()
     heartbeat_interval = 60 # 1 minute
-
-    # Initial login loop
-    while True:
-        try:
-            login(opener)
-            break
-        except (urllib.error.URLError, TimeoutError) as e:
-            log(f"login failed ({e}); retrying in {POLL_INTERVAL}s")
-            time.sleep(POLL_INTERVAL)
 
     cursor = load_cursor()
     log(f"cursor loaded: {cursor}")
     
     while True:
         try:
-            new_cursor = tick(opener, cursor)
+            new_cursor = tick(cursor)
             cursor = new_cursor
             
             # Heartbeat logic
@@ -184,18 +168,6 @@ def main() -> None:
                 emit_heartbeat()
                 last_heartbeat = time.time()
                 
-        except urllib.error.HTTPError as e:
-            if e.code == 401:
-                log("session expired; re-logging in")
-                opener = make_opener()
-                try:
-                    login(opener)
-                except Exception as e2:
-                    log(f"re-login failed: {e2}")
-            else:
-                log(f"http error {e.code}: {e.reason}")
-        except (urllib.error.URLError, TimeoutError) as e:
-            log(f"transport error: {e}")
         except Exception as e:
             log(f"unexpected error: {e}")
             

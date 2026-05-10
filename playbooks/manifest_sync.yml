@@ -1,0 +1,101 @@
+---
+# Render config/manifest.yml into controller/semaphore/.env.
+#
+# Idempotent. Only touches the marker block:
+#   # BEGIN manifest (managed by manifest-sync — do not edit)
+#   SEMAPHORE_PORT=...
+#   SEMAPHORE_IMAGE_TAG=...
+#   AUDIT_PORT=...
+#   AUDIT_IMAGE_TAG=...
+#   # END manifest (managed by manifest-sync — do not edit)
+#
+# Anything outside the markers (admin password, timezone, etc.) is preserved.
+# Stray un-marked SEMAPHORE_PORT / AUDIT_PORT lines are removed so docker
+# compose does not see two values for the same key.
+#
+# Replaces the older playbooks/ports_sync.yml (which only handled ports).
+
+- name: Manifest SSOT → controller/semaphore/.env
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  # Override the global become=True from ansible.cfg — this play only
+  # rewrites user-owned files; sudo would create them as root.
+  become: false
+
+  vars_files:
+    - "{{ playbook_dir }}/../config/manifest.yml"
+
+  vars:
+    env_path: "{{ playbook_dir }}/../controller/semaphore/.env"
+    example_path: "{{ playbook_dir }}/../controller/semaphore/.env.example"
+    secrets_path: "{{ playbook_dir }}/../controller/semaphore/.secrets"
+    legacy_block_marker: "# {mark} ports (managed by ports-sync — do not edit)"
+
+  tasks:
+    - name: Bootstrap .env from .env.example if missing
+      ansible.builtin.copy:
+        src: "{{ example_path }}"
+        dest: "{{ env_path }}"
+        force: false
+        mode: '0600'
+
+    - name: Read current .env
+      ansible.builtin.slurp:
+        src: "{{ env_path }}"
+      register: _env_content
+
+    - name: Detect first-run migration (no manifest marker yet)
+      ansible.builtin.set_fact:
+        _needs_migration: "{{ 'BEGIN manifest' not in (_env_content.content | b64decode) }}"
+
+    - name: Remove un-marked manifest keys (one-time migration)
+      ansible.builtin.lineinfile:
+        path: "{{ env_path }}"
+        regexp: "^{{ item }}="
+        state: absent
+      loop:
+        - SEMAPHORE_PORT
+        - AUDIT_PORT
+        - SEMAPHORE_IMAGE_TAG
+        - AUDIT_IMAGE_TAG
+      when: _needs_migration
+
+    - name: Remove legacy ports-sync marker block (one-time migration)
+      ansible.builtin.blockinfile:
+        path: "{{ env_path }}"
+        marker: "{{ legacy_block_marker }}"
+        state: absent
+      when: _needs_migration
+
+    - name: Write managed manifest block
+      ansible.builtin.blockinfile:
+        path: "{{ env_path }}"
+        marker: "# {mark} manifest (managed by manifest-sync — do not edit)"
+        block: |
+          SEMAPHORE_PORT={{ ansispire_ports.semaphore_host }}
+          SEMAPHORE_IMAGE_TAG={{ ansispire_versions.semaphore }}
+          AUDIT_PORT={{ ansispire_ports.audit_sink_host }}
+          AUDIT_IMAGE_TAG={{ ansispire_versions.audit_python }}
+        mode: '0600'
+        create: false
+
+    - name: Ensure .secrets stub exists (bootstrap will populate)
+      ansible.builtin.copy:
+        dest: "{{ secrets_path }}"
+        content: |
+          # controller/semaphore/.secrets — populated by `make controller-bootstrap`
+          # GITIGNORED. Loaded by audit compose via --env-file.
+          SEMAPHORE_API_TOKEN=
+        mode: '0600'
+        force: false
+
+    - name: Show resulting manifest lines
+      ansible.builtin.command:
+        cmd: "grep -E '^(SEMAPHORE_(PORT|IMAGE_TAG)|AUDIT_(PORT|IMAGE_TAG)|# (BEGIN|END) manifest)' {{ env_path }}"
+      register: _manifest_lines
+      changed_when: false
+
+    - name: Display
+      ansible.builtin.debug:
+        msg: "{{ _manifest_lines.stdout_lines }}"

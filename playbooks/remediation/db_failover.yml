@@ -1,0 +1,8 @@
+---
+- name: Remediation | DB Failover
+  hosts: all
+  become: true
+  tasks:
+    - name: Failover | Placeholder
+      ansible.builtin.debug:
+        msg: "Simulating DB Failover logic..."

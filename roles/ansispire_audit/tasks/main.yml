@@ -7,5 +7,9 @@
     wait: true
   environment:
     AUDIT_PORT: "{{ ansispire_audit_port | string }}"
-    # We pass SEMAPHORE_ADMIN_PASSWORD from Ansible to maintain SSOT
+    AUDIT_IMAGE_TAG: "{{ ansispire_audit_image_tag }}"
+    SEMAPHORE_API_TOKEN: "{{ ansispire_hub_eda_token | default('') }}"
     SEMAPHORE_ADMIN_PASSWORD: "{{ ansispire_hub_admin_password }}"
+  # Skip on first --check before any real deploy has minted a token: audit
+  # depends on the hub's API token, which doesn't exist yet.
+  when: ansispire_hub_eda_token is defined or not ansible_check_mode
