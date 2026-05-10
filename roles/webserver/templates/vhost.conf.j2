@@ -1,6 +1,6 @@
-{# vhost.conf.j2 — rendered once per entry in nginx_vhosts
+{# vhost.conf.j2 — rendered once per entry in webserver__vhosts
    `item` is supplied by the loop (see vhosts.yml) #}
-{{ ansible_managed }}
+{{ ansible_managed | comment }}
 
 {# HTTP server block — force HTTPS redirect (when SSL is enabled) #}
 {% if item.ssl | default(false) %}

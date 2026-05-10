@@ -77,8 +77,6 @@ verify: lint syntax test-eda dry-run ## Run CI-equivalent checks (lint + syntax 
 verify-quick: syntax ## Quick save-point check (Syntax only)
 
 verify-full: verify molecule-all ## Full-bore verification (All quality checks + All molecule scenarios)
-	@echo "==> Generating verification report..."
-	@python3 scripts/verify_report.py
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 test: ## Run default Molecule scenario (common)
@@ -88,6 +86,7 @@ molecule-all: ## Run all Molecule scenarios
 	$(MOLECULE) test -s common
 	$(MOLECULE) test -s webserver
 	$(MOLECULE) test -s database
+	$(MOLECULE) test -s full-stack
 
 # ── EDA test pyramid (no docker, no external deps) ───────────────────────────
 # Specs in docs/reference/test-specs/eda-{reactor-unit,rules-contract,reactor-component}.md

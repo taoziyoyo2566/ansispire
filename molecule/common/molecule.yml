@@ -46,6 +46,7 @@ provisioner:
       all:
         env: testing
         system_timezone: UTC
+        ansible_managed: "Ansible managed: modified on %Y-%m-%d %H:%M:%S"
         common_auto_provision_targets: true
         common_packages: [curl, vim]
         common__extra_packages: []

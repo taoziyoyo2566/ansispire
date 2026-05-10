@@ -107,6 +107,37 @@ For the full vault workflow cheatsheet, see [`playbooks/vault_demo.yml`](../../p
 
 ---
 
+## Automated Verification — Molecule
+
+For deep, infrastructure-level verification (firewall, systemd, database schemas), we use Molecule. This is the **highest tier of local verification** before pushing to Stag/Prod.
+
+```bash
+make molecule-all             # Run all scenarios (common, webserver, database, full-stack)
+molecule test -s <scenario>   # Run a specific scenario
+```
+
+### Troubleshooting & Common Pitfalls
+
+During real-time research and loopback testing, the following "gotchas" were codified:
+
+1.  **Firewall (UFW) vs. Localhost**:
+    - When enabling UFW, always ensure loopback traffic is explicitly allowed: `ufw allow in on lo`.
+    - Without this, internal Nginx health checks (localhost:80) or MySQL socket connections may fail with "Connection refused".
+2.  **Template Headers (`ansible_managed`)**:
+    - Always use the `comment` filter for the `ansible_managed` variable in config templates (e.g., `{{ ansible_managed | comment }}`).
+    - Some config engines (like Nginx) treat an un-commented "Ansible managed..." string as an unknown directive, causing service start failures.
+3.  **MySQL Authentication**:
+    - When setting or updating the MySQL root password, use `check_implicit_admin: true`.
+    - During verification stages, ensure the `mysql` CLI includes the password flag: `mysql -u root -p'{{ password }}'`.
+4.  **Vhost Variable Naming**:
+    - Use the canonical `webserver__vhosts` everywhere (defaults, group_vars, molecule, converge.yml). The legacy alias `nginx_vhosts` is no longer accepted.
+    - When variable names diverge across `converge.yml` `vars:` and `molecule.yml` `group_vars`, preflight assertions and the actual deploy can silently iterate over different lists. Single source of truth: molecule.yml group_vars.
+5.  **Custom Filter / Plugin Loading under Molecule**:
+    - Molecule containers do not automatically inherit the repo-relative `filter_plugins/` path; custom Jinja filters fall back silently and produce surprising rendering.
+    - Pin `ANSIBLE_FILTER_PLUGINS` (and `LOOKUP_PLUGINS`, `CALLBACK_PLUGINS`) under each scenario's `provisioner.env` so test fidelity matches production.
+
+---
+
 ## How the playbook decides what to do
 
 `playbooks/site.yml` is environment-agnostic. Selection happens at the `-i` flag, and the per-environment `group_vars/all/vars.yml` drives behavioral differences (security strictness, log retention, etc.). The `env` variable is the explicit hook for any task that needs to branch on environment.

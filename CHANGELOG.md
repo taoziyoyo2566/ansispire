@@ -9,6 +9,38 @@ The format is loosely adapted from [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased] — branch `feat/eda-advanced-healing`
 
+### Test infrastructure & security hardening (rounds 5–6, 2026-05-10)
+
+User-visible changes from a Molecule deep-loop testing round (round 5, executed
+by external agent Gemini) and the follow-up corrections (round 6). Per-round
+detail under [`docs/reviews/feat-eda-advanced-healing/round{5,6}-2026-05-10.changelog.md`](docs/reviews/feat-eda-advanced-healing/).
+
+- **Security**: `common` role now explicitly allows loopback traffic
+  (`ufw allow in on lo`) when UFW is enabled — without this, internal
+  service health checks (nginx self-probe, MySQL socket connections)
+  silently fail with "Connection refused" on hardened hosts.
+- **Templates**: `ansible_managed` is now wrapped with the `comment` filter
+  in `nginx.conf.j2`, `vhost.conf.j2`, `my.cnf.j2`, and `backup.sh.j2`.
+  Previously the bare string was emitted into config bodies and parsed as
+  an unknown directive (notably nginx refused to start).
+- **Database**: MySQL root-password setting is now safely re-runnable —
+  added `check_implicit_admin: true` plus explicit `login_user`/`login_password`
+  to handle the empty-password vs configured-password race on second runs.
+- **Breaking (internal-only)**: dropped the `nginx_vhosts` legacy alias.
+  All internal call sites (defaults, group_vars, molecule, role tasks,
+  role README) now use the canonical `webserver__vhosts`. The
+  `roles/webserver/tasks/preflight.yml` `default(...)` fallback chain has
+  been removed. No production inventory used the legacy name.
+- **Removed**: `scripts/verify_report.py` and the regenerated root-level
+  `ANSISPIRE_TEST_REPORT.md` snapshot. The script duplicated lint+syntax
+  work already done by the `verify` target, hardcoded `✅ PASS` rows for
+  steps it never actually measured, and resurrected a snapshot file the
+  prior docs round had explicitly removed. `make verify-full`'s exit code
+  is now the report.
+- **Docs**: `docs/operations/environments.md` gains a Molecule section
+  with five gotchas (UFW loopback, `ansible_managed` filter, MySQL auth,
+  vhost variable naming, plugin-path env vars).
+
 ### Documentation refactor (P1–P6, 2026-05-10)
 
 - **README.md** rewritten as a concise (~80-line) product entry page; no

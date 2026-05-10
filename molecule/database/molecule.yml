@@ -19,6 +19,14 @@ platforms:
 
 provisioner:
   name: ansible
+  env:
+    ANSIBLE_FILTER_PLUGINS: "../../filter_plugins"
+    ANSIBLE_LOOKUP_PLUGINS: "../../lookup_plugins"
+    ANSIBLE_CALLBACK_PLUGINS: "../../callback_plugins"
+    ANSIBLE_COLLECTIONS_PATH_WARNINGS: "False"
+    ANSIBLE_COLLECTIONS_SCAN_SYS_PATH: "True"
+    ANSIBLE_LOCALHOST_WARNING: "False"
+    ANSIBLE_DISPLAY_SKIPPED_HOSTS: "False"
   playbooks:
     prepare: prepare.yml
   inventory:
@@ -29,6 +37,9 @@ provisioner:
       all:
         env: testing
         system_timezone: UTC
+        ansible_managed: "Ansible managed: modified on %Y-%m-%d %H:%M:%S"
+        database__mysql_root_password: "MoleculeRootPass123!"
+        common_auto_provision_targets: true
         common_packages: [curl]
         common__extra_packages: []
         common__deploy_users: []

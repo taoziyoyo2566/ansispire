@@ -16,6 +16,9 @@
     name: root
     password: "{{ database__mysql_root_password }}"
     login_unix_socket: /var/run/mysqld/mysqld.sock
+    check_implicit_admin: true
+    login_user: root
+    login_password: "{{ database__mysql_root_password }}"
     state: present
   no_log: true
   tags: [mysql, security]

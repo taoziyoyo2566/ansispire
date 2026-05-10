@@ -23,6 +23,14 @@ platforms:
 
 provisioner:
   name: ansible
+  env:
+    ANSIBLE_FILTER_PLUGINS: "../../filter_plugins"
+    ANSIBLE_LOOKUP_PLUGINS: "../../lookup_plugins"
+    ANSIBLE_CALLBACK_PLUGINS: "../../callback_plugins"
+    ANSIBLE_COLLECTIONS_PATH_WARNINGS: "False"
+    ANSIBLE_COLLECTIONS_SCAN_SYS_PATH: "True"
+    ANSIBLE_LOCALHOST_WARNING: "False"
+    ANSIBLE_DISPLAY_SKIPPED_HOSTS: "False"
   playbooks:
     prepare: prepare.yml
     converge: converge.yml
@@ -32,10 +40,17 @@ provisioner:
       all:
         env: testing
         system_timezone: UTC
+        ansible_managed: "Ansible managed: modified on %Y-%m-%d %H:%M:%S"
+        common_auto_provision_targets: true
         common_packages: [curl, vim]
         app_base_dir: /opt/apps
         app_user: appuser
         app_group: appgroup
+        webserver__vhosts:
+          - name: test.local
+            root: /var/www/html
+            ssl: false
+            php_fpm: false
         ssh_allowed_users: [root]
         firewall_allowed_tcp_ports: [22, 80, 443]
 

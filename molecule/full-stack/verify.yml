@@ -109,8 +109,19 @@
         state: started
       register: mysql_port
 
+    - name: Verify appdb exists
+      ansible.builtin.command: >
+        mysql -u root -p'{{ database__mysql_root_password }}' --socket=/var/run/mysqld/mysqld.sock
+        -e "SHOW DATABASES LIKE 'appdb';"
+      register: db_check
+      changed_when: false
+
+    - name: Assert appdb was created
+      ansible.builtin.assert:
+        that: "'appdb' in db_check.stdout"
+
     - name: Verify my.cnf is Ansible-managed
-      ansible.builtin.command: grep -q "Ansible managed" /etc/mysql/my.cnf
+      ansible.builtin.command: grep -q "Ansible managed" /etc/mysql/mysql.conf.d/mysqld.cnf
       changed_when: false
       failed_when: false
       register: mycnf_check
@@ -119,17 +130,17 @@
     - name: Assert nginx AND mysql are both running simultaneously
       ansible.builtin.assert:
         that:
-          - services['nginx.service'].state == 'running'
-          - services['mysql.service'].state == 'running'
+          - "('nginx' in services and services['nginx'].state == 'running') or ('nginx.service' in services and services['nginx.service'].state == 'running')"
+          - "('mysql' in services and services['mysql'].state == 'running') or ('mysql.service' in services and services['mysql.service'].state == 'running')"
         fail_msg: >
           Service co-existence check failed:
-          nginx={{ services['nginx.service'].state }},
-          mysql={{ services['mysql.service'].state }}
+          nginx={{ services['nginx.service'].state | default(services['nginx'].state | default('absent')) }},
+          mysql={{ services['mysql.service'].state | default(services['mysql'].state | default('absent')) }}
 
     - name: Print integration test summary
       ansible.builtin.debug:
         msg:
           - "=== Full-stack Integration Test PASSED ==="
           - "common:    timezone={{ ansible_date_time.tz }}, user=appuser OK"
-          - "webserver: nginx={{ services['nginx.service'].state }}, port=80 OK"
-          - "database:  mysql={{ services['mysql.service'].state }}, port=3306 OK"
+          - "webserver: nginx={{ services['nginx.service'].state | default(services['nginx'].state | default('absent')) }}, port=80 OK"
+          - "database:  mysql={{ services['mysql.service'].state | default(services['mysql'].state | default('absent')) }}, port=3306 OK"
