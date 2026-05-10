@@ -5,6 +5,11 @@
 controller/semaphore/.env
 controller/semaphore/.secrets
 controller/audit/e2e/.env
+controller/audit/e2e/hosts.e2e.ini
+
+# Project-root junk
+loop_status.tmp
+molecule_results.log
 controller/rbac/users.yml
 controller/rbac/.demo_*.pw
 inventory/**/vault.yml

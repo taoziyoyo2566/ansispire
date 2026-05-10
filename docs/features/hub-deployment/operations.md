@@ -78,18 +78,18 @@ targets_alpine
 
 ```bash
 # 干跑（强烈推荐先做）
-make hub-deploy-check NODE=remote
+make hub-deploy-check HUB_NODE=remote
 
 # 真部署
-make hub-deploy NODE=remote
+make hub-deploy HUB_NODE=remote
 ```
 
-`NODE=local|remote|all` 三选一控制 `--limit` 范围；vault 密码默认从 `.vault_pass` 读，可用 `VAULT_PASSWORD_FILE=...` 覆盖。
+`HUB_NODE=local|remote|all` 三选一控制 `--limit` 范围；vault 密码默认从 `.vault_pass` 读，可用 `VAULT_PASSWORD_FILE=...` 覆盖。
 
 ### 4.3 部署到本机（Path A scenario 2）
 
 ```bash
-make hub-deploy NODE=local
+make hub-deploy HUB_NODE=local
 ```
 
 需要先把 `control_node` 的依赖（docker、python venv）准备好，且 SUDO 不需要密码。本机部署用于"先本地起，后迁远程"的过渡场景。
@@ -125,7 +125,7 @@ docker compose -f /opt/ansispire/controller/audit/docker-compose.yml down -v
 docker compose -f /opt/ansispire/controller/semaphore/docker-compose.yml down -v
 sudo rm -rf /var/lib/ansispire/state/
 exit
-make hub-deploy NODE=remote   # 重跑等于全新装
+make hub-deploy HUB_NODE=remote   # 重跑等于全新装
 ```
 
 ### 4.6 闭环验证 (Verification Loop)

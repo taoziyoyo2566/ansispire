@@ -41,11 +41,11 @@
     # semaphore_password: pass via -e; no default value to avoid accidental use
     project_name: "ansispire"
     repo_name: "local-workspace"
-    inventory_name: "production"
+    inventory_name: "{{ semaphore_inventory_name | default('production') }}"
     template_name: "site.yml (check mode)"
     # Mount path inside the container
     repo_path_in_container: "/workspace"
-    inventory_path_in_repo: "inventory/production/hosts.ini"
+    inventory_path_in_repo: "{{ semaphore_inventory_path | default('inventory/prod/hosts.ini') }}"
     playbook_path_in_repo: "playbooks/site.yml"
 
   tasks:

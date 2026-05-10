@@ -50,7 +50,7 @@ ansible-navigator:
   ansible:
     config: ansible.cfg
     inventories:
-      - inventory/production
+      - inventory/prod
 
   # ── Timezone and color ─────────────────────────────────────
   color:

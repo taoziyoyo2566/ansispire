@@ -15,10 +15,11 @@ Ansispire is a **Multi-Server Management Control System** designed for high-avai
 - **Database Backend**: SQLite (BoltDB deprecated upstream).
 - **Config-as-Code (IaC)**: Standardized bootstrap via `controller/semaphore/bootstrap.yml` to automate project/template/token provisioning. UI zero-touch.
 - **SSOT (Round 4+)**: `config/manifest.yml` is the single source of truth for both **host ports** and **image versions**; `make manifest-sync` renders to `.env`.
-- **Two operational paths**:
-  - **Path A** — Ansible role-based real deployment (`make hub-deploy NODE=local|remote|all`); production target.
-  - **Path B** — direct docker compose (`make controller-up && make controller-bootstrap && make controller-audit-up`); dev / testing.
-- **Inventory taxonomy**: `[hub_local]` / `[hub_remote]` / `[hub:children]` for management nodes; `[targets_debian|rhel|alpine]` placeholders for managed VPS (next-stage 4-VPS expansion).
+- **Tiered Environment Model**:
+  - **Dev** (`inventory/dev/`): Local development, unit testing, and ephemeral EDA validation (`make test-eda-e2e`).
+  - **Stag** (`inventory/stag/`): Pre-production mirroring on real infrastructure (`make deploy-stag`).
+  - **Prod** (`inventory/prod/`): Live management and application plane (`make hub-deploy`, `make deploy-prod`).
+- **Inventory taxonomy**: `[hub_local]` / `[hub_remote]` / `[hub:children]` for management nodes; `[targets_debian|rhel|alpine]` placeholders for managed VPS.
 
 ## 3. Module Scope (Logic Truths)
 - [Hub Deployment & Ops](docs/features/hub-deployment/operations.md) — maintainer 速查

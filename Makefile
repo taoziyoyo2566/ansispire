@@ -5,7 +5,7 @@
 .DEFAULT_GOAL := help
 
 .PHONY: help setup install lint syntax test molecule-all dry-run \
-        deploy-staging deploy-prod tags ping vault-edit vault-encrypt \
+        deploy-dev deploy-stag deploy-prod tags ping vault-edit vault-encrypt \
         ee-build navigator clean \
         controller-net manifest-sync ports-sync \
         controller-up controller-down controller-logs controller-reset \
@@ -60,11 +60,11 @@ install: ## Install Galaxy dependencies only (roles + collections)
 lint: ## Run ansible-lint
 	$(BIN)ansible-lint --profile production
 
-syntax: ## Syntax check both staging and production
-	@echo "==> Syntax checking Staging..."
-	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/staging
-	@echo "==> Syntax checking Production..."
-	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/production
+syntax: ## Syntax check both stag and prod
+	@echo "==> Syntax checking Stag..."
+	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/stag
+	@echo "==> Syntax checking Prod..."
+	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/prod
 
 verify: lint syntax test-eda dry-run ## Run CI-equivalent checks (lint + syntax + EDA pyramid + dry-run)
 
@@ -103,40 +103,46 @@ test-eda-e2e: ## L4 — disposable end-to-end (real docker; ~60–90s; NOT in `m
 dry-run: ## Dry-run (--check mode, no actual changes, local connection for logic verification)
 	$(BIN)ansible-playbook playbooks/site.yml --check --diff --connection=local -e "ansible_python_interpreter=$(which python3)"
 
-# Hub deploy — Path A (Ansible role-based). NODE selects scope:
-#   make hub-deploy NODE=local      → only the workstation (hub_local)
-#   make hub-deploy NODE=remote     → only the remote VPS (hub_remote)
-#   make hub-deploy NODE=all        → both
+# Hub deploy — Path A (Ansible role-based). HUB_NODE selects scope:
+#   make hub-deploy HUB_NODE=local      → only the workstation (hub_local)
+#   make hub-deploy HUB_NODE=remote     → only the remote VPS (hub_remote)
+#   make hub-deploy HUB_NODE=all        → both
 # VAULT_PASSWORD_FILE overridable; defaults to .vault_pass (gitignored).
 HUB_INVENTORY := inventory/hosts.ini
 HUB_PLAYBOOK  := playbooks/deploy_hub.yml
-NODE          ?= remote
+HUB_NODE      ?= local
 VAULT_PASSWORD_FILE ?= .vault_pass
-ifeq ($(NODE),local)
+ifeq ($(HUB_NODE),local)
   HUB_LIMIT := --limit hub_local
-else ifeq ($(NODE),remote)
+else ifeq ($(HUB_NODE),remote)
   HUB_LIMIT := --limit hub_remote
-else ifeq ($(NODE),all)
+else ifeq ($(HUB_NODE),all)
   HUB_LIMIT :=
 else
-  $(error NODE must be one of: local, remote, all (got: $(NODE)))
+  $(error HUB_NODE must be one of: local, remote, all (got: $(HUB_NODE)))
 endif
 HUB_ANSIBLE := $(BIN)ansible-playbook $(HUB_PLAYBOOK) -i $(HUB_INVENTORY) $(HUB_LIMIT) --vault-password-file $(VAULT_PASSWORD_FILE)
 
-hub-deploy: ## Deploy hub via Path A (NODE=local|remote|all; default remote)
+hub-deploy: ## Deploy hub via Path A (HUB_NODE=local|remote|all; default local)
 	@test -f $(VAULT_PASSWORD_FILE) || { echo "Missing $(VAULT_PASSWORD_FILE); create it (chmod 600) or pass VAULT_PASSWORD_FILE=..."; exit 1; }
 	$(HUB_ANSIBLE) --diff
 
-hub-deploy-check: ## Dry-run hub deploy (--check --diff; same NODE= selection)
+hub-deploy-check: ## Dry-run hub deploy (--check --diff; same HUB_NODE= selection)
 	@test -f $(VAULT_PASSWORD_FILE) || { echo "Missing $(VAULT_PASSWORD_FILE); create it (chmod 600) or pass VAULT_PASSWORD_FILE=..."; exit 1; }
 	$(HUB_ANSIBLE) --check --diff
 
-deploy-staging: ## Deploy to Staging
-	ANSIBLE_HOST_KEY_CHECKING=False $(BIN)ansible-playbook playbooks/site.yml -i inventory/staging --diff
+deploy-dev-check: ## Dry-run Dev deploy (--check --diff)
+	$(BIN)ansible-playbook playbooks/site.yml -i inventory/dev --check --diff
 
-deploy-prod: ## Deploy to Production (requires confirmation)
-	@read -p "Deploy to PRODUCTION? [y/N] " ans && [ $${ans:-N} = y ]
-	$(BIN)ansible-playbook playbooks/site.yml -i inventory/production --diff
+deploy-dev: ## Deploy to Dev (local machine, full stack)
+	$(BIN)ansible-playbook playbooks/site.yml -i inventory/dev --diff
+
+deploy-stag: ## Deploy to Stag
+	ANSIBLE_HOST_KEY_CHECKING=False $(BIN)ansible-playbook playbooks/site.yml -i inventory/stag --diff
+
+deploy-prod: ## Deploy to Prod (requires confirmation)
+	@read -p "Deploy to PROD? [y/N] " ans && [ $${ans:-N} = y ]
+	$(BIN)ansible-playbook playbooks/site.yml -i inventory/prod --diff
 
 tags: ## Run only tasks with the given tag, e.g. make tags TAGS=nginx
 	$(BIN)ansible-playbook playbooks/site.yml --tags "$(TAGS)"
@@ -152,7 +158,7 @@ navigator-local: ## Run via ansible-navigator (local mode, no EE)
 	$(BIN)ansible-navigator run playbooks/site.yml --ee false
 
 # ── Vault ────────────────────────────────────────────────────────────────────
-vault-edit: ## Edit an encrypted file, e.g. make vault-edit FILE=inventory/production/group_vars/all/vault.yml
+vault-edit: ## Edit an encrypted file, e.g. make vault-edit FILE=inventory/prod/group_vars/all/vault.yml
 	$(BIN)ansible-vault edit $(FILE)
 
 vault-encrypt: ## Encrypt a single variable value

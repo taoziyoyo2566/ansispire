@@ -53,9 +53,9 @@ jobs:
           ansible-galaxy role install -r requirements.yml
           ansible-galaxy collection install -r requirements.yml
       - name: Syntax check Staging
-        run: ansible-playbook playbooks/site.yml --syntax-check -i inventory/staging
+        run: ansible-playbook playbooks/site.yml --syntax-check -i inventory/stag
       - name: Syntax check Production
-        run: ansible-playbook playbooks/site.yml --syntax-check -i inventory/production
+        run: ansible-playbook playbooks/site.yml --syntax-check -i inventory/prod
 
   dry-run:
     name: Dry-run (check + diff)
@@ -75,7 +75,7 @@ jobs:
       # 使用 --connection=local 不需要真实主机，验证 playbook 逻辑
       - run: |
           ansible-playbook playbooks/site.yml \
-            -i inventory/staging \
+            -i inventory/stag \
             --check \
             --diff \
             --connection=local \

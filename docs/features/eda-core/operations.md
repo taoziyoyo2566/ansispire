@@ -50,9 +50,9 @@ make controller-audit-up     # 起 sink/relay/reactor（自动加载 .secrets）
 ### 2.1' Path A（真部署入口）
 
 ```bash
-make hub-deploy-check NODE=remote   # 干跑（强烈推荐先做）
-make hub-deploy NODE=remote         # 真部署到 [hub_remote] 主机
-# NODE 可选：local|remote|all
+make hub-deploy-check HUB_NODE=remote   # 干跑（强烈推荐先做）
+make hub-deploy HUB_NODE=remote         # 真部署到 [hub_remote] 主机
+# HUB_NODE 可选：local|remote|all
 # 自动加载 .vault_pass；密码文件路径可用 VAULT_PASSWORD_FILE=... 覆盖
 ```
 
@@ -130,7 +130,7 @@ L1 期望 `Ran 14 tests ... OK`，L2 9 cases，L3 5 cases。L4 在隔离的 `ans
 make syntax
 ```
 
-staging 与 production 双 inventory 全绿后才可进入下一轮。
+stag 与 prod 双 inventory 全绿后才可进入下一轮。
 
 ---
 
@@ -178,7 +178,7 @@ controller/semaphore/.secrets           ← bootstrap 自动写入 SEMAPHORE_API
 <hub>:/var/lib/ansispire/state/.eda_token ← bootstrap 自动写入（Path A）
 ```
 
-修改端口 / 版本流程：编辑 `config/manifest.yml` → `make manifest-sync`（Path B 自动；Path A 由 deploy_hub 派生）→ `make controller-down && make controller-up` 或 `make hub-deploy NODE=...`。
+修改端口 / 版本流程：编辑 `config/manifest.yml` → `make manifest-sync`（Path B 自动；Path A 由 deploy_hub 派生）→ `make controller-down && make controller-up` 或 `make hub-deploy HUB_NODE=...`。
 
 ---
 
@@ -187,7 +187,7 @@ controller/semaphore/.secrets           ← bootstrap 自动写入 SEMAPHORE_API
 ✅ Round 1 (2026-05-09)：Path B 底盘修复 + 端口 SSOT + bootstrap M2M token + operations.md 重写
 ✅ Round 2 (2026-05-09)：测试分层 L1+L2+L3 进 verify
 ✅ Round 3 (2026-05-09)：`extensions/eda/events.schema.json` 契约化、L4 e2e harness、DB Failover rule `enabled: false`
-✅ Round 4 (2026-05-10)：Path A 全面硬化 + manifest SSOT + inventory `[hub_local]`/`[hub_remote]` 拓扑 + rsync 强 excludes + state 迁出 + OS-family 守门 + `make hub-deploy NODE=` 包装。**TASK-001 闭环。**
+✅ Round 4 (2026-05-10)：Path A 全面硬化 + manifest SSOT + inventory `[hub_local]`/`[hub_remote]` 拓扑 + rsync 强 excludes + state 迁出 + OS-family 守门 + `make hub-deploy HUB_NODE=` 包装。**TASK-001 闭环。**
 
 后续：
 - TASK-007（多 OS target fleet）：4 台 VPS 接入 `[targets_*]`、实现 `infra_baseline` RHEL/Alpine 分支

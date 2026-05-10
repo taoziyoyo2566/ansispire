@@ -3,15 +3,16 @@
 # Spec: docs/test-specs/eda-reactor-e2e.md (TEST-EDA-004, L4).
 #
 # Steps:
-#   1. up — semaphore + audit-sink + audit-relay + audit-reactor on isolated network
-#   2. wait healthy
-#   3. bootstrap (mints API token to ./.secrets, registers remediation templates)
-#   4. recreate audit-relay + audit-reactor so they pick up the token
-#   5. inject Disk Full event via the sink HTTP endpoint
-#   6. poll Semaphore /api/project/1/tasks until status == success (or error)
-#   7. teardown (down -v) — unless E2E_KEEP=1
+#   1. clean — ensure no leftover from previous runs
+#   2. up — semaphore + audit-sink + audit-relay + audit-reactor on isolated network
+#   3. wait healthy
+#   4. bootstrap (mints API token to ./.secrets, registers remediation templates)
+#   5. recreate audit-relay + audit-reactor so they pick up the token
+#   6. inject Disk Full event via the sink HTTP endpoint
+#   7. poll Semaphore /api/project/1/tasks until status == success (or error)
 #
-# Override teardown for debugging: E2E_KEEP=1 ./run.sh
+# Retention: this script leaves the stack running at the end so you can
+# inspect the WebUI at http://localhost:3320.
 set -euo pipefail
 
 E2E_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,8 +33,19 @@ fi
 [ -f "${ANSIBLE_PLAYBOOK}" ] || { echo "ERROR: missing ${ANSIBLE_PLAYBOOK} — run \`make setup\` first"; exit 1; }
 
 # Empty stub so docker compose --env-file can be combined with .secrets even
-# before bootstrap has populated it. The real token lands here in step 3.
+# before bootstrap has populated it. The real token lands here in step 4.
 : > "${SECRETS_FILE}"
+
+# Create a disposable inventory for the E2E container to use
+TEST_INVENTORY="${E2E_DIR}/hosts.e2e.ini"
+cat >"${TEST_INVENTORY}" <<EOF
+[all:vars]
+ansible_connection=local
+ansible_python_interpreter=/usr/bin/python3
+
+[test_group]
+localhost
+EOF
 
 COMPOSE=(docker compose -f "${COMPOSE_FILE}" -p "${PROJECT}" --env-file "${ENV_FILE}" --env-file "${SECRETS_FILE}")
 
@@ -45,26 +57,13 @@ ADMIN_PW=$(grep '^SEMAPHORE_ADMIN_PASSWORD=' "${ENV_FILE}" | cut -d= -f2-)
 SEMAPHORE_URL_HOST="http://localhost:${HOST_SEM_PORT}"
 SINK_URL_HOST="http://127.0.0.1:${HOST_AUDIT_PORT}/event"
 
-cleanup() {
-  rc=$?
-  if [ "${E2E_KEEP:-0}" = "1" ]; then
-    echo "==> [teardown] E2E_KEEP=1 — leaving stack up. Inspect with:"
-    echo "    ${COMPOSE[*]} ps"
-    echo "    ${COMPOSE[*]} logs audit-reactor"
-    echo "    Tear down manually: ${COMPOSE[*]} down -v"
-    return $rc
-  fi
-  echo "==> [teardown] docker compose down -v"
-  "${COMPOSE[@]}" down -v --remove-orphans 2>/dev/null || true
-  rm -f "${SECRETS_FILE}" 2>/dev/null || true
-  return $rc
-}
-trap cleanup EXIT
+echo "==> [1/7] clean: ensure fresh start for ${PROJECT}"
+"${COMPOSE[@]}" down -v --remove-orphans 2>/dev/null || true
 
-echo "==> [1/7] up: project=${PROJECT}, semaphore=${SEMAPHORE_URL_HOST}, sink=${SINK_URL_HOST}"
+echo "==> [2/7] up: project=${PROJECT}, semaphore=${SEMAPHORE_URL_HOST}, sink=${SINK_URL_HOST}"
 "${COMPOSE[@]}" up -d
 
-echo "==> [2/7] wait semaphore healthy (≤90s)"
+echo "==> [3/7] wait semaphore healthy (≤90s)"
 HEALTHY=""
 for _ in $(seq 1 90); do
   status=$(docker inspect --format='{{.State.Health.Status}}' ansispire-semaphore-e2e 2>/dev/null || echo "starting")
@@ -78,30 +77,32 @@ if [ -z "$HEALTHY" ]; then
 fi
 echo "    healthy after $(( $(date +%s) - START_TS ))s"
 
-echo "==> [3/7] bootstrap (mint token, register remediation templates)"
+echo "==> [4/7] bootstrap (mint token, register remediation templates)"
 "${ANSIBLE_PLAYBOOK}" "${REPO_ROOT}/controller/semaphore/bootstrap.yml" \
+  -i "${TEST_INVENTORY}" \
   -e "semaphore_user=${ADMIN_USER}" \
   -e "semaphore_password=${ADMIN_PW}" \
   -e "semaphore_url=${SEMAPHORE_URL_HOST}" \
-  -e "secrets_path=${SECRETS_FILE}"
+  -e "secrets_path=${SECRETS_FILE}" \
+  -e "semaphore_inventory_path=controller/audit/e2e/hosts.e2e.ini"
 
 [ -s "${SECRETS_FILE}" ] || { echo "ERROR: ${SECRETS_FILE} empty — bootstrap did not mint token"; exit 3; }
 TOKEN=$(grep '^SEMAPHORE_API_TOKEN=' "${SECRETS_FILE}" | cut -d= -f2-)
 [ -n "${TOKEN}" ] || { echo "ERROR: SEMAPHORE_API_TOKEN missing"; exit 3; }
 echo "    token persisted to ${SECRETS_FILE}"
 
-echo "==> [4/7] recreate audit-relay + audit-reactor (pick up token)"
+echo "==> [5/7] recreate audit-relay + audit-reactor (pick up token)"
 "${COMPOSE[@]}" up -d --force-recreate audit-relay audit-reactor
 sleep 4  # let reactor log "loaded N rules"
 
-echo "==> [5/7] inject Disk Full event into the sink"
+echo "==> [6/7] inject Disk Full event into the sink"
 curl -fsS -X POST "${SINK_URL_HOST}" \
   -H 'Content-Type: application/json' \
   -d '{"source":"e2e-inject","event":{"id":99999,"object_type":"task","type":"task","status":"running","description":"E2E injection: Disk Full at /var/log"}}' \
   >/dev/null
 echo "    injected"
 
-echo "==> [6/7] poll Semaphore tasks until status=success (≤60s)"
+echo "==> [7/7] poll Semaphore tasks until status=success (≤60s)"
 POLL_START=$(date +%s)
 FINAL_STATUS=""
 FINAL_ID=""
@@ -129,6 +130,9 @@ TOTAL_ELAPSED=$(( $(date +%s) - START_TS ))
 
 if [ "${FINAL_STATUS}" = "success" ]; then
   echo "==> E2E PASS — task ${FINAL_ID} status=success in ${POLL_ELAPSED}s (total ${TOTAL_ELAPSED}s)"
+  echo "    Stack is still RUNNING for manual inspection."
+  echo "    URL: ${SEMAPHORE_URL_HOST} (${ADMIN_USER} / ${ADMIN_PW})"
+  echo "    Manual cleanup: ${COMPOSE[*]} down -v"
   exit 0
 fi
 
@@ -137,5 +141,5 @@ echo "==> [diag] reactor logs (last 60):"
 "${COMPOSE[@]}" logs --tail=60 audit-reactor || true
 echo "==> [diag] semaphore logs (last 40):"
 "${COMPOSE[@]}" logs --tail=40 semaphore || true
-echo "==> E2E FAIL"
+echo "==> E2E FAIL (Stack left running for diagnosis)"
 exit 4
