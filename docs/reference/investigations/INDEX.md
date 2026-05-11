@@ -11,4 +11,17 @@
 | VENDOR-PATCHES-MIGRATED | 2026-05-10 | Vendor-roles | Consolidation | Former SUMMARY.md §5 vendor patch obligations (geerlingguy.docker FQCN/octal patches) moved to dedicated governance doc with re-apply protocol | Applied | [docs/governance/vendor-patches.md](../../governance/vendor-patches.md) | [refactor-docs-enterprise plan](../../reviews/refactor-docs-enterprise/plan-2026-05-10.md) |
 
 ---
-*注：新增调查后必须在此索引追加记录。findings 落地后将状态改为 `Applied` 并填写「应用位置」，Agent 见此状态即可跳过深读原文件。*
+
+## Investigation Protocol（路径 / 命名 / 流程契约）
+
+任何 RCA / 可行性研究 / 性能调查 / 架构探索都遵循以下契约（之前以分散形式存在于 `CLAUDE.md`，2026-05-11 起统一收纳到此处）：
+
+1. **文件位置 / 命名**：`docs/reference/investigations/IVG-<TASK_ID>-<SLUG>.md`
+   - `<TASK_ID>` 为关联任务编号或主题标识（`TASK-001` / `TOOLENV-REGISTRY` …）
+   - `<SLUG>` 为 kebab-case 简称，可省略
+2. **必须使用模板**：每份 IVG 必须基于 [`TEMPLATE.md`](./TEMPLATE.md) 起草，覆盖 §1–§7 字段（概览 / 背景 / 假设与实验 / 证据 / 发现 / 结论 / 关联验证）
+3. **必须登记**：新增 IVG 后在本表追加一行（不登记 = 不存在 → 未来 agent 找不到）
+4. **Findings 落地后改 `Applied`**：当结论被吸收进 `CLAUDE.md` / `ARCHITECTURE.md` / `docs/governance/*` / 代码注释等，把状态改为 `Applied` 并在「应用位置」列填入指向规则落点的链接，让未来 agent 可以跳过深读
+5. **长流程文档**：完整 L1.5 工作流见 [`docs/governance/ai-workflow.md §1`](../../governance/ai-workflow.md)
+
+

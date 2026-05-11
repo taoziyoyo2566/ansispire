@@ -1,9 +1,29 @@
 # Changelog
 
-All notable changes to Ansispire are documented here. The project does not yet
-use semantic versioning; entries are grouped by branch / round of work.
+All **user-visible** changes to Ansispire are documented here. The project does
+not yet use semantic versioning; entries are grouped by branch / round of work.
 
 The format is loosely adapted from [Keep a Changelog](https://keepachangelog.com).
+
+## What counts as user-visible (when to add an entry)
+
+A change qualifies as user-visible — and therefore requires an entry in
+`[Unreleased]` in the same commit (`CLAUDE.md §0 Sync Guard #4`) — when it
+touches any of:
+
+- **CLI behavior** — Make targets, scripts users invoke, output format
+- **Configuration defaults** — variables in `defaults/`, `group_vars/`, role-public knobs
+- **Public interface** — role contracts, EDA rule schema, controller HTTP surfaces
+- **Breaking refactor** — variable renames, removed aliases, path moves users may reference
+- **Security policy** — firewall, RBAC, secrets handling, hardening defaults
+
+Changes that do NOT trigger a CHANGELOG entry:
+
+- Pure-internal refactors with no caller-visible effect
+- Test additions / changes (covered by TSVS records)
+- Documentation cleanup
+- AI-collaborator instruction changes (`CLAUDE.md`, `GEMINI.md`)
+- Per-round plan / changelog files under `docs/reviews/`
 
 ---
 
