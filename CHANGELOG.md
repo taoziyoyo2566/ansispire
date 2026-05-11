@@ -63,6 +63,26 @@ detail under [`docs/reviews/feat-eda-advanced-healing/round{5,6}-2026-05-10.chan
 - **Removed** outdated root-level `ANSISPIRE_STABILITY_REPORT.md` and
   `ANSISPIRE_TEST_REPORT.md` (snapshot-only reports superseded by feature maps)
 
+### Testing governance docs (round 1 of feat-testing-strategy, 2026-05-11)
+
+Establishes the project's testing **strategy** + **plan** as load-bearing
+governance. Both files live under `docs/governance/`. Per-round detail under
+[`docs/reviews/feat-testing-strategy/`](docs/reviews/feat-testing-strategy/).
+
+- **`testing-governance.md`** (was a 20-line stub; now 8 sections):
+  test pyramid (L0–L5) with current carriers · path-based decision tree
+  (16 rows mapping change → required tests) · local-vs-CI responsibility
+  split · 4-level quality gates · Molecule operating modes (test / converge
+  / verify / login) · TSVS mandate · doc self-maintenance triggers.
+- **`test-plan.md`** (new): surface inventory (12 surfaces) · coverage
+  matrix (13 quality properties × 6 layers) · per-surface assertion
+  lists for every `molecule/*/verify.yml` · 9 known gaps (G1–G9) with
+  risk ratings and assigned ownership · new-code acceptance criteria.
+- **Round 1 scope**: doc-only. No Make / CI / test-code changes. Targets
+  cited by the new docs (`make verify-quick`, `make verify`, `make
+  verify-full`, `make test-eda*`, `make controller-*-smoke`) are all
+  pre-existing; the docs codify their semantics.
+
 ### Infrastructure changes (2026-05-10)
 
 - Inventory layout standardized as `inventory/{dev,stag,prod}/` (renamed
