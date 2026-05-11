@@ -72,11 +72,11 @@ syntax: ## Syntax check both stag and prod
 	@echo "==> Syntax checking Prod..."
 	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/prod
 
-verify: lint syntax test-eda dry-run ## Run CI-equivalent checks (lint + syntax + EDA pyramid + dry-run)
+verify: lint syntax test-eda dry-run ## Push gate — lint + syntax + EDA pyramid (L1+L2+L3) + dry-run (~30–60 s)
 
-verify-quick: syntax ## Quick save-point check (Syntax only)
+verify-quick: syntax ## Save-point gate — syntax only (~3 s, before commit)
 
-verify-full: verify molecule-all ## Full-bore verification (All quality checks + All molecule scenarios)
+verify-full: verify molecule-all ## Release gate — verify + all 4 molecule scenarios serial (~10–20 min)
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 test: ## Run default Molecule scenario (common)

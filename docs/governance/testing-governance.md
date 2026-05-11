@@ -5,6 +5,8 @@
 >
 > 治理范围：本文是项目的测试**红线**，与 `CLAUDE.md §3 Engineering Standards` 协同生效。
 
+**Quick reference**：`make verify-quick`（commit 前，~3 s）→ `make verify`（push 前，~30–60 s）→ `make verify-full`（release 前 / role 改动，~10–20 min）。决策树详见 §3，闸口语义详见 §5。
+
 ---
 
 ## 1. 目标与读者
@@ -128,7 +130,7 @@ L4 测试在两种模式下行为不同，按场景选择：
 任何 **功能性测试**（非纯静态校验）的新增 / 重大变更，都必须：
 
 1. 在 `docs/reference/test-specs/` 下产出对应 TSVS 文档，参考 `TEMPLATE.md`
-2. 注册至 `docs/reference/test-specs/INDEX.md`（INDEX 由本 workstream round 2 引入）
+2. 注册至 [`docs/reference/test-specs/INDEX.md`](../reference/test-specs/INDEX.md)
 3. 标注：层级（L1–L5）、所属 surface、断言清单、预期结果
 
 **例外**（不需要 TSVS）：

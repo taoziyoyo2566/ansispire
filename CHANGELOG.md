@@ -63,11 +63,13 @@ detail under [`docs/reviews/feat-eda-advanced-healing/round{5,6}-2026-05-10.chan
 - **Removed** outdated root-level `ANSISPIRE_STABILITY_REPORT.md` and
   `ANSISPIRE_TEST_REPORT.md` (snapshot-only reports superseded by feature maps)
 
-### Testing governance docs (round 1 of feat-testing-strategy, 2026-05-11)
+### Testing governance docs (rounds 1–2 of feat-testing-strategy, 2026-05-11)
 
 Establishes the project's testing **strategy** + **plan** as load-bearing
 governance. Both files live under `docs/governance/`. Per-round detail under
 [`docs/reviews/feat-testing-strategy/`](docs/reviews/feat-testing-strategy/).
+
+**Round 1 (2026-05-11)** — two governance docs land:
 
 - **`testing-governance.md`** (was a 20-line stub; now 8 sections):
   test pyramid (L0–L5) with current carriers · path-based decision tree
@@ -82,6 +84,24 @@ governance. Both files live under `docs/governance/`. Per-round detail under
   cited by the new docs (`make verify-quick`, `make verify`, `make
   verify-full`, `make test-eda*`, `make controller-*-smoke`) are all
   pre-existing; the docs codify their semantics.
+
+**Round 2 (2026-05-11)** — TSVS discoverability:
+
+- **`docs/reference/test-specs/INDEX.md`** (new): registry for all 10 TSVS
+  (4 new Molecule + 6 pre-existing EDA / audit / RBAC), Active/Retired
+  status machine, surface coverage map, naming convention, maintenance flow.
+- **4 new Molecule TSVS**: `molecule-common.md`, `molecule-webserver.md`,
+  `molecule-database.md`, `molecule-full-stack.md` — each enumerates the
+  exact assertions the corresponding `verify.yml` makes today (no new
+  assertions added; codifies existing intent). Closes plan gaps G4 + G5.
+- **`Makefile` help text** refined for `verify-quick` / `verify` /
+  `verify-full` — adds "Save-point gate" / "Push gate" / "Release gate"
+  semantics + duration. No target-dependency changes.
+- **`testing-governance.md` cheatsheet** — single-line quick-reference
+  at the top: `verify-quick` (commit) → `verify` (push) → `verify-full`
+  (release).
+- **`test-plan.md` sync**: TSVS column on §2 surface inventory filled in;
+  §5 G4 + G5 marked CLOSED 2026-05-11; INDEX link added in §6.
 
 ### Infrastructure changes (2026-05-10)
 

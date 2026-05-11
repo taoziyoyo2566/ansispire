@@ -24,9 +24,9 @@
 
 | 表面 | 路径 | 类型 | 主要测试拥有者 | TSVS 文档 |
 |---|---|---|---|---|
-| common role | `roles/common/` | Ansible role | `molecule -s common` | **缺**（round 2 待补） |
-| webserver role | `roles/webserver/` | Ansible role | `molecule -s webserver` | **缺**（round 2 待补） |
-| database role | `roles/database/` | Ansible role | `molecule -s database` | **缺**（round 2 待补） |
+| common role | `roles/common/` | Ansible role | `molecule -s common` | `molecule-common.md`（TSVS-MOL-COMMON-001） |
+| webserver role | `roles/webserver/` | Ansible role | `molecule -s webserver` | `molecule-webserver.md`（TSVS-MOL-WEBSERVER-001） |
+| database role | `roles/database/` | Ansible role | `molecule -s database` | `molecule-database.md`（TSVS-MOL-DATABASE-001） |
 | ansispire_hub role | `roles/ansispire_hub/` | Ansible role (deploy hub stack via rsync) | 仅 lint + syntax + dry-run；e2e 间接覆盖 | **无** |
 | ansispire_audit role | `roles/ansispire_audit/` | Ansible role (deploy reactor + relay + sink) | EDA pyramid + e2e | `audit-loopback-functional.md`（间接） |
 | infra_baseline role | `roles/infra_baseline/` | Ansible role | 仅 lint + syntax | **无** |
@@ -34,7 +34,7 @@
 | rules contract | `extensions/eda/rules.json` ↔ `bootstrap.yml` | Config 契约 | EDA L2 | `eda-rules-contract.md` |
 | rbac controller | `controller/rbac/` | Bash + Semaphore API | RBAC smoke | `rbac-functional-smoke.md` |
 | audit relay/sink | `controller/audit/e2e/`、`controller/audit/{relay,sink}.py` | Docker stack | loop-smoke + e2e | `audit-loopback-functional.md` |
-| Cross-role integration | `roles/{common,webserver,database}/*` 共存 | combo | `molecule -s full-stack` | **缺**（round 2 待补） |
+| Cross-role integration | `roles/{common,webserver,database}/*` 共存 | combo | `molecule -s full-stack` | `molecule-full-stack.md`（TSVS-MOL-FULLSTACK-001） |
 | playbooks/inventory | `playbooks/site.yml`、`inventory/{stag,prod}/` | 编排 | lint + syntax + dry-run | **无**（dry-run 即覆盖） |
 
 ---
@@ -160,8 +160,8 @@
 | G1 | `infra_baseline` 无任何功能测试 | **高** | 任何变更都可能误入生产；该 role 是基线，覆盖面广 | 引入 Molecule 场景 + TSVS | Tier C |
 | G2 | `ansispire_hub` 无 Molecule 场景 | 中 | rsync exclude / state file separation 变更未被自动验证 | 引入 Molecule 场景或扩展 e2e | Tier C |
 | G3 | `webserver` / `database` 仅 Ubuntu 22.04 | 中 | 跨发行版部署未验证 | 扩展 molecule platforms 矩阵到 Debian 12 | Tier C |
-| G4 | 4 个 Molecule 场景无 TSVS | 中 | 断言意图隐式，contributor 需读 verify.yml 才知验什么 | 补 4 份 TSVS（按 §4 已盘断言） | **本 workstream round 2** |
-| G5 | `docs/reference/test-specs/INDEX.md` 缺失 | 中 | 找不到全部 TSVS 清单，新加入者难入门 | 创建 INDEX，建立 active/applied/retired 状态机 | **本 workstream round 2** |
+| ~~G4~~ | ~~4 个 Molecule 场景无 TSVS~~ | — | — | ✅ **CLOSED 2026-05-11**（round 2）：4 份 TSVS 已落 `docs/reference/test-specs/molecule-*.md` | round 2 |
+| ~~G5~~ | ~~`docs/reference/test-specs/INDEX.md` 缺失~~ | — | — | ✅ **CLOSED 2026-05-11**（round 2）：[`INDEX.md`](../reference/test-specs/INDEX.md) 已创建（Active / Retired 状态机） | round 2 |
 | G6 | 缺中间 verify 层（quick 与 full-bore 二选一） | 中 | 贡献者要么测得不够要么测得太久 | 引入 `make verify-mid`（按 git diff 路径选 molecule 场景） | Tier C |
 | G7 | 本地 `molecule-all` 串行 | 低 | release 前耗时 10–20 min；CI 已并行不影响 | xargs -P 或并行 Make target | Tier C |
 | G8 | 模板渲染产物只有 Molecule 验证 | 低 | 现状勉强可接受，毕竟有 L4 兜底 | 维持现状 + round 2 在 `webserver`/`database` TSVS 显式登记 | round 2 |
@@ -179,7 +179,7 @@
 新增 / 重大改造任何 first-party role 或 controller 子系统，PR 合并前必须：
 
 1. **L0 全绿**：lint + syntax + dry-run + detect-secrets
-2. **TSVS 登记**：至少有一份 TSVS 文档登记在 `docs/reference/test-specs/INDEX.md`（INDEX 由 round 2 引入）
+2. **TSVS 登记**：至少有一份 TSVS 文档登记在 [`docs/reference/test-specs/INDEX.md`](../reference/test-specs/INDEX.md)
 3. **类型对应补充**：
    - 新 Ansible role → Molecule 场景 + TSVS
    - 新 controller pure-Python 模块 → L1 unit + (L3 component if has external IO)
