@@ -3,6 +3,8 @@
 ---
 name: CI
 
+# stg is intentionally PR-only (no push trigger): pre-production reached
+# exclusively via PR; direct pushes should be blocked by branch protection.
 on:
   push:
     branches: [dev, master, "hotfix/*"]
@@ -93,7 +95,7 @@ jobs:
       fail-fast: false
       matrix:
         scenario:
-          - common      # Tier 1: Ubuntu 22, 20 + Debian 12
+          - common      # Tier 1: Ubuntu 22 + Debian 12
           - webserver   # Tier 1: Ubuntu 22
           - database    # Tier 1: Ubuntu 22
           - full-stack  # 集成测试: Ubuntu 22
