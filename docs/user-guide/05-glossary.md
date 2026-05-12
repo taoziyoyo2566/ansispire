@@ -61,14 +61,7 @@
 
 ## Test specs (TSVS)
 
-| File | Test layer |
-|---|---|
-| [`reference/test-specs/eda-reactor-unit.md`](../reference/test-specs/eda-reactor-unit.md) | L1 — reactor pure-Python (`make test-eda-unit`) |
-| [`reference/test-specs/eda-rules-contract.md`](../reference/test-specs/eda-rules-contract.md) | L2 — rules ↔ bootstrap template-name contract (`make test-eda-contract`) |
-| [`reference/test-specs/eda-reactor-component.md`](../reference/test-specs/eda-reactor-component.md) | L3 — reactor → mock Semaphore HTTP (`make test-eda-component`) |
-| [`reference/test-specs/eda-reactor-e2e.md`](../reference/test-specs/eda-reactor-e2e.md) | L4 — disposable end-to-end (`make test-eda-e2e`) |
-| [`reference/test-specs/audit-loopback-functional.md`](../reference/test-specs/audit-loopback-functional.md) | Audit loopback functional |
-| [`reference/test-specs/rbac-functional-smoke.md`](../reference/test-specs/rbac-functional-smoke.md) | RBAC smoke |
+See [`reference/test-specs/INDEX.md`](../reference/test-specs/INDEX.md) — registry of every active TSVS with its test layer, owning surface, and status. Kept current as the test surface evolves; this guide deliberately does not enumerate so it cannot drift.
 
 ---
 
@@ -78,6 +71,5 @@
 |---|---|
 | [`ARCHITECTURE.md`](../../ARCHITECTURE.md) | Top-level architecture (read first) |
 | [`reference/investigations/INDEX.md`](../reference/investigations/INDEX.md) | RCA / spike history; rows with `Applied` route to where the finding was actioned |
-| [`reviews/feat-eda-advanced-healing/`](../reviews/feat-eda-advanced-healing/) | TASK-001 (EDA self-healing) plan + per-round changelogs |
-| [`reviews/refactor-docs-enterprise/`](../reviews/refactor-docs-enterprise/) | This documentation refactor — plan + round1 changelog |
+| [`reviews/`](../reviews/) | Per-task plan docs and per-round changelogs. Browse the topic directories for any specific workstream's history. |
 | [`reviews/_archive/`](../reviews/_archive/) | Pre-W-R10 round-flat-named files; historical only |

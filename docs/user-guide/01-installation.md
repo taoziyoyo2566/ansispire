@@ -199,7 +199,9 @@ docker logs --tail 50 ansispire-audit-reactor        # MATCH then triggered task
 ## 6. Where to go next
 
 - **Day-2 operations** (commands you will run repeatedly): [`eda-core.md`](../operations/eda-core.md), [`hub-deployment.md`](../operations/hub-deployment.md).
-- **Adding new self-healing rules**: see [`02-quickstart-eda.md`](./02-quickstart-eda.md) §8 ("常见运维任务").
+- **Adding new self-healing rules**: see [`03-configuration.md`](./03-configuration.md) §2 ("Common tasks").
+- **Backing up / restoring state, secrets, and the audit stream**: [`03-configuration.md`](./03-configuration.md) §5.
 - **Per-environment differences** (dev / stag / prod): [`environments.md`](../operations/environments.md).
 - **Architecture rationale**: [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
-- **When something breaks**: [`02-quickstart-eda.md`](./02-quickstart-eda.md) §10 (Troubleshooting).
+- **When something breaks**: [`04-troubleshooting.md`](./04-troubleshooting.md).
+- **Deep "why does it work this way" walkthrough**: [`02-quickstart-eda.md`](./02-quickstart-eda.md) (ZH, long-form).

@@ -1,7 +1,7 @@
 # Troubleshooting Guide
 
 > **Audience**: anyone hitting an error message or unexpected behavior.
-> **How to use**: search for an exact error string with Ctrl-F, find your row, follow the fix. If your case is not here, see the deeper context in [`02-quickstart-eda.md`](./02-quickstart-eda.md) §10 or [`operations/hub-deployment.md`](../operations/hub-deployment.md) §5.
+> **How to use**: search for an exact error string with Ctrl-F, find your row, follow the fix. This is the **canonical** symptom table — `02-quickstart-eda.md` §10 used to duplicate it but now points back here. If your case is not here, see [`operations/hub-deployment.md`](../operations/hub-deployment.md) §5 for deeper Path A context.
 
 ---
 
@@ -41,6 +41,6 @@
 
 ## 4. Where to look beyond this guide
 
-- The full long-form context (rationale + recovery paths): [`02-quickstart-eda.md`](./02-quickstart-eda.md) §10–§11
+- Security hazards + recovery paths (vault loss, manual UI edits, state-dir mode, etc.): [`02-quickstart-eda.md`](./02-quickstart-eda.md) §11 (ZH, long-form)
 - Maintainer command-level ops: [`operations/eda-core.md`](../operations/eda-core.md), [`operations/hub-deployment.md`](../operations/hub-deployment.md)
 - Past investigations / RCAs: [`reference/investigations/INDEX.md`](../reference/investigations/INDEX.md) — search by keyword; if a row is `Applied`, the fix is already in the linked location

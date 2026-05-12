@@ -2,9 +2,7 @@
 
 > 面向**第一次接触本项目**的运维人员。读完整篇按步骤做，可以从「机器一台干净的 Linux + 一个 git clone」走到「自愈链路全绿、可在生产用」。
 >
-> 与本目录下的 `operations.md` 区别：那一份是给已经熟悉项目的 maintainer 用的速查（命令为主、注释稀疏）；这一份解释**为什么这么做、出错怎么办**。
->
-> 适用于 TASK-001（"Advanced Self-Healing Scenarios"）闭环后的 Round 4 状态。最近一次端到端验证：2026-05-10。
+> 与同仓库 `docs/operations/` 目录（`eda-core.md` / `hub-deployment.md` / `environments.md`）的区别：那一组是给已经熟悉项目的 maintainer 用的速查（命令为主、注释稀疏）；本篇解释**为什么这么做、出错怎么办**。
 
 ---
 
@@ -19,10 +17,9 @@
 7. [配置项总览（哪个文件管什么）](#7-配置项总览哪个文件管什么)
 8. [常见运维任务](#8-常见运维任务)
 9. [测试金字塔（4 层）](#9-测试金字塔4-层)
-10. [故障排查（Troubleshooting）](#10-故障排查troubleshooting)
+10. [故障排查](#10-故障排查)
 11. [安全 / 注意事项](#11-安全--注意事项)
-12. [本轮（Round 4）架构变更速查](#12-本轮round-4架构变更速查)
-13. [词汇表 / 文件索引](#13-词汇表--文件索引)
+12. [词汇 / 文件索引](#12-词汇--文件索引)
 
 ---
 
@@ -156,9 +153,9 @@ playbooks/remediation/disk_cleanup.yml 执行
 最快上手路径。一次成功后，你机器上就有完整自愈链路。
 
 ### 5.1 前置依赖
-- Linux（项目当前在 Ubuntu 24.04 + Debian 12 验证过）
-- Docker engine 25+ 和 docker compose v2
-- Python 3.10+
+- Linux（Tier 1: Ubuntu 22.04+ / Debian 12；项目其他文档同此基线）
+- Docker engine ≥ 24 + docker compose v2
+- Python ≥ 3.10
 - 8 GB+ RAM 富余
 
 ### 5.2 一次性 setup
@@ -190,7 +187,7 @@ make controller-bootstrap
 make controller-audit-up
 ```
 
-每一步都应该看到大量绿色 `ok` / `changed`。任意一步失败请先看[故障排查](#10-故障排查troubleshooting)。
+每一步都应该看到大量绿色 `ok` / `changed`。任意一步失败请去 [`04-troubleshooting.md`](./04-troubleshooting.md)。
 
 ### 5.4 验证浏览器能开
 浏览器打开 http://localhost:3300，用 `.env` 里的 admin 账号密码登录，应该能看到一个名为 `ansispire` 的项目。
@@ -306,7 +303,7 @@ make hub-deploy-check HUB_NODE=all
 - `controller/semaphore/.env` / `.secrets` （秘密；被拦）
 - `*deleting .eda_token` （状态文件，已迁出代码目录、不再被 rsync 擦）
 
-如果上述任何一项出现了，**停止部署**，回看[安全 / 注意事项](#11-安全--注意事项)。
+如果上述任何一项出现了，**停止部署**：rsync excludes 列表在 `roles/ansispire_hub/tasks/main.yml`，对照 [`04-troubleshooting.md`](./04-troubleshooting.md) §2 「rsync uploads `.claude/`」一行的根因和修法定位漏项。
 
 ### 6.5 真部署
 ```bash
@@ -418,13 +415,13 @@ echo "vps-tokyo01 ansible_python_interpreter=/usr/bin/python3" >> inventory/host
 # 3. 测连通
 .venv/bin/ansible -i inventory/hosts.ini vps-tokyo01 -m ping
 
-# 4. 部署
-make hub-deploy HUB_NODE=remote --limit vps-tokyo01     # 注：Makefile 不直接传 --limit；
-# 实际写法：
+# 4. 只部署到新节点（推荐首次加入时这样做）
 .venv/bin/ansible-playbook playbooks/deploy_hub.yml \
   -i inventory/hosts.ini --limit vps-tokyo01 \
   --vault-password-file .vault_pass --diff
 ```
+
+`make hub-deploy HUB_NODE=remote` 会对 `[hub_remote]` 里**所有**主机跑；Makefile 不直接传 `--limit`。新加节点首次加入时用上面那段裸 `ansible-playbook` 命令带 `--limit`，避免影响已就位的节点。
 
 ### 8.2 把管理节点从远程切到本机
 ```bash
@@ -549,32 +546,13 @@ make verify               # lint + syntax + L1+L2+L3 + dry-run
 
 L4 用独立 compose project (`ansispire-e2e`)、独立 network (`controller-net-e2e`)、独立端口 (3320/3330)，**不影响**正在跑的 dev 栈。
 
-每层都有 TSVS 规格说明书：`docs/reference/test-specs/eda-reactor-{unit,component,e2e}.md` + `eda-rules-contract.md`。
+完整测试治理（包括 Molecule 4 个 scenario + 决策树 + 质量门）：见 [`docs/governance/testing-governance.md`](../governance/testing-governance.md)。所有活动 TSVS 在 [`docs/reference/test-specs/INDEX.md`](../reference/test-specs/INDEX.md)。
 
 ---
 
-## 10. 故障排查（Troubleshooting）
+## 10. 故障排查
 
-按"现象 → 根因 → 修法"组织。先在 `docker logs` / make 输出里 grep 关键字，再来这里找。
-
-| 现象 | 根因 | 修法 |
-|---|---|---|
-| `Password must be provided via -e semaphore_password=` | 用了 `sem_pass=` 这种旧版（Gemini 158-line 重写）变量名 | 改用 `make controller-bootstrap`，或显式 `-e semaphore_password=...` |
-| reactor 启动后日志只有 `SEMAPHORE_API_TOKEN not set` | bootstrap 没跑过 / audit 栈还没拿到新 token | `make controller-bootstrap && make controller-audit-down && make controller-audit-up` |
-| reactor 收事件但无 MATCH | rules.json 里 condition 字段拼错 / `_contains` 子串匹配不到 | 比对事件原文与 rules.json，先用 `make test-eda-contract` 跑 |
-| reactor MATCH 后报 `could not resolve template <name>` | rules.json 引用了 bootstrap 没注册的 template_name | `make test-eda-contract` 会挡这条；如果直接生产里出，去 `controller/semaphore/bootstrap.yml` Register loop 补 |
-| `[reactor] JSON parse error` | 注入命令含物理换行 / 单引号嵌套错 | 用 §5.6 那种一行 printf 写法 |
-| Web UI 端口连不上（manifest 改了但容器没重启） | compose 不会因 .env 变就重启容器 | `make controller-down && make controller-up` |
-| `make controller-bootstrap` 报权限错 / `.secrets` owner=root | `ansible.cfg` 全局 `become=True` 影响 | 已修：bootstrap.yml + manifest_sync.yml 头部都显式 `become: false`；如再出，检查这两个文件 |
-| Token 末尾被截 / 401 Unauthorized | `cut -d= -f2` 截断了 base64 padding | 用 `cut -d= -f2-`（带 `-` 取所有剩余字段） |
-| Path A `--check --diff` 报 `cookies_string` 不存在 | `--check` 模式 Login 任务 noop，cookies 自然没有；token 块未跳过 | 已修：role 加 `when: not ansible_check_mode` gate |
-| Path A rsync 把 `.claude/` / `.env` 等飞到远程 | 旧版 rsync_opts 只 exclude `.git` `.venv` | 已修：exclude 列表扩到 21 项；如再出，先看 §11 |
-| Path A 部署后 `.eda_token` 每次被 rsync delete | 旧版 token 在 `/opt/ansispire/.eda_token` 被 `delete: true` 擦 | 已修：迁到 `/var/lib/ansispire/state/.eda_token`，rsync 看不见 |
-| ans-hk01 报 `Host is using the discovered Python interpreter at /usr/bin/python3.13` 警告 | 没钉 ansible_python_interpreter | 已修：`inventory/hosts.ini` 中显式钉死 |
-| `ansible.posix.synchronize` 抛 `to_text` deprecation | collection 内部 import 路径滞后；无新版可升 | 静默忽略；ansible-core 2.24 之前不会真破。upstream issue 待跟进。|
-| `infra_baseline` 在 Alpine / Rocky 上立即 fail with NOT IMPLEMENTED | 这是 Round 4 的故意守门 | 等 TASK-007 实现 RHEL/Alpine 分支；目前不要把那两类 OS 加入 hub 部署 |
-
-更多硬故障（控制不住的）：去 [`docs/reference/investigations/INDEX.md`](../reference/investigations/INDEX.md) 检索关键字。
+故障排查请见 [`04-troubleshooting.md`](./04-troubleshooting.md)——它是症状表的**唯一来源**，按"现象 → 根因 → 修法"组织，覆盖自愈链路、Path A 部署、工具链 / verify 三大类。
 
 ---
 
@@ -604,6 +582,8 @@ make hub-deploy-check HUB_NODE=remote 2>&1 | grep -E "\.env|\.secrets|\.demo_|us
 
 应该**只**有 `.env.example` / `controller/semaphore/.env.example` 等模板文件。任何真凭据出现都是 bug。
 
+完整的备份 / 恢复流程（含离线加密保存、状态卷 snapshot、灾恢验证）：见 [`03-configuration.md`](./03-configuration.md) §5。
+
 ### 11.2 Path A 的 `--delete` 行为
 `Hub | Sync Code` 任务用 `rsync --delete`。这意味着：
 - 远程 `/opt/ansispire/` 多出来的文件会被**删除**
@@ -622,29 +602,13 @@ make hub-deploy-check HUB_NODE=remote 2>&1 | grep -E "\.env|\.secrets|\.demo_|us
 - **理由**：bootstrap 是 IaC，下次重建/迁移能一键还原；UI 手建的资源在重建时丢失
 - **唯一例外**：vault key（SSH 密钥、登录密码）等真实凭据，bootstrap 只创建占位符；真凭据导入要在 UI 上做
 
-### 11.5 端口 +300 约定
-Ansispire-owned host 端口 = container 端口 + 300（避开 3306/5432/6379/3000 等通用端口）：
-- Semaphore: container 3000 → host 3300
-- Audit sink: container 3010 → host 3310
-- 未来 Prometheus: container 9090 → host 9390
-- e2e 隔离栈：再 +20（host 3320/3330）
-
-IANA 标准协议端口（MySQL 3306、PostgreSQL 5432）**不归** Ansispire 管，不走 +300。
-
-### 11.6 状态目录权限
+### 11.5 状态目录权限
 `/var/lib/ansispire/state/` 默认 mode `0700`，只有 root 能进。**不要** chmod 改它，token 暴露给非特权用户会被任何能 cat 文件的人拿去打 Semaphore API。
 
-### 11.7 镜像 `:latest` 的陷阱
+### 11.6 镜像 `:latest` 的陷阱
 docker compose **不会** 自动 `pull`。如果你在 manifest.yml 的 `semaphore_pinned` 写 `latest`，第一次 pull 之后版本就**冻结**——下次重启还是同一个旧 image。生产**永远** pin 具体版本号。
 
-### 11.8 ansible.cfg 全局 become=True 的影响
-项目 `ansible.cfg` 设置了 `become = True`（方便绝大多数 task）。但这会让任何"在控制端写本地文件"的 task 默认走 sudo，把文件 own 成 root。受影响的两个 playbook 已显式 `become: false`：
-- `controller/semaphore/bootstrap.yml`
-- `playbooks/manifest_sync.yml`
-
-**如果你写新的本地播本，记得加 `become: false`**——否则会出现"我跑完后这个文件 owner 是 root，再跑就读不了"的问题。
-
-### 11.9 EDA token 轮换
+### 11.7 EDA token 轮换
 当前没有自动轮换机制。token 一旦 mint 就长期有效。建议每季度 / 每次重大安全事件后手动轮换：
 ```bash
 ssh <hub>
@@ -653,72 +617,13 @@ exit
 make hub-deploy HUB_NODE=remote                # 重跑会重新 mint
 ```
 
----
-
-## 12. 本轮（Round 4）架构变更速查
-
-如果你之前看过更早版本的文档，注意以下变更：
-
-| 改动 | 之前 | 现在 |
-|---|---|---|
-| 端口 / 版本管理 | `config/ports.yml`（只管端口） | `config/manifest.yml`（端口 + 镜像版本，含 `default_tag: latest` + `*_pinned` 段） |
-| 同步命令 | `make ports-sync` | `make manifest-sync`（`ports-sync` 仍可用一轮，下轮删） |
-| Hub inventory | `[hub]` 单组写死远程 | `[hub_local]` + `[hub_remote]` + `[hub:children]`，加 `[targets_*]` 占位组 |
-| Path A 部署入口 | 直接 `ansible-playbook deploy_hub.yml ...` | `make hub-deploy HUB_NODE=local|remote|all`（封装 `--limit`） |
-| Hub role 模板 | `semaphore_docker_compose.yml.j2`（与 Path B compose 平行存在但漂移） | **已删除**；rsync 直接落 Path B 的 SSOT compose；只剩 `semaphore_env.j2` |
-| EDA token 位置 | `/opt/ansispire/.eda_token`（被 rsync `--delete` 擦） | `/var/lib/ansispire/state/.eda_token`（rsync 看不见，永久保留） |
-| Rsync excludes | 2 项（`.git` / `.venv`） | 21 项（4 组：local-artefacts / secrets / stateful / docs） |
-| `--check` 模式 token 块 | 报 `cookies_string` 错 | 加 `when: not ansible_check_mode` 守护 |
-| `infra_baseline` OS 兼容性 | apt-only，Alpine/Rocky 直接报错 | apt 块用 `os_family == "Debian"` 守门；RHEL/Alpine 显式 fail 占位 |
-| ans-hk01 Python 解释器 | 自动发现（warn） | inventory 钉死 `/usr/bin/python3.13` |
-
-变更原因详见 [`docs/reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md`](../reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md)。
+### 11.8 项目级工程不变量
+端口 `+300` 约定、`become: false` 控制端规则、`:latest` 冻结陷阱等跨任务的工程不变量，统一记录在 [`docs/governance/operational-truths.md`](../governance/operational-truths.md)。写新 playbook / 改 docker-compose 时，那是先看的地方。
 
 ---
 
-## 13. 词汇表 / 文件索引
+## 12. 词汇 / 文件索引
 
-### 13.1 关键文件
-| 路径 | 作用 |
-|---|---|
-| `config/manifest.yml` | 端口 + 镜像版本 SSOT |
-| `inventory/hosts.ini` | 物理拓扑 SSOT |
-| `inventory/local/vault.yml` | admin 密码（加密） |
-| `extensions/eda/rules.json` | 规则定义 |
-| `extensions/eda/events.schema.json` | 事件契约 |
-| `controller/semaphore/bootstrap.yml` | IaC 拨备 |
-| `controller/audit/reactor.py` | 反应引擎 |
-| `controller/audit/sink.py` | 审计日志接收 |
-| `controller/audit/relay.py` | Semaphore → sink 转发 |
-| `playbooks/deploy_hub.yml` | Path A 入口 |
-| `playbooks/manifest_sync.yml` | manifest → .env 渲染器 |
-| `playbooks/remediation/*.yml` | 修复脚本（实际执行的 ansible playbook） |
-| `roles/infra_baseline/` | OS 基线（apt + docker + ansible 用户） |
-| `roles/ansispire_hub/` | Semaphore 容器 + token mint |
-| `roles/ansispire_audit/` | audit 三件套容器 |
-| `controller/audit/e2e/` | L4 测试隔离栈 |
-| `Makefile` | 所有 make 入口 |
+词汇表、关键文件清单和 TSVS 注册请见 [`05-glossary.md`](./05-glossary.md)（EN，canonical）。
 
-### 13.2 测试规格
-| 文件 | 层 |
-|---|---|
-| `docs/reference/test-specs/eda-reactor-unit.md` | L1 |
-| `docs/reference/test-specs/eda-rules-contract.md` | L2 |
-| `docs/reference/test-specs/eda-reactor-component.md` | L3 |
-| `docs/reference/test-specs/eda-reactor-e2e.md` | L4 |
-
-### 13.3 设计文档（演进史）
-| 文件 | 内容 |
-|---|---|
-| `docs/reviews/feat-eda-advanced-healing/plan-2026-05-09.md` | 总体规划 |
-| `docs/reviews/feat-eda-advanced-healing/round1-2026-05-09.changelog.md` | Path B 底盘修复 |
-| `docs/reviews/feat-eda-advanced-healing/round2-2026-05-09.changelog.md` | L1+L2+L3 测试金字塔 |
-| `docs/reviews/feat-eda-advanced-healing/round3-2026-05-09.changelog.md` | L4 e2e + schema + rule.enabled |
-| `docs/reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md` | Path A 全面硬化 + manifest SSOT |
-| `docs/operations/eda-core.md` | maintainer 速查（短） |
-| `docs/reference/feature-map/eda-core.md` | feature map |
-| **本文件** | 用户向 operator guide（长） |
-
----
-
-*Last updated: 2026-05-10. Aligned with Round 4 (TASK-001 closure). Maintainer：每轮架构改动需同步本文件 §10–§13。*
+本仓库的设计文档和每轮 changelog 在 [`docs/reviews/`](../reviews/) 下按 `<kind>-<topic>/` 目录组织——查任何特定工作流的演化史浏览对应目录即可。
