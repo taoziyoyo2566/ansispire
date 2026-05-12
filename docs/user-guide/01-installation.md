@@ -90,7 +90,7 @@ End-to-end self-healing demo (disposable, port 3320):
 make test-eda-e2e
 ```
 
-Expected: exits zero in ~60 s. Stack stays running for inspection (cleanup with `cd controller/audit/e2e && docker compose -p ansispire-e2e down -v`).
+Expected: exits zero in ~60 s. Stack stays running for inspection (cleanup with `docker compose -f controller/audit/e2e/compose.e2e.yml -p ansispire-e2e down -v`).
 
 To tear down Path B fully:
 

@@ -223,9 +223,13 @@ Ansispire's persistent state is split across three categories that need differen
 |---|---|---|
 | **Code** | The whole working tree of this repo (`roles/`, `playbooks/`, `controller/`, `config/manifest.yml`, `inventory/hosts.ini`, ...) | git remotes — code is already version-controlled. Push regularly. |
 | **Secrets** | `.vault_pass`, `inventory/local/vault.yml` (encrypted), `controller/semaphore/.env`, `controller/semaphore/.secrets`, `controller/rbac/.demo_*.pw`, `controller/rbac/users.yml` | Offline / encrypted store (password manager, hardware token, sealed backup). NEVER in git, NEVER in the same blob as code. |
-| **State** | On the hub: `/var/lib/ansispire/state/.eda_token`; docker volumes `controller_semaphore-data`, `controller_audit-data` (Semaphore DB + audit `events.jsonl`) | Periodic snapshot of the volumes + state directory. |
+| **State** | On the hub: `/var/lib/ansispire/state/.eda_token`; docker volumes — `semaphore_semaphore-data` (SQLite DB), `semaphore_semaphore-config` (Semaphore config + encryption material), `audit_audit-data` (the `events.jsonl` stream), `audit_audit-relay-state` (relay cursor) | Periodic snapshot of the 4 volumes + state directory. |
+
+Volume names follow the `<project>_<volume>` convention; the `<project>` part is the directory of the compose file (`semaphore/` → `semaphore_*`, `audit/` → `audit_*`). On Path B the volumes live on the workstation; on Path A they live on the hub. Same names either way.
 
 The vault password file (`.vault_pass`) is the master key — losing it means `inventory/local/vault.yml` is unrecoverable. Treat it like any other root credential.
+
+The `audit_audit-relay-state` volume holds the relay's last-seen Semaphore event id. Skipping it during backup means a restored hub will re-fetch and re-emit every historical event — duplicate noise into `events.jsonl` until the cursor catches back up.
 
 ### 5.2 How to back up
 
@@ -248,35 +252,38 @@ gpg --symmetric --cipher-algo AES256 ~/secure-backups/ansispire-secrets-*.tgz
 shred -u ~/secure-backups/ansispire-secrets-*.tgz    # only the .gpg survives
 ```
 
-**State** (run on the hub, Path A):
+**State** (run on the hub for Path A; run on the workstation for Path B — the volume names are identical):
 
 ```bash
+# Path A only — get to the hub first
 ssh <hub>
 
-# 1. Pause the audit stack so the SQLite/events files quiesce
+# 1. Pause the stacks so SQLite + events files quiesce
+sudo docker compose -f /opt/ansispire/controller/semaphore/docker-compose.yml stop
 sudo docker compose -f /opt/ansispire/controller/audit/docker-compose.yml stop
 
-# 2. Snapshot the state dir + docker volumes
+# 2. Snapshot the state dir
+sudo mkdir -p /var/backups
 sudo tar czf /var/backups/ansispire-state-$(date +%Y%m%d).tgz \
   /var/lib/ansispire/state/
 
-sudo docker run --rm \
-  -v controller_semaphore-data:/data:ro \
-  -v /var/backups:/backup \
-  alpine tar czf /backup/semaphore-data-$(date +%Y%m%d).tgz -C /data .
+# 3. Snapshot the 4 docker volumes
+for vol in semaphore_semaphore-data semaphore_semaphore-config \
+           audit_audit-data audit_audit-relay-state; do
+  sudo docker run --rm \
+    -v "${vol}":/data:ro \
+    -v /var/backups:/backup \
+    alpine tar czf "/backup/${vol}-$(date +%Y%m%d).tgz" -C /data .
+done
 
-sudo docker run --rm \
-  -v controller_audit-data:/data:ro \
-  -v /var/backups:/backup \
-  alpine tar czf /backup/audit-data-$(date +%Y%m%d).tgz -C /data .
-
-# 3. Resume
+# 4. Resume
+sudo docker compose -f /opt/ansispire/controller/semaphore/docker-compose.yml start
 sudo docker compose -f /opt/ansispire/controller/audit/docker-compose.yml start
 ```
 
 `docker compose stop` (not `down`) keeps containers and named volumes; only the processes pause. Resume time: < 5 s.
 
-For **Path B** the equivalent volumes are on the workstation; substitute `controller-` for `controller_` (compose project naming) and skip the `ssh <hub>` step.
+For **Path B** drop the `ssh <hub>` line and the `/opt/ansispire/` prefix on the compose paths; everything else (including volume names) is identical.
 
 ### 5.3 How to restore
 
@@ -297,16 +304,14 @@ chmod 600 controller/semaphore/.env controller/semaphore/.secrets
 make controller-up                    # creates fresh empty volumes
 make controller-down                  # immediately stop, we need to replace volumes
 
-# 4. Restore the docker volumes from snapshots
-docker run --rm \
-  -v controller_semaphore-data:/data \
-  -v /path/to/backup:/backup \
-  alpine sh -c 'cd /data && tar xzf /backup/semaphore-data-YYYYMMDD.tgz'
-
-docker run --rm \
-  -v controller_audit-data:/data \
-  -v /path/to/backup:/backup \
-  alpine sh -c 'cd /data && tar xzf /backup/audit-data-YYYYMMDD.tgz'
+# 4. Restore the 4 docker volumes from snapshots (loop matches §5.2)
+for vol in semaphore_semaphore-data semaphore_semaphore-config \
+           audit_audit-data audit_audit-relay-state; do
+  docker run --rm \
+    -v "${vol}":/data \
+    -v /path/to/backup:/backup \
+    alpine sh -c "cd /data && tar xzf /backup/${vol}-YYYYMMDD.tgz"
+done
 
 # 5. (Path A only) Restore the state dir on the hub
 ssh <hub>
@@ -331,9 +336,10 @@ curl -s http://<hub>:3300/api/ping       # returns "pong"
 # 2. The audit stream is intact (last event timestamp matches your snapshot time)
 make controller-audit-tail | tail -5
 
-# 3. The reactor is using the restored token (no fresh mint happened)
-docker logs ansispire-audit-reactor 2>&1 | grep 'token loaded'
-# Should show the same token prefix as before the restore.
+# 3. The reactor booted against the restored data (positive boot lines + no token error)
+docker logs ansispire-audit-reactor 2>&1 | grep -E 'starting advanced reactor|loaded [0-9]+ rules'
+# Expect both lines. Then confirm the negative case is absent:
+docker logs ansispire-audit-reactor 2>&1 | grep 'SEMAPHORE_API_TOKEN not set' && echo "TOKEN MISSING — restore did not include .secrets / .eda_token"
 
 # 4. Inject a synthetic event end-to-end (the 5.6 / 6.6 recipe in 02-quickstart-eda.md)
 # A successful MATCH + remediation triggered means the chain is whole.
