@@ -11,8 +11,10 @@
     - name: Assert MySQL service is active
       ansible.builtin.assert:
         that:
-          - "'mysql' in services or 'mysqld' in services"
-        fail_msg: "MySQL service not found"
+          - >-
+            'mysql' in services or 'mysqld' in services
+            or 'mysql.service' in services or 'mysqld.service' in services
+        fail_msg: "MySQL service not found in either short or .service-suffixed form"
 
     - name: Verify MySQL port is listening
       ansible.builtin.wait_for:
