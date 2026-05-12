@@ -42,8 +42,8 @@
 | 表面 | 覆盖的 TSVS | 是否完整 |
 | :--- | :--- | :--- |
 | `roles/common/` | `TSVS-MOL-COMMON-001` | ⚠ UFW 规则内容未断言（[`test-plan.md §5 G9`](../../governance/test-plan.md)） |
-| `roles/webserver/` | `TSVS-MOL-WEBSERVER-001` | ⚠ 仅 Ubuntu 22；SSL/PHP-FPM 未覆盖 |
-| `roles/database/` | `TSVS-MOL-DATABASE-001` | ⚠ 仅 Ubuntu 22；用户权限实测未做 |
+| `roles/webserver/` | `TSVS-MOL-WEBSERVER-001` | Ubuntu 22 + Debian 12（2026-05-12 G3）；SSL/PHP-FPM 未覆盖 |
+| `roles/database/` | `TSVS-MOL-DATABASE-001` | Ubuntu 22 + Debian 12（2026-05-12 G3，Debian 走 MySQL 上游 APT repo）；testuser 实测授权（2026-05-12 T-C3）|
 | `roles/ansispire_hub/` | （无） | ✗ 仅 lint + syntax + e2e 间接覆盖（G2） |
 | `roles/ansispire_audit/` | `TSVS-AUDIT-LOOP-001`（间接） + EDA L1–L5 | ✅ 良好 |
 | `roles/infra_baseline/` | （无） | ✗ 最大盲区（G1） |
@@ -78,6 +78,7 @@
 | 日期 | 变更 | 来源 |
 | :--- | :--- | :--- |
 | 2026-05-11 | 创建 INDEX，登记现有 6 份 + 新增 4 份 Molecule TSVS | feat-testing-strategy round 2（[plan](../../reviews/feat-testing-strategy/plan-2026-05-10.md)）|
+| 2026-05-12 | webserver / database / full-stack TSVS 更新：G3 Debian 12 平台 + T-C1 my.cnf 硬断言 + T-C2 root pw 去重 + T-C3 testuser 实测授权 | feat-testing-tier-c round 2（[plan](../../reviews/feat-testing-tier-c/plan-2026-05-12.md)）|
 
 ---
 

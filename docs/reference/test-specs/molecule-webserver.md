@@ -4,13 +4,14 @@
 - **测试 ID**: `TSVS-MOL-WEBSERVER-001`
 - **测试类型**: L4 集成测试 (Integration / Molecule)
 - **优先级**: 高 (P0)
-- **测试目的**: 验证 `roles/webserver` 在 Ubuntu 22.04 上部署后，Nginx 服务存活、配置语法通过、默认 vhost 与 index 文件落盘、HTTP 端口可达，并通过 Molecule idempotence 阶段验证二次执行无变更。本场景同时承担 round-5 修复（`ansible_managed | comment` 在 `nginx.conf.j2`/`vhost.conf.j2`）的回归防线。
+- **测试目的**: 验证 `roles/webserver` 在 Ubuntu 22.04 + Debian 12 上部署后，Nginx 服务存活、配置语法通过、默认 vhost 与 index 文件落盘、HTTP 端口可达，并通过 Molecule idempotence 阶段验证二次执行无变更。本场景同时承担 round-5 修复（`ansible_managed | comment` 在 `nginx.conf.j2`/`vhost.conf.j2`）的回归防线。
 - **覆盖表面**: [`roles/webserver/`](../../../roles/webserver/) → [`test-plan.md §4.2`](../../governance/test-plan.md)
 
 ## 2. 测试环境 (Environment)
 - **驱动**: docker
 - **被测平台**:
   - `ubuntu22-webserver`: `geerlingguy/docker-ubuntu2204-ansible:latest`（Ubuntu 22.04 LTS，systemd）
+  - `debian12-webserver`: `geerlingguy/docker-debian12-ansible:latest`（Debian 12 Bookworm，systemd） — 2026-05-12 G3 引入
 - **容器参数**: `privileged: true`、`cgroupns_mode: host`、`/sys/fs/cgroup` rw、`command: /lib/systemd/systemd`
 - **测试 vhost**: `name: test.local`、`root: /var/www/html`、`ssl: false`、`php_fpm: false`
 - **测试端口**: 容器内 80（不映射到宿主，由 verify.yml 在容器内 `curl http://localhost/` 验证）
@@ -23,7 +24,7 @@
 | molecule | >= 24.0.0 | |
 | molecule-plugins[docker] | >= 23.5.0 | |
 | Python | 3.11 | CI baseline |
-| nginx | 来自 Ubuntu 22.04 APT 默认版本 | 通过 `roles/webserver` 安装 |
+| nginx | Ubuntu 22.04 / Debian 12 APT 默认版本 | OS-family map: `_webserver__nginx_packages.Debian: nginx`（同包名两个发行版均可用） |
 
 ## 4. 测试方法与步骤 (Methodology)
 
@@ -74,7 +75,7 @@ idempotence 阶段：第二次 converge **必须 0 changed**。
 ## 7. 结论与建议 (Conclusion)
 - **测试结论**: 当前结构以"服务存活 + 配置正确 + HTTP 可达 + 落盘文件存在 + idempotence" 5 条覆盖 webserver role 的 happy path；可回归 round-5 nginx 启动失败 bug。
 - **建议**：
-  - **多 distro 扩展**（G3）：当前仅 Ubuntu 22.04，未来引入 Debian 12 平台。
+  - ~~**多 distro 扩展**（G3）：当前仅 Ubuntu 22.04，未来引入 Debian 12 平台。~~ ✅ **CLOSED 2026-05-12**（Tier C round 2）：Debian 12 平台已加入；两平台均跑 verify.yml 5 条断言。
   - **SSL / PHP-FPM 子场景**：可作为独立 TSVS 引入（不在本场景断言范围）。
   - **G8 收口**：模板渲染产物只能由 Molecule 兜底——这是本场景必须长期保留的根本理由，记入 §5.1。
 

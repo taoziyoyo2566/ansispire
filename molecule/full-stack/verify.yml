@@ -123,8 +123,6 @@
     - name: Verify my.cnf is Ansible-managed
       ansible.builtin.command: grep -q "Ansible managed" /etc/mysql/mysql.conf.d/mysqld.cnf
       changed_when: false
-      failed_when: false
-      register: mycnf_check
 
     # ── Service co-existence check: both services running simultaneously ───
     - name: Assert nginx AND mysql are both running simultaneously

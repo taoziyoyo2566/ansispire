@@ -15,7 +15,7 @@
 - **host_vars**: `db_role: primary`
 - **测试 vhost**: `name: fullstack-test.local`、`root: /var/www/fullstack`
 - **测试数据库**: `appdb`（utf8mb4），用户 `appuser`（priv `appdb.*:ALL`）
-- **root 密码**: `IntegrationTestRoot123!`（同 key 在 group_vars 中重复声明，第二个值生效）
+- **root 密码**: `IntegrationTestRoot123!`
 - **开放端口**: `firewall_allowed_tcp_ports: [22, 80, 443, 3306]`
 
 ## 3. 软件包清单 (Software Stack)
@@ -68,7 +68,7 @@
 - [x] `'mysql.service' in services and services['mysql.service'].state == 'running'`
 - [x] `127.0.0.1:3306` 在 5 s 内 `state: started`
 - [x] `appdb` 通过 root 密码可见
-- [x] `/etc/mysql/mysql.conf.d/mysqld.cnf` 含 `Ansible managed` —— **soft check**（`failed_when: false`，不会让 verify 失败，仅在 register 变量中留痕）
+- [x] `/etc/mysql/mysql.conf.d/mysqld.cnf` 含 `Ansible managed` —— **硬断言**（2026-05-12 **T-C1** 起：移除原 `failed_when: false`，与 `molecule-database.md §5` 第 5 条对齐）
 
 **共存断言（场景特有）**：
 - [x] **nginx AND mysql 同时 running**（双 OR 形式兼容 `service` 与 `service.service` 命名变体）
@@ -79,7 +79,6 @@ idempotence 阶段：第二次 converge **必须 0 changed**。
 - 跨服务请求（如 nginx → mysql via PHP-FPM）；本场景显式 `php_fpm: false`、`ssl: false`
 - 多 vhost / 多数据库
 - 防火墙规则在容器内实际生效（容器内 UFW 行为不完全等同物理主机）
-- my.cnf "Ansible managed" 的硬验证（场景内为 soft check，未来可在本场景升级为硬断言）
 
 ### 5.2 与单 role 场景的覆盖关系
 - 单 role 场景（common / webserver / database）覆盖各自完整 happy path；本场景**只覆盖三者共存的子集**，避免重复断言爆炸。
@@ -96,8 +95,8 @@ idempotence 阶段：第二次 converge **必须 0 changed**。
 ## 7. 结论与建议 (Conclusion)
 - **测试结论**: 当前结构以"common 子集 + webserver 全集 + database 全集 + 共存断言 + idempotence"覆盖三 role 集成；唯一明显口径弱化在 my.cnf 软断言。
 - **建议**：
-  - **硬化 my.cnf 断言**：移除 `failed_when: false`，使其成为硬断言（与 `molecule-database.md` §5 第 5 条对齐）。
-  - **多 distro 扩展**（G3）：本场景与单 role 场景同样只覆盖 Ubuntu 22。
+  - ~~**硬化 my.cnf 断言**：移除 `failed_when: false`，使其成为硬断言（与 `molecule-database.md` §5 第 5 条对齐）。~~ ✅ **CLOSED 2026-05-12**（Tier C round 2，T-C1）。
+  - **多 distro 扩展**（G3 范围外）：本场景与单 role 场景 G3 不同步。当前仅 Ubuntu 22；如要加 Debian 12 需同时引入 MySQL 上游 APT repo prepare 步骤（见 `molecule-database.md §2`），不在本轮范围。
   - **跨服务交互**：若未来引入 PHP-FPM，本场景应升级为"nginx → PHP → MySQL"三层链路验证。
 
 ---

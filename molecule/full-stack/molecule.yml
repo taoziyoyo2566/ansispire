@@ -53,7 +53,6 @@ provisioner:
         # Base configuration (common role)
         system_timezone: UTC
         ansible_managed: "Ansible managed: modified on %Y-%m-%d %H:%M:%S"
-        database__mysql_root_password: "IntegrationRootPass123!"
         common_auto_provision_targets: true
         common_packages: [curl, vim, net-tools]
         common__extra_packages: []

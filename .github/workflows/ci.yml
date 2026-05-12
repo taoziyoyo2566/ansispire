@@ -96,8 +96,8 @@ jobs:
       matrix:
         scenario:
           - common      # Tier 1: Ubuntu 22 + Debian 12
-          - webserver   # Tier 1: Ubuntu 22
-          - database    # Tier 1: Ubuntu 22
+          - webserver   # Tier 1: Ubuntu 22 + Debian 12
+          - database    # Tier 1: Ubuntu 22 + Debian 12
           - full-stack  # 集成测试: Ubuntu 22
     steps:
       - uses: actions/checkout@v4

@@ -159,7 +159,7 @@
 |---|---|:---:|---|---|---|
 | G1 | `infra_baseline` 无任何功能测试 | **高** | 任何变更都可能误入生产；该 role 是基线，覆盖面广 | 引入 Molecule 场景 + TSVS | Tier C |
 | G2 | `ansispire_hub` 无 Molecule 场景 | 中 | rsync exclude / state file separation 变更未被自动验证 | 引入 Molecule 场景或扩展 e2e | Tier C |
-| G3 | `webserver` / `database` 仅 Ubuntu 22.04 | 中 | 跨发行版部署未验证 | 扩展 molecule platforms 矩阵到 Debian 12 | Tier C |
+| ~~G3~~ | ~~`webserver` / `database` 仅 Ubuntu 22.04~~ | — | — | ✅ **CLOSED 2026-05-12**（Tier C round 2）：两 scenario 均加 `debian12-*` 平台；database 上游 MySQL APT repo 由 `molecule/database/prepare.yml` 注入 | Tier C round 2 |
 | ~~G4~~ | ~~4 个 Molecule 场景无 TSVS~~ | — | — | ✅ **CLOSED 2026-05-11**（round 2）：4 份 TSVS 已落 `docs/reference/test-specs/molecule-*.md` | round 2 |
 | ~~G5~~ | ~~`docs/reference/test-specs/INDEX.md` 缺失~~ | — | — | ✅ **CLOSED 2026-05-11**（round 2）：[`INDEX.md`](../reference/test-specs/INDEX.md) 已创建（Active / Retired 状态机） | round 2 |
 | G6 | 缺中间 verify 层（quick 与 full-bore 二选一） | 中 | 贡献者要么测得不够要么测得太久 | 引入 `make verify-mid`（按 git diff 路径选 molecule 场景） | Tier C |

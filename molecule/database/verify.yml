@@ -44,3 +44,17 @@
     - name: Verify my.cnf is Ansible-managed
       ansible.builtin.command: grep -q "Ansible" /etc/mysql/mysql.conf.d/mysqld.cnf
       changed_when: false
+
+    - name: Verify testuser can authenticate and query testdb
+      ansible.builtin.command: >
+        mysql -u {{ database__users[0].name }}
+              -p'{{ database__users[0].password }}'
+              --socket=/var/run/mysqld/mysqld.sock
+              -e "SELECT 1;" testdb
+      register: testuser_auth_check
+      changed_when: false
+
+    - name: Assert testuser auth succeeded
+      ansible.builtin.assert:
+        that: "'1' in testuser_auth_check.stdout"
+        fail_msg: "testuser could not authenticate or SELECT 1 in testdb"
