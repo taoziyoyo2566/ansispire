@@ -110,7 +110,7 @@
   - 入口：`make molecule-all` 串行（CI matrix 并行）
   - 单独：`molecule test -s <scenario>`
   - 断言规格：[`docs/reference/test-specs/molecule-{common,webserver,database,full-stack}.md`](../test-specs/)
-- **CI**（`.github/workflows/ci.yml`）：yamllint → ansible-lint + syntax-check → molecule matrix；触发 push `dev|master|hotfix/*` + PR `dev|stg|master`
+- **CI**（`.github/workflows/ci.yml`）：6 job —— `yamllint` → `{ansible-lint, syntax-check}` → `{dry-run, molecule matrix}`，外加独立 `detect-secrets`；触发 push `dev|master|hotfix/*` + PR `dev|stg|master`；Dependabot 周维度提依赖升级 PR
 - **测试卫生**：失败的 L4/L5 必须先清 ephemeral state（`~/.ansible/tmp/molecule.*`）+ leave-running stack 才能复测——见 testing-governance.md §9
 
 ---

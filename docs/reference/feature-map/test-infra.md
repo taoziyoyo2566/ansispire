@@ -46,12 +46,23 @@
 
 ## 4. CI（GitHub Actions）
 
-`.github/workflows/ci.yml` 三 job：
-- `yamllint`（全树）
-- `ansible-lint --profile production`（注入临时 vault password）
-- `syntax-check`（playbook syntax-check 跨 stag + prod）
+`.github/workflows/ci.yml` 6 job — 一条 DAG 链 + 一个独立 job：
+
+```text
+yamllint                       (全树)
+├── ansible-lint               (--profile production，注入临时 vault password)
+└── syntax-check               (playbook syntax-check 跨 stag + prod)
+        ├── dry-run            (--check --diff --connection=local)
+        └── molecule           (matrix: common / webserver / database / full-stack)
+
+detect-secrets                 (基线 .secrets.baseline，独立)
+```
+
+依赖通过 `needs:` 声明，未声明者并行执行。`yamllint` 是整条链的前置闸口；`dry-run` 与 `molecule` 共用 `[ansible-lint, syntax-check]` 前置。
 
 触发：push 至 `dev|master|hotfix/*`；PR 至 `dev|stg|master`。`stg` 故意 PR-only。
+
+依赖升级由 `.github/dependabot.yml` 周维度自动提 PR（`github-actions` + `pip` 双 ecosystem）。
 
 ---
 
