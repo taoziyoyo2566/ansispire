@@ -13,8 +13,10 @@
     - name: Assert Nginx is active
       ansible.builtin.assert:
         that:
-          - "'nginx' in services"
-          - "services['nginx'].state == 'running'"
+          - "'nginx' in services or 'nginx.service' in services"
+          - >-
+            (services['nginx'].state | default('')) == 'running' or
+            (services['nginx.service'].state | default('')) == 'running'
         fail_msg: "Nginx is not running!"
 
     - name: Check Nginx config syntax

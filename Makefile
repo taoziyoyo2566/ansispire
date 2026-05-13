@@ -5,15 +5,17 @@
 .DEFAULT_GOAL := help
 
 .PHONY: help setup install lint syntax test molecule-all dry-run \
-        deploy-staging deploy-prod tags ping vault-edit vault-encrypt \
+        deploy-dev deploy-stag deploy-prod tags ping vault-edit vault-encrypt \
         ee-build navigator clean \
-        controller-net \
+        controller-net manifest-sync ports-sync \
         controller-up controller-down controller-logs controller-reset \
         controller-bootstrap \
         controller-audit-up controller-audit-down \
         controller-audit-tail controller-audit-stats \
         controller-rbac-smoke \
-        controller-loop-smoke
+        controller-loop-smoke \
+        test-eda test-eda-unit test-eda-contract test-eda-component test-eda-e2e \
+        hub-deploy hub-deploy-check
 
 # Control-plane compose command wrapper
 CONTROLLER_DIR := controller/semaphore
@@ -37,11 +39,20 @@ MOLECULE := PATH=$(PATH) $(BIN)molecule
 
 # Round 8: audit sink (+ Round 9 relay)
 AUDIT_DIR := controller/audit
-# Relay reads SEMAPHORE_ADMIN_PASSWORD from the Semaphore .env so both stacks
-# stay in sync without duplicating secrets.
-AUDIT_COMPOSE := docker compose -f $(AUDIT_DIR)/docker-compose.yml --env-file $(CONTROLLER_ENV)
+# Two env files: .env carries ports/versions/admin metadata; .secrets carries
+# the machine-generated SEMAPHORE_API_TOKEN written by bootstrap.yml. Both
+# are gitignored. manifest-sync ensures .secrets exists as a stub before any
+# compose action touches it.
+CONTROLLER_SECRETS := $(CONTROLLER_DIR)/.secrets
+AUDIT_COMPOSE := docker compose -f $(AUDIT_DIR)/docker-compose.yml --env-file $(CONTROLLER_ENV) --env-file $(CONTROLLER_SECRETS)
 AUDIT_CONTAINER := ansispire-audit-sink
 CONTROLLER_NET := controller-net
+
+# ── Help ─────────────────────────────────────────────────────────────────────
+help: ## Show this help (auto-generated from each target's doc comment)
+	@awk 'BEGIN {FS = ":.*?## "; printf "Available targets:\n\n"} \
+	  /^[a-zA-Z][a-zA-Z0-9_-]*:.*?## / {printf "  \033[36m%-26s\033[0m %s\n", $$1, $$2}' \
+	  $(MAKEFILE_LIST)
 
 # ── Bootstrap ────────────────────────────────────────────────────────────────
 setup: ## Bootstrap full dev environment (venv + Paths + Dependencies + Galaxy)
@@ -55,19 +66,17 @@ install: ## Install Galaxy dependencies only (roles + collections)
 lint: ## Run ansible-lint
 	$(BIN)ansible-lint --profile production
 
-syntax: ## Syntax check both staging and production
-	@echo "==> Syntax checking Staging..."
-	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/staging
-	@echo "==> Syntax checking Production..."
-	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/production
+syntax: ## Syntax check both stag and prod
+	@echo "==> Syntax checking Stag..."
+	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/stag
+	@echo "==> Syntax checking Prod..."
+	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/prod
 
-verify: lint syntax dry-run ## Run CI-equivalent checks (lint + syntax + dry-run)
+verify: lint syntax test-eda dry-run ## Push gate — lint + syntax + EDA pyramid (L1+L2+L3) + dry-run (~30–60 s)
 
-verify-quick: syntax ## Quick save-point check (Syntax only)
+verify-quick: syntax ## Save-point gate — syntax only (~3 s, before commit)
 
-verify-full: verify molecule-all ## Full-bore verification (All quality checks + All molecule scenarios)
-	@echo "==> Generating verification report..."
-	@python3 scripts/verify_report.py
+verify-full: verify molecule-all ## Release gate — verify + all 4 molecule scenarios serial (~10–20 min)
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 test: ## Run default Molecule scenario (common)
@@ -77,17 +86,76 @@ molecule-all: ## Run all Molecule scenarios
 	$(MOLECULE) test -s common
 	$(MOLECULE) test -s webserver
 	$(MOLECULE) test -s database
+	$(MOLECULE) test -s full-stack
+
+# ── EDA test pyramid (no docker, no external deps) ───────────────────────────
+# Specs in docs/reference/test-specs/eda-{reactor-unit,rules-contract,reactor-component}.md
+test-eda-unit: ## L1 — reactor pure-Python (match_rule, cooldown, process_event)
+	$(BIN)python3 controller/audit/test_reactor.py
+
+test-eda-contract: ## L2 — rules.json ↔ bootstrap.yml template-name contract (PyYAML)
+	$(BIN)python3 controller/audit/test_rules_contract.py
+
+test-eda-component: ## L3 — reactor → mock Semaphore HTTP request contract
+	$(BIN)python3 controller/audit/test_reactor_component.py
+
+test-eda: test-eda-unit test-eda-contract test-eda-component ## All EDA tests (L1+L2+L3); no docker
+
+test-eda-e2e: ## L4 — disposable end-to-end (real docker; ~60–90s; NOT in `make verify`)
+	@bash controller/audit/e2e/run.sh
 
 # ── Deploy ───────────────────────────────────────────────────────────────────
-dry-run: ## Dry-run (--check mode, no actual changes, local connection for logic verification)
-	$(BIN)ansible-playbook playbooks/site.yml --check --diff --connection=local -e "ansible_python_interpreter=$(which python3)"
+dry-run: ## Dry-run (--check; common baseline against hub_local — layered hosts.ini + dev vars)
+	# Layered inventory:
+	#   - inventory/hosts.ini provides the [hub_local] group (control_node)
+	#   - inventory/dev provides the [all] group_vars (system_timezone, etc.)
+	# --limit hub_local scopes to control_node only. The webservers/dbservers
+	# plays match no hosts (control_node is in neither) and skip cleanly,
+	# avoiding "service not installed locally" failures.
+	$(BIN)ansible-playbook playbooks/site.yml --check --diff --connection=local \
+	  -i inventory/hosts.ini -i inventory/dev --limit hub_local \
+	  -e "ansible_python_interpreter=$(shell which python3)"
 
-deploy-staging: ## Deploy to Staging
-	ANSIBLE_HOST_KEY_CHECKING=False $(BIN)ansible-playbook playbooks/site.yml -i inventory/staging --diff
+# Hub deploy — Path A (Ansible role-based). HUB_NODE selects scope:
+#   make hub-deploy HUB_NODE=local      → only the workstation (hub_local)
+#   make hub-deploy HUB_NODE=remote     → only the remote VPS (hub_remote)
+#   make hub-deploy HUB_NODE=all        → both
+# VAULT_PASSWORD_FILE overridable; defaults to .vault_pass (gitignored).
+HUB_INVENTORY := inventory/hosts.ini
+HUB_PLAYBOOK  := playbooks/deploy_hub.yml
+HUB_NODE      ?= local
+VAULT_PASSWORD_FILE ?= .vault_pass
+ifeq ($(HUB_NODE),local)
+  HUB_LIMIT := --limit hub_local
+else ifeq ($(HUB_NODE),remote)
+  HUB_LIMIT := --limit hub_remote
+else ifeq ($(HUB_NODE),all)
+  HUB_LIMIT :=
+else
+  $(error HUB_NODE must be one of: local, remote, all (got: $(HUB_NODE)))
+endif
+HUB_ANSIBLE := $(BIN)ansible-playbook $(HUB_PLAYBOOK) -i $(HUB_INVENTORY) $(HUB_LIMIT) --vault-password-file $(VAULT_PASSWORD_FILE)
 
-deploy-prod: ## Deploy to Production (requires confirmation)
-	@read -p "Deploy to PRODUCTION? [y/N] " ans && [ $${ans:-N} = y ]
-	$(BIN)ansible-playbook playbooks/site.yml -i inventory/production --diff
+hub-deploy: ## Deploy hub via Path A (HUB_NODE=local|remote|all; default local)
+	@test -f $(VAULT_PASSWORD_FILE) || { echo "Missing $(VAULT_PASSWORD_FILE); create it (chmod 600) or pass VAULT_PASSWORD_FILE=..."; exit 1; }
+	$(HUB_ANSIBLE) --diff
+
+hub-deploy-check: ## Dry-run hub deploy (--check --diff; same HUB_NODE= selection)
+	@test -f $(VAULT_PASSWORD_FILE) || { echo "Missing $(VAULT_PASSWORD_FILE); create it (chmod 600) or pass VAULT_PASSWORD_FILE=..."; exit 1; }
+	$(HUB_ANSIBLE) --check --diff
+
+deploy-dev-check: ## Dry-run Dev deploy (--check --diff)
+	$(BIN)ansible-playbook playbooks/site.yml -i inventory/dev --check --diff
+
+deploy-dev: ## Deploy to Dev (local machine, full stack)
+	$(BIN)ansible-playbook playbooks/site.yml -i inventory/dev --diff
+
+deploy-stag: ## Deploy to Stag
+	ANSIBLE_HOST_KEY_CHECKING=False $(BIN)ansible-playbook playbooks/site.yml -i inventory/stag --diff
+
+deploy-prod: ## Deploy to Prod (requires confirmation)
+	@read -p "Deploy to PROD? [y/N] " ans && [ $${ans:-N} = y ]
+	$(BIN)ansible-playbook playbooks/site.yml -i inventory/prod --diff
 
 tags: ## Run only tasks with the given tag, e.g. make tags TAGS=nginx
 	$(BIN)ansible-playbook playbooks/site.yml --tags "$(TAGS)"
@@ -103,7 +171,7 @@ navigator-local: ## Run via ansible-navigator (local mode, no EE)
 	$(BIN)ansible-navigator run playbooks/site.yml --ee false
 
 # ── Vault ────────────────────────────────────────────────────────────────────
-vault-edit: ## Edit an encrypted file, e.g. make vault-edit FILE=inventory/production/group_vars/all/vault.yml
+vault-edit: ## Edit an encrypted file, e.g. make vault-edit FILE=inventory/local/vault.yml
 	$(BIN)ansible-vault edit $(FILE)
 
 vault-encrypt: ## Encrypt a single variable value
@@ -114,10 +182,15 @@ controller-net: ## Ensure the shared control-plane docker network exists
 	@docker network inspect $(CONTROLLER_NET) >/dev/null 2>&1 || \
 		docker network create $(CONTROLLER_NET) >/dev/null
 
-controller-up: controller-net ## Start Semaphore control plane (create controller/semaphore/.env first)
+manifest-sync: ## Render config/manifest.yml (ports + image tags) into controller/semaphore/.env (managed block only)
+	$(BIN)ansible-playbook playbooks/manifest_sync.yml
+
+ports-sync: manifest-sync ## (deprecated alias for manifest-sync; will be removed next round)
+
+controller-up: controller-net manifest-sync ## Start Semaphore control plane (auto-renders manifest into .env)
 	@test -f $(CONTROLLER_ENV) || { echo "Missing $(CONTROLLER_ENV); run: cp $(CONTROLLER_DIR)/.env.example $(CONTROLLER_ENV) && vim $(CONTROLLER_ENV)"; exit 1; }
 	$(CONTROLLER_COMPOSE) up -d
-	@PORT=$$(grep '^SEMAPHORE_PORT=' $(CONTROLLER_ENV) | cut -d= -f2); echo "==> Semaphore starting at: http://localhost:$${PORT:-3000}"
+	@PORT=$$(grep '^SEMAPHORE_PORT=' $(CONTROLLER_ENV) | cut -d= -f2); echo "==> Semaphore starting at: http://localhost:$${PORT:-3300}"
 
 controller-down: ## Stop Semaphore (keep data)
 	$(CONTROLLER_COMPOSE) down
@@ -129,10 +202,9 @@ controller-reset: ## Stop and wipe Semaphore data (!! deletes all project/job hi
 	@read -p "Really delete all control-plane data? [y/N] " ans && [ $${ans:-N} = y ]
 	$(CONTROLLER_COMPOSE) down -v
 
-controller-bootstrap: ## Bootstrap Semaphore project/inventory/template via API (incl. Round 8 RBAC)
+controller-bootstrap: manifest-sync ## Bootstrap Semaphore project/inventory/template + mint API token (incl. Round 8 RBAC)
 	@test -f $(CONTROLLER_ENV) || { echo "Missing $(CONTROLLER_ENV)"; exit 1; }
 	$(BIN)ansible-playbook $(CONTROLLER_DIR)/bootstrap.yml \
-		-e semaphore_url=http://localhost:$$(grep '^SEMAPHORE_PORT' $(CONTROLLER_ENV) | cut -d= -f2 | grep -o '[0-9]*' || echo 3000) \
 		-e semaphore_user=$$(grep '^SEMAPHORE_ADMIN=' $(CONTROLLER_ENV) | cut -d= -f2) \
 		-e semaphore_password=$$(grep '^SEMAPHORE_ADMIN_PASSWORD=' $(CONTROLLER_ENV) | cut -d= -f2)
 

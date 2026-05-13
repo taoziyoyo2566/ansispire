@@ -32,6 +32,8 @@ platforms:
 provisioner:
   name: ansible
   env:
+    ANSIBLE_CONFIG: "${MOLECULE_PROJECT_DIRECTORY}/ansible.cfg"
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/roles:${HOME}/.ansible/roles"
     ANSIBLE_FILTER_PLUGINS: "../../filter_plugins"
     ANSIBLE_LOOKUP_PLUGINS: "../../lookup_plugins"
     ANSIBLE_CALLBACK_PLUGINS: "../../callback_plugins"
@@ -46,6 +48,7 @@ provisioner:
       all:
         env: testing
         system_timezone: UTC
+        ansible_managed: "Ansible managed: modified on %Y-%m-%d %H:%M:%S"
         common_auto_provision_targets: true
         common_packages: [curl, vim]
         common__extra_packages: []

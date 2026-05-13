@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ansispire.local/extensions/eda/events.schema.json",
+  "version": "1.0.0",
+  "title": "Ansispire EDA Event (reactor input contract)",
+  "description": "The minimal shape that reactor.py expects to read off events.jsonl. Outer wrapper fields (ts, remote, path, ua) added by audit-sink are tolerated and ignored. The 'payload' key carries the inner event used for rule matching. Two writers feed jsonl today: (a) audit-relay forwarding a Semaphore event via the sink (sink wraps with ts/path/etc; relay body is { source, event } so the resulting jsonl line has payload.source + payload.event), and (b) operators injecting test events directly (no sink wrapping, jsonl line is {payload:{event:{...}}}). Both paths converge on payload.event being the rule-matchable inner object.",
+  "type": "object",
+  "required": ["payload"],
+  "additionalProperties": true,
+  "properties": {
+    "ts": {
+      "type": "string",
+      "description": "Wall-clock timestamp added by audit-sink. Absent on direct injection."
+    },
+    "remote": {
+      "type": "string",
+      "description": "Client IP added by audit-sink."
+    },
+    "path": {
+      "type": "string",
+      "description": "HTTP path added by audit-sink."
+    },
+    "ua": {
+      "type": "string",
+      "description": "User-Agent added by audit-sink."
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["event"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "Set by audit-relay. Constant 'semaphore' for now."
+        },
+        "event": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Inner event object — this is what reactor matches rules against. Field set is open; fields below are the canonical ones rules.json may reference today. Add to this list when extending rule matching to a new field.",
+          "properties": {
+            "id": {"type": "integer"},
+            "object_type": {
+              "type": "string",
+              "description": "Semaphore object kind (task, user, key, ...)."
+            },
+            "type": {
+              "type": "string",
+              "description": "Free-form event type label."
+            },
+            "status": {
+              "type": "string",
+              "description": "Lifecycle status, e.g. waiting / running / success / error."
+            },
+            "description": {
+              "type": "string",
+              "description": "Human-readable description; rules use _contains here."
+            }
+          }
+        }
+      }
+    }
+  }
+}

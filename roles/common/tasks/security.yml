@@ -79,6 +79,16 @@
   ignore_errors: "{{ ansible_check_mode }}"
   tags: [firewall]
 
+- name: Allow loopback traffic
+  community.general.ufw:
+    rule: allow
+    direction: in
+    interface: lo
+  when:
+    - ansible_facts['os_family'] == 'Debian'
+    - common_ufw_enabled | default(true)
+  tags: [firewall]
+
 - name: Allow defined TCP ports via UFW (Debian)
   community.general.ufw:
     rule: allow

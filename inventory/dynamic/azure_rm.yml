@@ -10,7 +10,7 @@
 #      export AZURE_TENANT_ID=...
 #      export AZURE_SUBSCRIPTION_ID=...
 #   5. Update ansible.cfg:
-#      inventory = inventory/production:inventory/dynamic
+#      inventory = inventory/prod:inventory/dynamic
 #
 # Docs: https://docs.ansible.com/ansible/latest/collections/azure/azcollection/azure_rm_inventory.html
 

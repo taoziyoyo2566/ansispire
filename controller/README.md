@@ -104,5 +104,5 @@ See [`semaphore/README.md`](./semaphore/README.md) for detailed steps.
 - [Semaphore documentation](https://docs.semaphoreui.com/)
 - [Semaphore REST API](https://docs.semaphoreui.com/administration-guide/api/)
 - [AWX on GitHub](https://github.com/ansible/awx)
-- Round 6 architecture plan: `../docs/reviews/claude-review-round-6-2026-04-14.md`
-- Round 7 implementation plan: `../docs/reviews/claude-review-round-7-2026-04-14.md`
+- Round 6 architecture plan: `../docs/reviews/_archive/claude-review-round-6-2026-04-14.md`
+- Round 7 implementation plan: `../docs/reviews/_archive/claude-review-round-7-2026-04-14.md`

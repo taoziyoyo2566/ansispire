@@ -1,0 +1,40 @@
+# group_vars/all/vars.yml
+# Common variables applied to every host (plain-text portion).
+# Tip: all/ is a directory — Ansible merges every .yml under it.
+#      Keep encrypted values in vault.yml and plain values in vars.yml.
+
+---
+# ── Environment identity ─────────────────────────────────────────────────────
+env: prod
+datacenter: us-east-1
+ansible_managed: "Ansible managed: modified on %Y-%m-%d %H:%M:%S"
+
+# ── Timezone & NTP ───────────────────────────────────────────────────────────
+system_timezone: Asia/Shanghai
+ntp_servers:
+  - ntp1.example.com
+  - ntp2.example.com
+
+# ── Common packages ──────────────────────────────────────────────────────────
+common_packages:
+  - curl
+  - wget
+  - vim
+  - htop
+  - net-tools
+  - ca-certificates
+
+# ── SSH hardening ────────────────────────────────────────────────────────────
+ssh_permit_root_login: "no"
+ssh_password_auth: "no"
+ssh_allowed_users:
+  - deploy
+  - ansible
+
+# ── Log retention policy ─────────────────────────────────────────────────────
+log_retention_days: 30
+
+# ── Application deployment paths ─────────────────────────────────────────────
+app_base_dir: /opt/apps
+app_user: appuser
+app_group: appgroup

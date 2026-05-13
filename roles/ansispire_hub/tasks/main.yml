@@ -1,38 +1,141 @@
-# roles/ansispire_hub/tasks/main.yml
 ---
-- name: Hub | Create application directory
-  ansible.builtin.file:
-    path: "{{ ansispire_hub_base_dir }}"
-    state: directory
-    mode: '0755'
+# roles/ansispire_hub/tasks/main.yml
+#
+# Deploys the Ansispire hub (Semaphore + audit) onto a node in the [hub]
+# group. Reads ports + image tags from config/manifest.yml (loaded by
+# deploy_hub.yml's vars_files) and the admin password from
+# inventory/local/vault.yml.
+#
+# Lifecycle:
+#   1. Ensure /opt/ansispire/  exists       (code mirror)
+#   2. Ensure /var/lib/ansispire/state/     (stateful files preserved
+#                                            across deploys: .eda_token)
+#   3. rsync code into the mirror, with a strict exclude list so secrets
+#      and stateful files NEVER leave the workstation
+#   4. Render controller/semaphore/.env    (port + image tag + admin)
+#   5. Start controller/semaphore/docker-compose.yml as-is (no template
+#      override — the committed compose file is the SSOT)
+#   6. Mint or reuse EDA token from the state dir
+- name: Hub | Initialize Environment
+  block:
+    - name: Hub | Ensure code directory
+      ansible.builtin.file:
+        path: "{{ ansispire_hub_base_dir }}"
+        state: directory
+        mode: '0755'
 
-- name: Hub | Synchronize project code
-  ansible.posix.synchronize:
-    src: "{{ playbook_dir }}/../"
-    dest: "{{ ansispire_hub_base_dir }}/"
-    recursive: true
-    delete: true
-    rsync_opts:
-      - "--exclude=.git"
-      - "--exclude=.venv"
-      - "--exclude=.cache"
-      - "--exclude=*.tmp"
+    - name: Hub | Ensure state directory
+      ansible.builtin.file:
+        path: "{{ ansispire_hub_state_dir }}"
+        state: directory
+        mode: '0700'
 
-- name: Hub | Generate Semaphore .env
-  ansible.builtin.template:
-    src: semaphore_env.j2
-    dest: "{{ ansispire_hub_base_dir }}/controller/semaphore/.env"
-    mode: '0600'
+    - name: Hub | Sync Code
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../"
+        dest: "{{ ansispire_hub_base_dir }}/"
+        recursive: true
+        delete: true
+        rsync_opts:
+          # ── Local-only artefacts (never relevant on the hub) ──
+          - "--exclude=.git"
+          - "--exclude=.venv"
+          - "--exclude=.claude"
+          - "--exclude=.ansible"
+          - "--exclude=__pycache__"
+          - "--exclude=*.pyc"
+          - "--exclude=*.pyo"
+          - "--exclude=*.swp"
+          - "--exclude=*~"
+          - "--exclude=*.retry"
+          # ── Secrets — must never leave the workstation ──
+          - "--exclude=.vault_pass"
+          - "--exclude=*.vault_pass"
+          - "--exclude=controller/semaphore/.env"
+          - "--exclude=controller/semaphore/.secrets"
+          - "--exclude=controller/audit/e2e/.env"
+          - "--exclude=controller/audit/e2e/.secrets"
+          - "--exclude=controller/rbac/.demo_*.pw"
+          - "--exclude=controller/rbac/users.yml"
+          # ── Stateful files on the hub — preserve across re-deploys ──
+          - "--exclude=.eda_token"
+          # ── Documentation that's not needed at runtime ──
+          - "--exclude=docs/reviews"
+          - "--exclude=docs/investigations"
 
-- name: Hub | Ensure controller-net exists
-  ansible.builtin.command:
-    cmd: docker network create controller-net
-  register: ansispire_hub_net_create
-  failed_when: false
-  changed_when: "'already exists' not in ansispire_hub_net_create.stderr"
+    - name: Hub | Render .env (manifest values + admin)
+      ansible.builtin.template:
+        src: semaphore_env.j2
+        dest: "{{ ansispire_hub_base_dir }}/controller/semaphore/.env"
+        mode: "0600"
 
-- name: Hub | Start Semaphore via Docker Compose
-  community.docker.docker_compose_v2:
-    project_src: "{{ ansispire_hub_base_dir }}/controller/semaphore"
-    state: present
-    wait: true
+    - name: Hub | Start Containers
+      community.docker.docker_compose_v2:
+        project_src: "{{ ansispire_hub_base_dir }}/controller/semaphore"
+        state: present
+        wait: true
+
+- name: Hub | Wait for Service
+  ansible.builtin.wait_for:
+    port: "{{ ansispire_hub_port }}"
+    timeout: 30
+
+- name: Hub | Check for Token File
+  ansible.builtin.stat:
+    path: "{{ ansispire_hub_state_dir }}/.eda_token"
+  register: ansispire_hub_token_file
+
+- name: Hub | Provision Admin & Token
+  # Skip in --check mode: API tasks below cannot actually call the live
+  # Semaphore HTTP API in check mode, so cookies_string would be undefined
+  # on a fresh host that has no token yet. Real runs (not check) mint
+  # normally on first deploy and then idempotently skip on subsequent runs.
+  when:
+    - not ansispire_hub_token_file.stat.exists
+    - not ansible_check_mode
+  block:
+    - name: API | Seed Admin
+      ansible.builtin.command:
+        cmd: >-
+          docker exec ansispire-semaphore semaphore user add
+          --admin --login "{{ ansispire_hub_admin_user }}"
+          --name "Admin" --email "{{ ansispire_hub_admin_email }}"
+          --password "{{ ansispire_hub_admin_password }}"
+      register: ansispire_hub_seed_out
+      failed_when: "ansispire_hub_seed_out.rc != 0 and 'UNIQUE' not in ansispire_hub_seed_out.stderr and 'exists' not in ansispire_hub_seed_out.stderr"
+      changed_when: "'created' in ansispire_hub_seed_out.stdout"
+
+    - name: API | Login
+      ansible.builtin.uri:
+        url: "http://localhost:{{ ansispire_hub_port }}/api/auth/login"
+        method: POST
+        body: { auth: "{{ ansispire_hub_admin_user }}", password: "{{ ansispire_hub_admin_password }}" }
+        body_format: json
+        status_code: [200, 204]
+      register: ansispire_hub_login_out
+
+    - name: API | Create Token
+      ansible.builtin.uri:
+        url: "http://localhost:{{ ansispire_hub_port }}/api/user/tokens"
+        method: POST
+        headers: { Cookie: "{{ ansispire_hub_login_out.cookies_string }}" }
+        status_code: [200, 201]
+      register: ansispire_hub_token_out
+
+    - name: API | Save Token to State Dir
+      ansible.builtin.copy:
+        content: "{{ ansispire_hub_token_out.json.id }}"
+        dest: "{{ ansispire_hub_state_dir }}/.eda_token"
+        mode: '0600'
+
+- name: Hub | Load Token from State Dir
+  ansible.builtin.slurp:
+    src: "{{ ansispire_hub_state_dir }}/.eda_token"
+  register: ansispire_hub_token_raw
+  when: ansispire_hub_token_file.stat.exists
+
+- name: Hub | Set Token Fact
+  ansible.builtin.set_fact:
+    ansispire_hub_eda_token: "{{ ansispire_hub_token_raw.content | b64decode | trim }}"
+  no_log: true
+  when: ansispire_hub_token_raw.content is defined

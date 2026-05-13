@@ -11,8 +11,10 @@
     - name: Assert MySQL service is active
       ansible.builtin.assert:
         that:
-          - "'mysql' in services or 'mysqld' in services"
-        fail_msg: "MySQL service not found"
+          - >-
+            'mysql' in services or 'mysqld' in services
+            or 'mysql.service' in services or 'mysqld.service' in services
+        fail_msg: "MySQL service not found in either short or .service-suffixed form"
 
     - name: Verify MySQL port is listening
       ansible.builtin.wait_for:
@@ -23,7 +25,7 @@
 
     - name: Verify testdb exists
       ansible.builtin.command: >
-        mysql -u root --socket=/var/run/mysqld/mysqld.sock
+        mysql -u root -p'{{ database__mysql_root_password }}' --socket=/var/run/mysqld/mysqld.sock
         -e "SHOW DATABASES LIKE 'testdb';"
       register: db_check
       changed_when: false
@@ -44,3 +46,17 @@
     - name: Verify my.cnf is Ansible-managed
       ansible.builtin.command: grep -q "Ansible" /etc/mysql/mysql.conf.d/mysqld.cnf
       changed_when: false
+
+    - name: Verify testuser can authenticate and query testdb
+      ansible.builtin.command: >
+        mysql -u {{ database__users[0].name }}
+              -p'{{ database__users[0].password }}'
+              --socket=/var/run/mysqld/mysqld.sock
+              -e "SELECT 1;" testdb
+      register: testuser_auth_check
+      changed_when: false
+
+    - name: Assert testuser auth succeeded
+      ansible.builtin.assert:
+        that: "'1' in testuser_auth_check.stdout"
+        fail_msg: "testuser could not authenticate or SELECT 1 in testdb"

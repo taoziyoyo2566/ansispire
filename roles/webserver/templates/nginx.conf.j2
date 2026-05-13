@@ -1,5 +1,5 @@
 {# nginx.conf.j2 — demonstrates advanced Jinja2 usage #}
-{{ ansible_managed }}
+{{ ansible_managed | comment }}
 
 user  {{ webserver__nginx_user }};
 worker_processes  {{ webserver__worker_processes }};
