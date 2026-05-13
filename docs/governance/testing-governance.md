@@ -157,8 +157,53 @@ L4 测试在两种模式下行为不同，按场景选择：
 | 闸口规则调整 | §5 |
 | Molecule 操作模式变更（如新增 batch 模式） | §6 |
 | TSVS 模板规约变更 | §7 + `docs/reference/test-specs/TEMPLATE.md` |
+| 测试卫生规范变化（清理目标 / 隔离约定） | §9 |
 
 **自检节奏**：每一轮 round 收尾时，必须扫一遍本文，与实际 Make / CI 行为对账；发现漂移立即修复或开 Tier C 缺口。
+
+---
+
+## 9. 测试卫生 (Test Hygiene)
+
+> **核心语义**：每次测试都应当模拟「**新机 clone 即跑**」的状态。测试结果只能依赖 git 树里的内容 + 本机已声明的依赖（`requirements.txt` / `requirements.yml`），**不得**依赖前一次跑遗留的容器 / 卷 / 网络 / 临时文件。否则 CI（fresh runner）和本机会出现"我这能过 CI 不过"的偏差。
+
+### 9.1 何时必须清理
+
+| 场景 | 必须清理什么 | 原因 |
+|---|---|---|
+| L5 molecule 上一轮 **失败** | `~/.ansible/tmp/molecule.<scenario>` ephemeral 目录 + 残留容器（`docker rm -f`） | molecule 失败后不会 destroy；下一次 run 复用 stale ephemeral inventory，会引发 destroy.yml 解析错误 / rc=4 |
+| L5 molecule 上一轮**成功**但要做"干净复测" | `molecule reset` 或 `rm -rf ~/.ansible/tmp/molecule.*` | 强制重新拉镜像 / 重建 ephemeral，等价于新机首跑 |
+| L4 e2e 上一次 leave-running stack 未拆 | `docker compose -f controller/audit/e2e/compose.e2e.yml -p ansispire-e2e --env-file ... down -v` | `e2e/run.sh` 默认成功后 leave-running 给手动检查；占端口 3320 + 内存，对下一次跑无害（run.sh 自带 prepend-clean）但对手动 inspect / 切换分支测试**有害** |
+| 切换分支后跑 L5 | 同 "上一轮成功复测" | 容器镜像可能在新分支已变 image tag |
+
+### 9.2 何时**不需要**清理
+
+- L0–L3（lint / pytest）— 无外部状态
+- 同一分支同一 scenario 连续 `molecule converge -s X` 迭代调试 — 这正是迭代模式的设计
+- L5 molecule 上一轮**成功**结束 — molecule 自身 `test_sequence` 已含末尾 destroy
+
+### 9.3 测试与 dev stack 的隔离约定
+
+本项目长期跑的 dev stack（`ansispire-audit-{reactor,relay,sink}` + `ansispire-semaphore`）和测试栈（`*-e2e` 后缀 / molecule 自管理容器名 `<platform>-<scenario>`）**靠命名隔离**，互不影响。**清理测试栈时不得误伤 dev stack**：
+
+```bash
+# 安全：明确 project / 容器名前缀
+docker compose -p ansispire-e2e down -v        # 仅 e2e
+docker rm -f ubuntu22-database debian12-database  # 仅 molecule
+
+# 危险：会带走 dev stack
+docker rm -f $(docker ps -aq --filter 'name=ansispire')   # ❌ 不要
+```
+
+### 9.4 提交前自检（清理视角）
+
+push / commit 前问自己：
+
+1. 我跑测试用的 env，是否有上一轮失败/成功遗留的容器或 ephemeral？
+2. 如果有，是不是**它们让我看起来 PASS 的**？
+3. 同样的代码 fresh-clone 到 CI runner 上，会不会因为缺少这些遗留就失败？
+
+不确定时，按 §9.1 清理后**重测一次**再 commit。
 
 ---
 

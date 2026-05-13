@@ -80,23 +80,30 @@
 
 **Branch**: `feat/eda-advanced-healing` → `master`
 
-**包含**：
-- Round 1：Path B 底盘修复（bootstrap 回滚 + token mint + manifest SSOT 前身 + image pin）
-- Round 2：测试金字塔 L1+L2+L3
-- Round 3：events.schema.json + rule.enabled + L4 e2e harness
-- Round 4：Path A 全面硬化（rsync excludes + state migration + manifest SSOT 扩展 + inventory taxonomy + OS-family 守门 + Makefile HUB_NODE 包装）
-- Doc sync：`operator-guide.md`（新增）+ `operations.md` × 2（修订）+ `summary.md` × 1（重写）+ `ARCHITECTURE.md`（前 SUMMARY.md）/ `README.md` 同步
+**包含**（截至 2026-05-13）：
+- TASK-001 Round 1–4：Path B 底盘修复 / 测试金字塔 L1+L2+L3 / events.schema.json + L4 e2e harness / Path A 全面硬化（rsync excludes + state migration + manifest SSOT + inventory taxonomy + OS-family 守门 + Makefile HUB_NODE）
+- TASK-001 Round 5–6（`f478b45`）：Molecule 深循环 + 安全硬化（UFW loopback / `ansible_managed` filter / MySQL re-runnable / 删 `nginx_vhosts` legacy alias / 删 `verify_report.py` 占位脚本）
+- 文档企业化 P1–P6（`f7a204f`…`204f75e`）：README 重写 + SUMMARY→ARCHITECTURE + `docs/` 4 子目录分受众 + LICENSE/SECURITY/CHANGELOG/`docs/README.md` + 38 旧 review 归档
+- testing-strategy R1+R2（`6a2e896` `d5f3087`）：testing-governance + test-plan + TSVS INDEX + 4 molecule TSVS
+- operator-guide R1+R2+R3+R3 hotfix（`f5c0725` `258e320` `39dd28e`）：user-guide 完成 pass + 治理迁移
+- testing-tier-c R1+R2（`2f3fbff` `3113428` `893b6a7`）：T-C1 my.cnf hard assert / T-C2 root pw dedup / T-C3 testuser probe / G3 Debian 12 + MySQL APT GPG 修复
+- claude.md W-R14 cleanup R1+R2（`40e9ff3` `71bf1bf`）：剔除场景化规则，瘦身到 methodology-only
+- ci(workflow) `e60d5c3`：drop stale Ubuntu 20 from matrix
 
-**测试状态**：
-- ✅ `make test-eda` 28 cases (L1+L2+L3) PASS < 1 s
-- ✅ `make test-eda-e2e` (L4) PASS ~55 s
-- ✅ `make hub-deploy-check NODE=remote` PASS（rsync excludes 验证 / token 不被擦 / Python interpreter pin 生效）
-- ⚠ `make verify` 仍在 lint 步阻塞（vault 密码问题，TASK-005 territory，不阻塞 PR）
+**测试状态**（2026-05-13 实测）：
+- ✅ `make test-eda` 28 cases (L1+L2+L3) PASS < 1 s — 重跑确认
+- ✅ `make verify-quick` (stag + prod syntax) PASS — 重跑确认
+- ✅ `molecule test -s database` (ubuntu22 + debian12) ALL 8 阶段 Successful — 验 `893b6a7` + `3113428`
+- ✅ `molecule test -s webserver` (ubuntu22 + debian12) ALL 8 阶段 Successful
+- ✅ `molecule test -s full-stack` (fullstack-ubuntu22) ALL 8 阶段 Successful，verify 含 nginx syntax / nginx :80 / mysql :3306 / appdb / my.cnf managed
+- ✅ `make test-eda-e2e` (L4) PASS — 重跑确认（task1 status=success in 22 s, total 57 s）
+- ✅ `make hub-deploy-check NODE=remote` PASS — 上次实测 2026-05-10，本轮未重跑（无相关 commit 改动）
+- ✅ `make verify` (lint + syntax + test-eda + dry-run) PASS — 重跑确认（vault 阻塞已被 `ec93094` 修复，TODO 标注过期）
 
 **已知 NOT done（不阻塞 closure）**：
 - DB Failover rule 仍 `enabled: false`（追到 TASK-008）
-- `make verify` 整链路绿（追到 TASK-005）
 - 真跑 `make hub-deploy HUB_NODE=remote` 上 ans-hk01（待用户授权）
+- `molecule test -s common` 本轮未跑（database / webserver / full-stack 已覆盖最近两次实质 commit + 集成路径）
 
 ---
 
@@ -110,4 +117,4 @@
 - **CLAUDE.md 三层**：`~/.claude/CLAUDE.md` / `~/workspace/CLAUDE.md` / `./CLAUDE.md`
 
 ---
-*Last updated: 2026-05-10 (after TASK-001 closure + doc sync).*
+*Last updated: 2026-05-13 (Branch Readiness 重核 + molecule database/webserver 实测落证据).*
