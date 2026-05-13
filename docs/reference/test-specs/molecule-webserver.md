@@ -46,7 +46,7 @@
 
 `verify.yml` 5 项断言全部 PASS：
 
-- [x] `'nginx' in services and services['nginx'].state == 'running'`（`service_facts` + `assert`）
+- [x] `'nginx' in services or 'nginx.service' in services`，且状态为 `running`（兼容 .service 后缀差异；`service_facts` + `assert`）
 - [x] `nginx -t` 命令退出码 0（容器内执行）
 - [x] `http://localhost/` 响应 HTTP `[200, 301, 302]`（`ansible.builtin.uri`）
 - [x] 文件 `/var/www/html/index.html` 存在

@@ -50,7 +50,7 @@
 
 `verify.yml` 6 项断言全部 PASS：
 
-- [x] `'mysql' in services or 'mysqld' in services`（兼容 service 名差异；硬断言）
+- [x] `'mysql' in services or 'mysqld' in services or 'mysql.service' in services or 'mysqld.service' in services`（兼容 service 名及后缀差异；硬断言）
 - [x] `127.0.0.1:3306` 在 10 s 内 `state: started`（`ansible.builtin.wait_for`）
 - [x] `mysql -u root -p'<TestRootPass123!>' --socket=/var/run/mysqld/mysqld.sock -e "SHOW DATABASES LIKE 'testdb';"` 输出包含 `testdb`
 - [x] 文件 `/etc/mysql/mysql.conf.d/mysqld.cnf` 存在
