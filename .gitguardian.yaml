@@ -1,0 +1,64 @@
+# .gitguardian.yaml — local config for `ggshield secret scan` and the
+# GitHub GitGuardian CI integration. Allowlist is curated; every entry
+# must justify itself with a one-line rationale.
+#
+# https://docs.gitguardian.com/ggshield-docs/reference/
+
+version: 2
+
+secret:
+  # ── Files / paths to skip entirely ────────────────────────────────────
+  ignored_paths:
+    # Vendor / build artefacts (also in .gitignore, but ggshield scans
+    # working tree so re-list here)
+    - "collections/**"
+    - ".venv/**"
+    - ".ansible/**"
+    - "node_modules/**"
+    # Retired-format reviews; not load-bearing, may contain old example tokens
+    - "docs/reviews/_archive/**"
+    # detect-secrets baseline carries hashes (not plaintext) but the
+    # filename triggers heuristics
+    - ".secrets.baseline"
+
+  # ── Specific known matches that are NOT real secrets ──────────────────
+  ignored_matches:
+    # Placeholder string literally embedded in the SSH-key envelope to
+    # signal the operator must replace via UI; not a key.
+    - name: "Bootstrap placeholder SSH key envelope"
+      match: "PLACEHOLDER-REPLACE-VIA-UI"
+
+    # Pure test fixtures used inside disposable Molecule containers
+    # (cannot be "rotated" — they're literal test data inlined in
+    # molecule.yml so the verify steps can authenticate to MySQL).
+    - name: "Molecule database test fixture (root pw)"
+      match: "TestRootPass123!"
+    - name: "Molecule database test fixture (user pw)"
+      match: "TestUserPass456!"
+    - name: "Molecule full-stack test fixture (root pw)"
+      match: "IntegrationTestRoot123!"
+    - name: "Molecule full-stack test fixture (app pw)"
+      match: "IntegrationTestApp456!"
+
+    # Disposable e2e admin password baked into .env.example for the
+    # localhost-bound test harness; gets overwritten by the real .env
+    # at run time and the .env is gitignored.
+    - name: "Disposable e2e admin pw (.env.example)"
+      match: "e2e_disposable_pw"
+
+    # Vault example file — placeholder by design; the real
+    # inventory/local/vault.yml is git-ignored.
+    - name: "Vault example placeholder"
+      match: "YourStrongPasswordHere"
+
+    # CI vault password (intentionally weak — only used to decrypt the
+    # placeholder vault.yml.example values for lint / syntax-check; never
+    # touches a real environment).
+    - name: "CI vault password (lint-only)"
+      match: "ci-test-password"
+
+    # Historical changelog snippet (already redacted in-place to
+    # <REDACTED-EXAMPLE-TOKEN>; entry kept as a tripwire in case the
+    # original value resurfaces from a backup).
+    - name: "Historical EDA token (rotated)"
+      match: "ahen7kd4lx4getkojxrlmiwpqzej-pkddy4yyxswhhw="
