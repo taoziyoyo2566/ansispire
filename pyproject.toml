@@ -62,4 +62,12 @@ dev-dependencies = [
 
 [build-system]
 requires = ["hatchling"]
-build-backend = "hatchling.backends"
+build-backend = "hatchling.build"
+
+# This project ships no Python package source (Ansible roles + playbooks live
+# elsewhere); pyproject exists solely as a dependency manifest for the local
+# dev toolchain. `bypass-selection = true` lets hatchling build an empty
+# wheel so `pip install -e .` / `uv sync` succeed without inventing fake
+# package files.
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
