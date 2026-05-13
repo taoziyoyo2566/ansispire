@@ -1,0 +1,21 @@
+# molecule/default/molecule.yml
+#
+# Stub default scenario — exists ONLY to satisfy Molecule 26+'s shared-state
+# probe. Without this file, every `molecule test -s <X>` invocation prints a
+# misleading
+#     CRITICAL  'molecule/default/molecule.yml' glob failed.  Exiting.
+# before recovering ("default scenario not found, disabling shared state") and
+# running the named scenario normally. The CRITICAL is harmless but obscures
+# real failures in CI logs.
+#
+# Real scenarios live in molecule/{common,webserver,database,full-stack}/.
+# CI never invokes this scenario (matrix names the four real ones).
+# shared_state stays disabled because none of the real scenarios opt in via
+# `shared_state: true`; the existence of this stub alone does NOT enable it
+# (see ansible/molecule src/molecule/scenarios.py — shared_state is read per
+# scenario.config.shared_state, not from default-scenario existence).
+---
+driver:
+  name: docker
+
+platforms: []
