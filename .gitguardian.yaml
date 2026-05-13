@@ -3,7 +3,7 @@
 # must justify itself with a one-line rationale.
 #
 # https://docs.gitguardian.com/ggshield-docs/reference/
-
+---
 version: 2
 
 secret:
