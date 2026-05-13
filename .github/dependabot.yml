@@ -1,6 +1,9 @@
 # dependabot.yml — 自动依赖更新配置
 #
 # Dependabot 会自动创建 PR 来更新过时的依赖。
+# target-branch: dev —— 开发期 dev 是 trunk，master 留给上线后使用，所有
+# Dependabot PR 必须打到 dev，避免基于过期 master 的 stale CI（详见
+# CLAUDE.md 分支模型 / docs/governance/）。
 # 文档: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
 ---
 version: 2
@@ -9,6 +12,7 @@ updates:
   # GitHub Actions 版本更新
   - package-ecosystem: github-actions
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
       day: monday
@@ -20,9 +24,10 @@ updates:
     # 每周最多 5 个更新 PR
     open-pull-requests-limit: 5
 
-  # Python 依赖更新（pyproject.toml）
+  # Python 依赖更新（扫描 requirements.txt + pyproject.toml）
   - package-ecosystem: pip
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
       day: monday
