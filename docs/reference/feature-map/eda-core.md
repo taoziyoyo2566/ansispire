@@ -59,5 +59,9 @@ L1+L2+L3 entry: `make test-eda` (in `make verify` chain). L4 entry: `make test-e
 - Round 2 (2026-05-09) — 测试金字塔 L1+L2+L3 落地
 - Round 3 (2026-05-09) — `events.schema.json` + `enabled` 字段 + L4 e2e harness 实现
 - Round 4 (2026-05-10) — Path A 全面硬化：manifest SSOT、inventory `[hub_local/remote]`、rsync excludes、state migration、OS-family 守门、`make hub-deploy NODE=` 包装。**TASK-001 闭环。**
+- Round 5+6 follow-up (2026-05-10) — Molecule 深循环 + 安全硬化：UFW loopback allow / `ansible_managed` 包 `comment` filter / MySQL re-runnable / 删 `nginx_vhosts` legacy alias。**Test infra 范畴**，不属 reactor 自身改动。
+- testing-strategy R1+R2 (2026-05-11) — testing-governance + test-plan + TSVS INDEX + 4 molecule TSVS。**治理文档落盘**，无 reactor 行为变化。
+- testing-tier-c R1+R2 (2026-05-11/12) — T-C1 my.cnf hard assert / T-C2 root pw dedup / T-C3 testuser probe / Debian 12 service-name + MySQL APT GPG 修复。**Test infra 范畴**。
+- audit-pr-readiness (2026-05-13) — 本会话 PR-readiness 审查 + testing-governance §9 测试卫生 + feature-map sync round。
 
-详见 [`docs/reviews/feat-eda-advanced-healing/`](../../reviews/feat-eda-advanced-healing/)。
+详见 [`docs/reviews/feat-eda-advanced-healing/`](../../reviews/feat-eda-advanced-healing/) + [`docs/reviews/feat-testing-strategy/`](../../reviews/feat-testing-strategy/) + [`docs/reviews/feat-testing-tier-c/`](../../reviews/feat-testing-tier-c/) + [`docs/reviews/audit-pr-readiness/`](../../reviews/audit-pr-readiness/)。

@@ -29,6 +29,32 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branch `feat/eda-advanced-healing`
 
+### Testing governance §9 + feature-map sync (2026-05-13)
+
+Closure pass tied to the PR-readiness audit. Per-round detail under
+[`docs/reviews/audit-pr-readiness/`](docs/reviews/audit-pr-readiness/).
+
+- **Test hygiene** (`docs/governance/testing-governance.md` §9): codifies
+  clean-before-test discipline that was implicit until now —
+  when L4/L5 tests must clean (failed previous run, cross-branch
+  retest, leave-running e2e stack), when they must NOT (L0–L3,
+  intra-iteration `molecule converge`), and a dev-stack-vs-test-stack
+  isolation contract so cleanup commands don't accidentally take down
+  the long-running dev stack.
+- **Functional Index** (`docs/reference/feature-map/INDEX.md`):
+  aggregate inventory of roles · playbooks · controller modules ·
+  EDA rules · inventory taxonomy · SSOT layer · Make UX · capability
+  boundaries; intended as the lazy-loaded entry point for future
+  sessions instead of re-deriving the inventory each time.
+- **Sync Guard #5** (`CLAUDE.md` §0): mandates `INDEX.md` updates
+  whenever `roles/` · `playbooks/` · `controller/` · `extensions/eda/`
+  · `inventory/` · `Makefile` · `config/manifest.yml` change.
+- **feature-map per-feature refresh**: `audit-plane.md` (R5/R6
+  hardening notes), `test-infra.md` (testing governance + TSVS
+  registry + §9), `eda-remediation.md` (current rule set: Disk Full
+  enabled / DB Failure placeholder / nginx restart unrouted),
+  `eda-core.md` (round 5/6 + testing-strategy + tier-c history).
+
 ### Test infrastructure & security hardening (rounds 5–6, 2026-05-10)
 
 User-visible changes from a Molecule deep-loop testing round (round 5, executed

@@ -19,6 +19,7 @@ If the rule only fires for a specific surface, task type, or artefact, it belong
     2. `README.md` — operational entry / quickstart
     3. `docs/reference/feature-map/<name>.md` — per-feature scope
     4. `CHANGELOG.md` `[Unreleased]` — release notes (trigger criteria documented in `CHANGELOG.md` header)
+    5. `docs/reference/feature-map/INDEX.md` — aggregate functional inventory; **mandatory** when touching `roles/`, `playbooks/`, `controller/`, `extensions/eda/`, `inventory/`, `Makefile`, or `config/manifest.yml` (drift here = future agents re-derive the inventory each session)
 - **Chain of Thought**: For all [L2] and [L1.5] tasks, use `<thinking>` blocks to analyze trade-offs before acting.
 - **Refactor globally, do not append**: when editing any rule / config file (this one included), rewrite for whole-file coherence rather than tacking on at the bottom.
 </protocol>
