@@ -33,6 +33,8 @@ platforms:
 provisioner:
   name: ansible
   env:
+    ANSIBLE_CONFIG: "${MOLECULE_PROJECT_DIRECTORY}/ansible.cfg"
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/roles:${HOME}/.ansible/roles"
     ANSIBLE_FILTER_PLUGINS: "../../filter_plugins"
     ANSIBLE_LOOKUP_PLUGINS: "../../lookup_plugins"
     ANSIBLE_CALLBACK_PLUGINS: "../../callback_plugins"
