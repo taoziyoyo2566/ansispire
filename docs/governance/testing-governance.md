@@ -5,7 +5,12 @@
 >
 > 治理范围：本文是项目的测试**红线**，与 `CLAUDE.md §3 Engineering Standards` 协同生效。
 
-**Quick reference**：`make verify-quick`（commit 前，~3 s）→ `make verify`（push 前，~30–60 s）→ `make verify-full`（release 前 / role 改动，~10–20 min）。决策树详见 §3，闸口语义详见 §5。
+**Quick reference**：
+
+- 临时跑（fail-fast、单 gate）：`make verify-quick`（commit 前，~3 s）→ `make verify`（push 前，~30–60 s）→ `make verify-full`（release 前 / role 改动，~10–20 min）
+- 结构化跑（fail-collect、留痕、含覆盖率门槛）：`./scripts/loopback_test_runner.sh [quick|standard|ci-equiv|full|exhaustive]` —— 前四档对应 §5 闸口，`exhaustive` 是 release 前深跑。详见 [`loopback-runner.md`](loopback-runner.md)
+
+决策树详见 §3，闸口语义详见 §5。
 
 ---
 
@@ -47,13 +52,17 @@
 | `roles/ansispire_hub/**` | `make verify` | `make controller-loop-smoke` | `make test-eda-e2e` |
 | `roles/ansispire_audit/**` | `make verify` (含 test-eda) | `make controller-loop-smoke` | `make test-eda-e2e` |
 | `roles/infra_baseline/**` | `make verify` | （无 L4 覆盖，见 `test-plan.md` §5 G1） | — |
-| `controller/audit/*.py` | `make test-eda-unit` | `make test-eda` (L1+L2+L3) | `make test-eda-e2e` |
+| `controller/audit/reactor.py` | `make test-eda-unit` | `make test-eda` (L1+L2+L3) | `make test-eda-e2e` |
+| `controller/audit/relay.py` | `make test-eda-relay-unit` | `make test-eda` + `make controller-loop-smoke` | `make test-eda-e2e` |
+| `controller/audit/sink.py` | `make test-eda-sink-unit` | `make test-eda` + `make controller-loop-smoke` | `make test-eda-e2e` |
 | `extensions/eda/rules.json` | `make test-eda-contract` | `make test-eda` | `make controller-loop-smoke` |
 | `controller/rbac/**` | `make controller-rbac-smoke` | `make verify` | — |
 | `extensions/eda/rulebooks/**` | `make test-eda-contract` | `make controller-loop-smoke` | `make test-eda-e2e` |
+| `filter_plugins/**` | `make test-filters` | `make verify` | （由 molecule 间接覆盖渲染产物） |
 | `playbooks/site.yml` | `make verify` | `make verify-full` | — |
 | `inventory/{stag,prod}/**` | `make syntax` | `make verify` | — |
 | `Makefile` / `.github/workflows/**` | `make verify` | `make verify-full` (本地)；CI 自验 | — |
+| `scripts/loopback_test_runner.sh` / `scripts/detect_secrets_gate.py` | `bash -n` + `./scripts/loopback_test_runner.sh quick` | `./scripts/loopback_test_runner.sh standard` | `./scripts/loopback_test_runner.sh full` |
 | `docs/**` (非 governance) | （无强制） | 视读者人工通读 | — |
 | `CLAUDE.md` / `docs/governance/**` | （无强制） | 同步引用本文 §3+§4 | — |
 
@@ -68,9 +77,11 @@
 | 目标 | 包含 | 耗时 | 用途 |
 |---|---|---|---|
 | `make verify-quick` | syntax-check (stag + prod) | ~3 s | commit 前最低门槛、保存点检查 |
-| `make verify` | lint + syntax + `test-eda` (L1+L2+L3) + dry-run | ~30–60 s | push / PR 前默认、一般改动闸口 |
+| `make verify` | **yamllint** + **ansible-lint** + syntax + **detect-secrets** + `test-eda` (L1+L2+L3, 5 个文件) + `test-filters` + dry-run | ~30–60 s | push / PR 前默认、一般改动闸口 |
 | `make verify-full` | `verify` + `molecule-all` (4 场景串行) | ~10–20 min | release 前 / 涉及 role 改动 / 涉及 Make 改动 |
 | `make test-eda-e2e` | 真实 docker e2e（约 60–90 s） | ~90 s | 涉及 reactor / 审计链路改动 |
+| `make test-filters` | `filter_plugins/custom_filters.py` 单测 | < 1 s | 改了 custom filter 行为 |
+| `make detect-secrets` | 扫 tracked + unignored 文件 vs `.secrets.baseline`，新增 → fail | < 5 s | 内置于 `verify`；单独触发用于排错 |
 | `make controller-rbac-smoke` | RBAC 三角色权限 smoke | < 30 s | 涉及 rbac 改动 |
 | `make controller-loop-smoke` | Semaphore action → relay → sink 回环 | ≤ 20 s | 涉及 audit 链路改动 |
 
@@ -84,8 +95,10 @@
 
 ```
 yamllint ──┬─→ ansible-lint ──┬─→ dry-run
-           └─→ syntax-check ──┴─→ molecule [matrix: common, webserver, database, full-stack 并行]
-detect-secrets (独立)
+           ├─→ syntax-check ──┤
+           └─→ python tests (test-eda + test-filters) ──┴─→ molecule [matrix: common, webserver, database, full-stack 并行]
+
+detect-secrets (独立 job；同样是合并门禁)
 ```
 
 **CI 与本地的责任划分**：
@@ -101,10 +114,20 @@ detect-secrets (独立)
 |---|---|---|---|
 | **保存点** | 个人本地 commit | `verify-quick` | 不强制，但建议 |
 | **Push 前** | `git push` | `verify` | 涉及 role/playbook 改动需追加 `verify-full` |
-| **PR 合并前** | CI | yamllint + ansible-lint + syntax + dry-run + molecule(4) + detect-secrets | CI 自动门禁 |
+| **PR 合并前** | CI | yamllint + ansible-lint + syntax + dry-run + python tests + molecule(4) + detect-secrets | CI 自动门禁 |
 | **Release 前** | 手动 | `verify-full` + 涉及功能的 e2e + 当轮新增 / 改动的 TSVS PASS | maintainer 决策 |
 
 **红线**：CI 失败的 PR **不得合并**。失败原因是真实 bug 还是测试自身坏掉，必须先定性再处置（不得为了合并而临时放宽 lint）。
+
+**闸口运行方式**：每个闸口都可用两种方式触发——
+
+| 用途 | `make` 直接调用 | `loopback_test_runner.sh` |
+|---|---|---|
+| 行为 | fail-fast，单 gate，无产物 | fail-collect，组合 gate，留 `test_results/run-<ts>/` |
+| 适合 | 日常开发、单步排错 | push / release / merge 前的结构化准入 |
+| 决策入口 | §3 表里的目标 | 模式 `quick`/`standard`/`ci-equiv`/`full`/`exhaustive` |
+
+两条路径背后跑的是同一套 make 目标 + 同一份 lint / molecule 配置；runner 是这些 gate 的**编排薄层**，不重写闸口语义。详见 [`loopback-runner.md`](loopback-runner.md)。
 
 ---
 
@@ -173,7 +196,7 @@ L4 测试在两种模式下行为不同，按场景选择：
 |---|---|---|
 | L5 molecule 上一轮 **失败** | `~/.ansible/tmp/molecule.<scenario>` ephemeral 目录 + 残留容器（`docker rm -f`） | molecule 失败后不会 destroy；下一次 run 复用 stale ephemeral inventory，会引发 destroy.yml 解析错误 / rc=4 |
 | L5 molecule 上一轮**成功**但要做"干净复测" | `molecule reset` 或 `rm -rf ~/.ansible/tmp/molecule.*` | 强制重新拉镜像 / 重建 ephemeral，等价于新机首跑 |
-| L4 e2e 上一次 leave-running stack 未拆 | `docker compose -f controller/audit/e2e/compose.e2e.yml -p ansispire-e2e --env-file ... down -v` | `e2e/run.sh` 默认成功后 leave-running 给手动检查；占端口 3320 + 内存，对下一次跑无害（run.sh 自带 prepend-clean）但对手动 inspect / 切换分支测试**有害** |
+| L4 e2e 上一次 leave-running stack 未拆 | `E2E_PROJECT=<project> controller/audit/e2e/run.sh down` | `e2e/run.sh` 默认成功后 leave-running 给手动检查；默认占端口 3320/3330 + 内存，对手动 inspect / 切换分支测试有害；runner exhaustive 会使用随机端口并在 trap 中清理 |
 | 切换分支后跑 L5 | 同 "上一轮成功复测" | 容器镜像可能在新分支已变 image tag |
 
 ### 9.2 何时**不需要**清理
@@ -188,7 +211,7 @@ L4 测试在两种模式下行为不同，按场景选择：
 
 ```bash
 # 安全：明确 project / 容器名前缀
-docker compose -p ansispire-e2e down -v        # 仅 e2e
+E2E_PROJECT=ansispire-e2e controller/audit/e2e/run.sh down  # 仅 e2e
 docker rm -f ubuntu22-database debian12-database  # 仅 molecule
 
 # 危险：会带走 dev stack

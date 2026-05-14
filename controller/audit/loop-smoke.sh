@@ -16,8 +16,9 @@
 set -euo pipefail
 
 SEM_HOST_URL="${SEMAPHORE_URL:-http://localhost:3001}"
-ENV_FILE="$(dirname "$0")/../semaphore/.env"
+ENV_FILE="${SEMAPHORE_ENV_FILE:-$(dirname "$0")/../semaphore/.env}"
 SINK_CONTAINER="${SINK_CONTAINER:-ansispire-audit-sink}"
+RELAY_CONTAINER="${RELAY_CONTAINER:-ansispire-audit-relay}"
 JSONL="${JSONL:-/var/log/semaphore/events.jsonl}"
 TIMEOUT="${SMOKE_TIMEOUT:-20}"
 
@@ -26,7 +27,11 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-admin_pw=$(grep '^SEMAPHORE_ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2-)
+if [[ -n "${SEMAPHORE_ADMIN_PASSWORD:-}" ]]; then
+  admin_pw="$SEMAPHORE_ADMIN_PASSWORD"
+else
+  admin_pw=$(grep '^SEMAPHORE_ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2-)
+fi
 cookie=/tmp/sm-loop-smoke.cookies
 
 echo "── 1. log in as admin ──"
@@ -100,6 +105,6 @@ if [[ -n "$found" ]]; then
 else
   echo
   echo "Loop smoke: FAIL — marker '$marker' not in JSONL after ${TIMEOUT}s" >&2
-  echo "  inspect: docker logs $SINK_CONTAINER | tail; docker logs ansispire-audit-relay | tail" >&2
+  echo "  inspect: docker logs $SINK_CONTAINER | tail; docker logs $RELAY_CONTAINER | tail" >&2
   exit 1
 fi

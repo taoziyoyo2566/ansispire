@@ -41,6 +41,7 @@
   when:
     - common_missing_requirements | length > 0
     - not (common_auto_provision_targets | bool)
+    - not ansible_check_mode
   tags: [always, preflight]
 
 - name: Preflight | Auto-provision mandatory packages

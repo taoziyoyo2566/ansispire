@@ -6,38 +6,85 @@
 #   1. clean — ensure no leftover from previous runs
 #   2. up — semaphore + audit-sink + audit-relay + audit-reactor on isolated network
 #   3. wait healthy
-#   4. bootstrap (mints API token to ./.secrets, registers remediation templates)
+#   4. bootstrap (mints API token to .secrets.<project>, registers remediation templates)
 #   5. recreate audit-relay + audit-reactor so they pick up the token
 #   6. inject Disk Full event via the sink HTTP endpoint
 #   7. poll Semaphore /api/project/1/tasks until status == success (or error)
 #
 # Retention: this script leaves the stack running at the end so you can
 # inspect the WebUI at http://localhost:3320.
+# Pass "down" as the first argument to tear it down and remove the
+# project-specific env / secrets / inventory files.
 set -euo pipefail
 
 E2E_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${E2E_DIR}/../../.." && pwd)"
-PROJECT="ansispire-e2e"
 
-ENV_FILE="${E2E_DIR}/.env"
-SECRETS_FILE="${E2E_DIR}/.secrets"
+# Isolation: allow overriding project name (default to ansispire-e2e)
+PROJECT="${E2E_PROJECT:-ansispire-e2e}"
+# Use a safe suffix for project-specific files
+PROJECT_SAFE=$(echo "${PROJECT}" | sed 's/[^a-zA-Z0-9_-]/_/g')
+
+ENV_FILE="${E2E_DIR}/.env.${PROJECT_SAFE}"
+SECRETS_FILE="${E2E_DIR}/.secrets.${PROJECT_SAFE}"
+TEST_INVENTORY="${E2E_DIR}/hosts.${PROJECT_SAFE}.ini"
 COMPOSE_FILE="${E2E_DIR}/compose.e2e.yml"
 PYBIN="${REPO_ROOT}/.venv/bin/python3"
 ANSIBLE_PLAYBOOK="${REPO_ROOT}/.venv/bin/ansible-playbook"
 
-# Bootstrap .env from .env.example on first run (no real secret in the stack)
+# Export container names so compose.e2e.yml uses them for isolation
+export SEMAPHORE_CONTAINER_NAME="${PROJECT}-semaphore"
+export AUDIT_SINK_CONTAINER_NAME="${PROJECT}-sink"
+export AUDIT_RELAY_CONTAINER_NAME="${PROJECT}-relay"
+export AUDIT_REACTOR_CONTAINER_NAME="${PROJECT}-reactor"
+export CONTROLLER_NET_NAME="${PROJECT}-net"
+
+# Keep the project-specific env file deterministic while allowing callers
+# such as loopback_test_runner.sh to allocate collision-free host ports.
+set_env_value() {
+  local key="$1" value="$2" tmp
+  tmp="${ENV_FILE}.tmp"
+  if grep -q "^${key}=" "${ENV_FILE}"; then
+    sed "s|^${key}=.*|${key}=${value}|" "${ENV_FILE}" >"${tmp}"
+  else
+    cp "${ENV_FILE}" "${tmp}"
+    printf '%s=%s\n' "${key}" "${value}" >>"${tmp}"
+  fi
+  mv "${tmp}" "${ENV_FILE}"
+}
+
+# Bootstrap .env from .env.example if missing. Down mode also needs an env
+# file because compose interpolates required variables before it can remove
+# resources.
 if [ ! -f "${ENV_FILE}" ]; then
   echo "==> [pre] ${ENV_FILE} missing — copying from .env.example"
   cp "${E2E_DIR}/.env.example" "${ENV_FILE}"
 fi
-[ -f "${ANSIBLE_PLAYBOOK}" ] || { echo "ERROR: missing ${ANSIBLE_PLAYBOOK} — run \`make setup\` first"; exit 1; }
+if [ -n "${E2E_SEMAPHORE_PORT:-}" ]; then
+  set_env_value SEMAPHORE_PORT "${E2E_SEMAPHORE_PORT}"
+fi
+if [ -n "${E2E_AUDIT_PORT:-}" ]; then
+  set_env_value AUDIT_PORT "${E2E_AUDIT_PORT}"
+fi
 
 # Empty stub so docker compose --env-file can be combined with .secrets even
 # before bootstrap has populated it. The real token lands here in step 4.
 : > "${SECRETS_FILE}"
 
+# Define common compose command after env/secrets exist so first-time
+# project-specific runs also pass SEMAPHORE_API_TOKEN on service recreate.
+COMPOSE=(docker compose -f "${COMPOSE_FILE}" -p "${PROJECT}" --env-file "${ENV_FILE}" --env-file "${SECRETS_FILE}")
+
+if [[ "${1:-}" == "down" ]]; then
+  echo "==> [clean] tearing down ${PROJECT}"
+  "${COMPOSE[@]}" down -v --remove-orphans
+  rm -f "${ENV_FILE}" "${SECRETS_FILE}" "${TEST_INVENTORY}"
+  exit 0
+fi
+
+[ -f "${ANSIBLE_PLAYBOOK}" ] || { echo "ERROR: missing ${ANSIBLE_PLAYBOOK} — run \`make setup\` first"; exit 1; }
+
 # Create a disposable inventory for the E2E container to use
-TEST_INVENTORY="${E2E_DIR}/hosts.e2e.ini"
 cat >"${TEST_INVENTORY}" <<EOF
 [all:vars]
 ansible_connection=local
@@ -46,8 +93,6 @@ ansible_python_interpreter=/usr/bin/python3
 [test_group]
 localhost
 EOF
-
-COMPOSE=(docker compose -f "${COMPOSE_FILE}" -p "${PROJECT}" --env-file "${ENV_FILE}" --env-file "${SECRETS_FILE}")
 
 START_TS=$(date +%s)
 HOST_SEM_PORT=$(grep '^SEMAPHORE_PORT=' "${ENV_FILE}" | cut -d= -f2-)
@@ -66,12 +111,12 @@ echo "==> [2/7] up: project=${PROJECT}, semaphore=${SEMAPHORE_URL_HOST}, sink=${
 echo "==> [3/7] wait semaphore healthy (≤90s)"
 HEALTHY=""
 for _ in $(seq 1 90); do
-  status=$(docker inspect --format='{{.State.Health.Status}}' ansispire-semaphore-e2e 2>/dev/null || echo "starting")
+  status=$(docker inspect --format='{{.State.Health.Status}}' "${SEMAPHORE_CONTAINER_NAME}" 2>/dev/null || echo "starting")
   if [ "$status" = "healthy" ]; then HEALTHY=1; break; fi
   sleep 1
 done
 if [ -z "$HEALTHY" ]; then
-  echo "ERROR: semaphore-e2e never became healthy (last=$status)"
+  echo "ERROR: ${SEMAPHORE_CONTAINER_NAME} never became healthy (last=$status)"
   "${COMPOSE[@]}" logs --tail=50 semaphore || true
   exit 2
 fi
@@ -84,7 +129,7 @@ echo "==> [4/7] bootstrap (mint token, register remediation templates)"
   -e "semaphore_password=${ADMIN_PW}" \
   -e "semaphore_url=${SEMAPHORE_URL_HOST}" \
   -e "secrets_path=${SECRETS_FILE}" \
-  -e "semaphore_inventory_path=controller/audit/e2e/hosts.e2e.ini"
+  -e "semaphore_inventory_path=controller/audit/e2e/hosts.${PROJECT_SAFE}.ini"
 
 [ -s "${SECRETS_FILE}" ] || { echo "ERROR: ${SECRETS_FILE} empty — bootstrap did not mint token"; exit 3; }
 TOKEN=$(grep '^SEMAPHORE_API_TOKEN=' "${SECRETS_FILE}" | cut -d= -f2-)
@@ -132,7 +177,7 @@ if [ "${FINAL_STATUS}" = "success" ]; then
   echo "==> E2E PASS — task ${FINAL_ID} status=success in ${POLL_ELAPSED}s (total ${TOTAL_ELAPSED}s)"
   echo "    Stack is still RUNNING for manual inspection."
   echo "    URL: ${SEMAPHORE_URL_HOST} (${ADMIN_USER} / ${ADMIN_PW})"
-  echo "    Manual cleanup: ${COMPOSE[*]} down -v"
+  echo "    Manual cleanup: E2E_PROJECT=${PROJECT} ${0} down"
   exit 0
 fi
 

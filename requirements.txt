@@ -2,10 +2,15 @@
 # Core Ansible
 ansible-core>=2.20.5
 ansible-lint>=26.4.0
+yamllint>=1.35
 
 # Testing & Drivers
 molecule>=24.0.0
 molecule-plugins[docker]>=23.5.0
+
+# Static analysis / safety
+detect-secrets>=1.5.0
+coverage>=7.5.0
 
 # System Libraries
 cryptography>=42.0.0

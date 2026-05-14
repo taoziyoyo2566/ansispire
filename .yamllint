@@ -6,7 +6,13 @@ extends: default
 
 ignore: |
   roles/geerlingguy.docker/
+  .ansible/
   .ansible/roles/geerlingguy.docker/
+  .venv/
+  collections/
+  .molecule/
+  test_results/
+  htmlcov/
 
 rules:
   line-length:

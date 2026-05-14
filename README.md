@@ -57,6 +57,30 @@ To deploy the same hub onto a remote VPS (Path A) instead, follow [`docs/user-gu
 
 ---
 
+## Running tests
+
+Two ways to invoke the same gates, choose by use case:
+
+```bash
+# Direct (fail-fast, single gate; for hot development):
+make verify-quick           # commit-time syntax (~3 s)
+make verify                 # push-time: lint + syntax + secrets + Python tests + dry-run (~30–60 s)
+make verify-full            # release-time: verify + 4 molecule scenarios (~10–20 min)
+
+# Structured (fail-collect, history-retaining; for pre-merge / pre-release):
+./scripts/loopback_test_runner.sh           # standard mode (default, ~60 s)
+./scripts/loopback_test_runner.sh quick     # ~10 s
+./scripts/loopback_test_runner.sh ci-equiv  # ~10–20 min (local CI mirror: standard + molecule)
+./scripts/loopback_test_runner.sh full      # ~15–25 min (ci-equiv + isolated L5 smoke)
+./scripts/loopback_test_runner.sh exhaustive # ~20–30 min (full + disposable EDA e2e)
+```
+
+Both routes share the same Makefile targets and the same lint / molecule configs. Output of the runner lands in `test_results/run-<timestamp>/` with a `SUMMARY.md`, per-step logs, and an HTML coverage drilldown; `test_results/latest` points at the most recent run.
+
+Full spec: [`docs/governance/loopback-runner.md`](./docs/governance/loopback-runner.md). Decision tree for "what should I run when I changed X": [`docs/governance/testing-governance.md §3`](./docs/governance/testing-governance.md).
+
+---
+
 ## Document Map
 
 | You want to... | Read |

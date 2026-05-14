@@ -5,16 +5,21 @@
 controller/semaphore/.env
 controller/semaphore/.secrets
 controller/audit/e2e/.env
-controller/audit/e2e/hosts.e2e.ini
+controller/audit/e2e/.env.*
+controller/audit/e2e/.secrets
+controller/audit/e2e/.secrets.*
+controller/audit/e2e/hosts.*.ini
 
 # Project-root junk
 loop_status.tmp
 molecule_results.log
+codex-*.tar.gz
 controller/rbac/users.yml
 controller/rbac/.demo_*.pw
 inventory/**/vault.yml
 
 # ── Ansible runtime ─────────────────────────────────────────────────────
+.ansible/
 *.retry
 .facts/
 fact_cache/
@@ -30,6 +35,13 @@ __pycache__/
 .pytest_cache/
 .venv/
 uv.lock
+
+# ── Coverage / test runner artifacts ────────────────────────────────────
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+test_results/
 
 # ── Editors / OS ────────────────────────────────────────────────────────
 .idea/

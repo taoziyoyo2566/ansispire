@@ -2,23 +2,23 @@
 # for TEST-EDA-004 (L4). Spec: docs/reference/test-specs/eda-reactor-e2e.md.
 #
 # Isolation from the dev control plane:
-#   - compose project name:  ansispire-e2e        (vs ansispire-* dev)
-#   - network:               controller-net-e2e   (vs controller-net dev)
-#   - host ports:            semaphore 3310 / sink 3320 (dev: 3300 / 3310)
-#   - container_names suffixed with -e2e (global namespace; must not collide)
+#   - compose project name:  ${E2E_PROJECT:-ansispire-e2e} (vs ansispire-* dev)
+#   - network:               ${CONTROLLER_NET_NAME:-controller-net-e2e}
+#   - host ports:            semaphore 3320 / sink 3330 (dev: 3300 / 3310)
+#   - container_names are overridable for per-run namespace isolation
 #   - volumes are project-scoped (no top-level name) so `down -v` truly purges
 #
 # Service names match dev (semaphore / audit-sink / audit-relay / audit-reactor)
 # and are aliased on controller-net-e2e, so reactor.py / relay.py default
 # `http://semaphore:3000` and `http://audit-sink:3010/event` work unchanged.
 #
-# Run via:  make test-eda-e2e        (orchestrates run.sh — bootstrap + inject + poll + teardown)
+# Run via:  make test-eda-e2e        (orchestrates run.sh — bootstrap + inject + poll)
 # Manual :  cd controller/audit/e2e && ./run.sh
 ---
 services:
   semaphore:
     image: "semaphoreui/semaphore:${SEMAPHORE_IMAGE_TAG:-v2.18.2}"
-    container_name: ansispire-semaphore-e2e
+    container_name: "${SEMAPHORE_CONTAINER_NAME:-ansispire-semaphore-e2e}"
     restart: "no"
     ports:
       - "${SEMAPHORE_PORT:-3310}:3000"
@@ -28,7 +28,7 @@ services:
       SEMAPHORE_ADMIN: "${SEMAPHORE_ADMIN:-admin}"
       SEMAPHORE_ADMIN_NAME: "Administrator (e2e)"
       SEMAPHORE_ADMIN_EMAIL: "admin@e2e.localhost"
-      SEMAPHORE_ADMIN_PASSWORD: "${SEMAPHORE_ADMIN_PASSWORD:?set in controller/audit/e2e/.env}"
+      SEMAPHORE_ADMIN_PASSWORD: "${SEMAPHORE_ADMIN_PASSWORD:?set in controller/audit/e2e/.env.<project>}"
       SEMAPHORE_WEB_ROOT: ""
       TZ: "${TZ:-UTC}"
       ANSIBLE_HOST_KEY_CHECKING: "False"
@@ -51,7 +51,7 @@ services:
 
   audit-sink:
     image: "python:${AUDIT_IMAGE_TAG:-3.12-alpine}"
-    container_name: ansispire-audit-sink-e2e
+    container_name: "${AUDIT_SINK_CONTAINER_NAME:-ansispire-audit-sink-e2e}"
     restart: "no"
     ports:
       # Loopback only — sink is for the host's curl injection step.
@@ -77,7 +77,7 @@ services:
 
   audit-relay:
     image: "python:${AUDIT_IMAGE_TAG:-3.12-alpine}"
-    container_name: ansispire-audit-relay-e2e
+    container_name: "${AUDIT_RELAY_CONTAINER_NAME:-ansispire-audit-relay-e2e}"
     restart: "no"
     depends_on:
       audit-sink:
@@ -101,7 +101,7 @@ services:
 
   audit-reactor:
     image: "python:${AUDIT_IMAGE_TAG:-3.12-alpine}"
-    container_name: ansispire-audit-reactor-e2e
+    container_name: "${AUDIT_REACTOR_CONTAINER_NAME:-ansispire-audit-reactor-e2e}"
     restart: "no"
     depends_on:
       audit-sink:
@@ -141,4 +141,4 @@ volumes:
 
 networks:
   controller-net-e2e:
-    name: controller-net-e2e
+    name: "${CONTROLLER_NET_NAME:-controller-net-e2e}"

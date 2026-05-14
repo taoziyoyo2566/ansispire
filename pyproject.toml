@@ -32,6 +32,7 @@ test = [
     "molecule-plugins[docker]>=23.5.0",
     "docker>=7.0",
     "pytest>=8.0",
+    "coverage>=7.5",
     "ansible-navigator>=24.0",
 ]
 

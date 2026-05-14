@@ -4,7 +4,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup install lint syntax test molecule-all dry-run \
+.PHONY: help setup install lint yamllint ansible-lint syntax test molecule-all dry-run \
         deploy-dev deploy-stag deploy-prod tags ping vault-edit vault-encrypt \
         ee-build navigator clean \
         controller-net manifest-sync ports-sync \
@@ -14,7 +14,9 @@
         controller-audit-tail controller-audit-stats \
         controller-rbac-smoke \
         controller-loop-smoke \
-        test-eda test-eda-unit test-eda-contract test-eda-component test-eda-e2e \
+        test-eda test-eda-unit test-eda-contract test-eda-component \
+        test-eda-relay-unit test-eda-sink-unit test-eda-e2e \
+        test-filters detect-secrets \
         hub-deploy hub-deploy-check
 
 # Control-plane compose command wrapper
@@ -33,6 +35,10 @@ export PATH := $(VENV_BIN):$(PATH)
 export ANSIBLE_CONFIG := $(PROJECT_PATH)/ansible.cfg
 export ANSIBLE_ROLES_PATH := $(PROJECT_PATH)/roles
 export ANSIBLE_COLLECTIONS_PATH := $(PROJECT_PATH)/collections
+export ANSIBLE_LOCAL_TEMP ?= $(PROJECT_PATH)/.ansible/tmp
+export ANSIBLE_REMOTE_TEMP ?= /tmp/ansispire-ansible-tmp
+
+$(shell mkdir -p $(ANSIBLE_LOCAL_TEMP))
 
 # Molecule runner wrapper (ensure it finds ansible-config in VENV)
 MOLECULE := PATH=$(PATH) $(BIN)molecule
@@ -63,7 +69,12 @@ install: ## Install Galaxy dependencies only (roles + collections)
 	$(BIN)ansible-galaxy collection install -r requirements.yml --force
 
 # ── Code quality ─────────────────────────────────────────────────────────────
-lint: ## Run ansible-lint
+lint: yamllint ansible-lint ## Run YAML + Ansible lint
+
+yamllint: ## Run yamllint
+	$(BIN)yamllint .
+
+ansible-lint: ## Run ansible-lint
 	$(BIN)ansible-lint --profile production
 
 syntax: ## Syntax check both stag and prod
@@ -72,7 +83,7 @@ syntax: ## Syntax check both stag and prod
 	@echo "==> Syntax checking Prod..."
 	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/prod
 
-verify: lint syntax test-eda dry-run ## Push gate — lint + syntax + EDA pyramid (L1+L2+L3) + dry-run (~30–60 s)
+verify: lint syntax detect-secrets test-eda test-filters dry-run ## Push gate — lint + syntax + secrets + Python tests + dry-run (~30–60 s)
 
 verify-quick: syntax ## Save-point gate — syntax only (~3 s, before commit)
 
@@ -99,10 +110,22 @@ test-eda-contract: ## L2 — rules.json ↔ bootstrap.yml template-name contract
 test-eda-component: ## L3 — reactor → mock Semaphore HTTP request contract
 	$(BIN)python3 controller/audit/test_reactor_component.py
 
-test-eda: test-eda-unit test-eda-contract test-eda-component ## All EDA tests (L1+L2+L3); no docker
+test-eda-relay-unit: ## L1 — relay.py cursor/fetch/tick (urllib mocked)
+	$(BIN)python3 controller/audit/test_relay.py
+
+test-eda-sink-unit: ## L1 — sink.py HTTP handler (socket/wfile mocked)
+	$(BIN)python3 controller/audit/test_sink.py
+
+test-eda: test-eda-unit test-eda-contract test-eda-component test-eda-relay-unit test-eda-sink-unit ## All EDA tests (L1+L2+L3); no docker
 
 test-eda-e2e: ## L4 — disposable end-to-end (real docker; ~60–90s; NOT in `make verify`)
 	@bash controller/audit/e2e/run.sh
+
+test-filters: ## L1 — filter_plugins/custom_filters.py (pure functions, no Ansible)
+	$(BIN)python3 controller/audit/test_filters.py
+
+detect-secrets: ## Scan tracked + unignored files; fail on findings not present in .secrets.baseline
+	@PATH="$(VENV_BIN):$$PATH" $(BIN)python3 scripts/detect_secrets_gate.py
 
 # ── Deploy ───────────────────────────────────────────────────────────────────
 dry-run: ## Dry-run (--check; common baseline against hub_local — layered hosts.ini + dev vars)
