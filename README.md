@@ -90,7 +90,7 @@ Full spec: [`docs/governance/loopback-runner.md`](./docs/governance/loopback-run
 | Onboard or manage VPS hosts from YAML tasks | [plugins/vps_manager/README.md](./plugins/vps_manager/README.md) |
 | Install Ansispire on a clean machine | [docs/user-guide/01-installation.md](./docs/user-guide/01-installation.md) |
 | Understand EDA self-healing end-to-end (rationale + failure modes) | [docs/user-guide/02-quickstart-eda.md](./docs/user-guide/02-quickstart-eda.md) |
-| Look up a specific operational command (maintainer view) | [docs/operations/eda-core.md](./docs/operations/eda-core.md) · [docs/operations/hub-deployment.md](./docs/operations/hub-deployment.md) |
+| Look up a specific operational command (maintainer view) | [docs/operations/eda-core.md](./docs/operations/eda-core.md) · [docs/operations/hub-deployment.md](./docs/operations/hub-deployment.md) · [docs/operations/vps-manager.md](./docs/operations/vps-manager.md) |
 | Choose which inventory / Make target for dev / stag / prod | [docs/operations/environments.md](./docs/operations/environments.md) |
 | Know what's planned next | [TODO.md](./TODO.md) |
 | Contribute code or docs | [docs/governance/contributing.md](./docs/governance/contributing.md) |
