@@ -6,4 +6,3 @@ set -euo pipefail
 
 echo "This legacy entrypoint is intentionally disabled. Use plugins/vps_manager/vps_manager.py."
 exit 1
-
