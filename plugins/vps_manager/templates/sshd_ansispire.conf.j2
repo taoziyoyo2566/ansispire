@@ -1,0 +1,19 @@
+# Managed by Ansispire vps_manager
+{% if not (vps_ssh_lockdown_enabled | bool) and (vps_bootstrap.port | int) != (vps_ssh.managed_port | int) %}
+Port {{ vps_bootstrap.port }}
+{% endif %}
+Port {{ vps_ssh.managed_port }}
+PubkeyAuthentication yes
+X11Forwarding no
+ClientAliveInterval 300
+ClientAliveCountMax 2
+LoginGraceTime 60
+
+{% if vps_ssh_lockdown_enabled | bool %}
+PermitRootLogin {{ 'no' if vps_ssh.disable_root_login | default(true) | bool else 'prohibit-password' }}
+PasswordAuthentication {{ 'no' if vps_ssh.disable_password_login | default(true) | bool else 'yes' }}
+KbdInteractiveAuthentication {{ 'no' if vps_ssh.disable_kbd_interactive | default(true) | bool else 'yes' }}
+{% if (vps_ssh.allow_groups | default([])) | length > 0 %}
+AllowGroups {{ vps_ssh.allow_groups | join(' ') }}
+{% endif %}
+{% endif %}

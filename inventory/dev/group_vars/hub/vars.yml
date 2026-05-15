@@ -1,0 +1,4 @@
+---
+# Hub specific overrides
+ansispire_hub_port: 3300
+ansispire_audit_port: 3310

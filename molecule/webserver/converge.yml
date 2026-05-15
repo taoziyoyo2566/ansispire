@@ -1,18 +1,11 @@
 # molecule/webserver/converge.yml — playbook executed during the test
+# Test variables (webserver__vhosts, etc.) come from molecule.yml group_vars.
 
 ---
 - name: Converge
   hosts: all
   become: true
   gather_facts: true
-
-  vars:
-    # Test vhosts — no real certificates required
-    nginx_vhosts:
-      - name: test.local
-        root: /var/www/test
-        ssl: false
-        php_fpm: false
 
   roles:
     - role: common

@@ -1,0 +1,7 @@
+---
+all:
+  children:
+    vps_targets:
+      hosts:
+        vps_syntax_target:
+          ansible_connection: local

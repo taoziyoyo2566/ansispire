@@ -3,7 +3,7 @@
 ---
 - name: Install Nginx package
   ansible.builtin.package:
-    name: "{{ _webserver__nginx_packages[ansible_os_family] }}"
+    name: "{{ _webserver__nginx_packages[ansible_facts['os_family']] }}"
     state: present
   notify: systemd daemon reload
 
@@ -12,6 +12,7 @@
     name: "{{ _webserver__nginx_service }}"
     enabled: true
     state: started
+  ignore_errors: "{{ ansible_check_mode }}"
 
 # Create the directory tree
 - name: Create Nginx config directories

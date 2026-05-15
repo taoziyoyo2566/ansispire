@@ -3,11 +3,13 @@
 ---
 name: CI
 
+# stg is intentionally PR-only (no push trigger): pre-production reached
+# exclusively via PR; direct pushes should be blocked by branch protection.
 on:
   push:
-    branches: [main, master]
+    branches: [dev, master, "hotfix/*"]
   pull_request:
-    branches: [main, master]
+    branches: [dev, stg, master]
 
 jobs:
   yamllint:
@@ -17,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
       - run: pip install yamllint
       - run: yamllint .
@@ -30,9 +32,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
-      - run: pip install ansible-lint
+      - run: echo "ci-test-password" > .vault_pass
+      - run: pip install -r requirements.txt
       - run: ansible-galaxy collection install -r requirements.yml
       - run: ansible-lint --profile production
 
@@ -44,13 +47,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
-      - run: pip install ansible-core
+      - run: echo "ci-test-password" > .vault_pass
+      - run: pip install -r requirements.txt
       - run: |
           ansible-galaxy role install -r requirements.yml
           ansible-galaxy collection install -r requirements.yml
-      - run: ansible-playbook playbooks/site.yml --syntax-check -i inventory/production
+      - name: Syntax check Staging
+        run: ansible-playbook playbooks/site.yml --syntax-check -i inventory/stag
+      - name: Syntax check Production
+        run: ansible-playbook playbooks/site.yml --syntax-check -i inventory/prod
 
   dry-run:
     name: Dry-run (check + diff)
@@ -60,16 +67,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
-      - run: pip install ansible-core
+      - run: echo "ci-test-password" > .vault_pass
+      - run: pip install -r requirements.txt
       - run: |
           ansible-galaxy role install -r requirements.yml
           ansible-galaxy collection install -r requirements.yml
       # 使用 --connection=local 不需要真实主机，验证 playbook 逻辑
       - run: |
           ansible-playbook playbooks/site.yml \
-            -i inventory/staging \
+            -i inventory/stag \
             --check \
             --diff \
             --connection=local \
@@ -79,25 +87,41 @@ jobs:
           PY_COLORS: "1"
           ANSIBLE_FORCE_COLOR: "1"
 
-  molecule:
-    name: "Molecule / ${{ matrix.scenario }}"
+  python-tests:
+    name: Python Tests
     runs-on: ubuntu-latest
-    needs: [ansible-lint, syntax-check]
-    strategy:
-      fail-fast: false
-      matrix:
-        scenario:
-          - common      # Tier 1: Ubuntu 22 + Rocky 9
-          - webserver   # Tier 1: Ubuntu 22
-          - database    # Tier 1: Ubuntu 22
-          - full-stack  # 集成测试: common + webserver + database
+    needs: yamllint
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
-      - run: pip install ansible molecule molecule-plugins[docker] docker
+      - run: python -m venv .venv
+      - run: .venv/bin/pip install -r requirements.txt
+      - run: make test-eda
+      - run: make test-filters
+
+  molecule:
+    name: "Molecule / ${{ matrix.scenario }}"
+    runs-on: ubuntu-latest
+    needs: [ansible-lint, syntax-check, python-tests]
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - common      # Tier 1: Ubuntu 22 + Debian 12
+          - webserver   # Tier 1: Ubuntu 22 + Debian 12
+          - database    # Tier 1: Ubuntu 22 + Debian 12
+          - full-stack  # 集成测试: Ubuntu 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: echo "ci-test-password" > .vault_pass
+      - run: pip install -r requirements.txt docker
       - run: |
           ansible-galaxy role install -r requirements.yml
           ansible-galaxy collection install -r requirements.yml
@@ -114,6 +138,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - run: pip install detect-secrets
-      - run: detect-secrets scan --baseline .secrets.baseline
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python scripts/detect_secrets_gate.py

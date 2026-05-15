@@ -1,0 +1,4 @@
+# inventory/local/vault.yml (EXAMPLE - DO NOT COMMIT ENCRYPTED VERSION)
+---
+# Initial admin password for Semaphore
+vault_semaphore_admin_password: "YourStrongPasswordHere"

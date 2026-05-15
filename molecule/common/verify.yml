@@ -25,7 +25,7 @@
           - "'ufw' in ansible_facts.packages"
         fail_msg: "Expected ufw package on Debian family hosts"
       when:
-        - ansible_os_family == 'Debian'
+        - ansible_facts['os_family'] == 'Debian'
         - common_ufw_enabled | default(true)
 
     - name: Verify MOTD deployed

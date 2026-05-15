@@ -20,12 +20,14 @@
 ---
 services:
   audit-sink:
-    image: python:3.12-alpine
+    image: "python:${AUDIT_IMAGE_TAG:-3.12-alpine}"
     container_name: ansispire-audit-sink
     restart: unless-stopped
     ports:
-      # Bind to loopback only — this is a local learning sink, not public
-      - "127.0.0.1:${AUDIT_PORT:-3010}:3010"
+      # Bind to loopback only — this is a local learning sink, not public.
+      # Host-side default 3310 follows the +300 convention (config/ports.yml
+      # is SSOT, propagated to .env by `make ports-sync`).
+      - "127.0.0.1:${AUDIT_PORT:-3310}:3010"
     volumes:
       - ./sink.py:/app/sink.py:ro
       - ./logrotate.conf:/etc/logrotate.d/audit
@@ -59,7 +61,7 @@ services:
 
   # Round 9: polling relay — Semaphore /api/events → audit-sink
   audit-relay:
-    image: python:3.12-alpine
+    image: "python:${AUDIT_IMAGE_TAG:-3.12-alpine}"
     container_name: ansispire-audit-relay
     restart: unless-stopped
     depends_on:
@@ -71,10 +73,7 @@ services:
     working_dir: /app
     environment:
       SEMAPHORE_URL: "http://semaphore:3000"
-      SEMAPHORE_USER: "${SEMAPHORE_ADMIN:-admin}"
-      # Password is read from controller/semaphore/.env by the Makefile
-      # target and passed as SEMAPHORE_PASSWORD at compose time.
-      SEMAPHORE_PASSWORD: "${SEMAPHORE_ADMIN_PASSWORD:?set SEMAPHORE_ADMIN_PASSWORD in controller/semaphore/.env}"
+      SEMAPHORE_API_TOKEN: "${SEMAPHORE_API_TOKEN:-}"
       SINK_URL: "http://audit-sink:3010/event"
       STATE_FILE: "/var/lib/audit-relay/cursor.json"
       POLL_INTERVAL: "5"
@@ -85,7 +84,7 @@ services:
 
   # Phase 4: EDA reactor — Watch events.jsonl → reactions (Webhook/Shell)
   audit-reactor:
-    image: python:3.12-alpine
+    image: "python:${AUDIT_IMAGE_TAG:-3.12-alpine}"
     container_name: ansispire-audit-reactor
     restart: unless-stopped
     deploy:
@@ -99,11 +98,14 @@ services:
     volumes:
       - ./reactor.py:/app/reactor.py:ro
       - ../../extensions/eda/rules.json:/etc/ansispire/eda/rules.json:ro
+      - ../../extensions/eda/events.schema.json:/etc/ansispire/eda/events.schema.json:ro
       - audit-data:/var/log/semaphore:ro
     working_dir: /app
     environment:
       JSONL_PATH: /var/log/semaphore/events.jsonl
       RULES_PATH: /etc/ansispire/eda/rules.json
+      EVENTS_SCHEMA_PATH: /etc/ansispire/eda/events.schema.json
+      SEMAPHORE_API_TOKEN: "${SEMAPHORE_API_TOKEN:-}"
       EDA_WEBHOOK_URL: "${EDA_WEBHOOK_URL:-}"
       PYTHONUNBUFFERED: "1"
     # Install jq for our sample shell reactions

@@ -1,41 +1,40 @@
 {
   "rules": [
     {
-      "name": "Healing: Auto-Restart Nginx",
+      "name": "Remediation: Disk Full",
+      "cooldown": 600,
       "condition": {
-        "type": "task_completed",
-        "status": "error",
-        "template_name": "Nginx Health Check"
+        "object_type": "task",
+        "description_contains": "Disk Full"
       },
       "actions": [
         {
-          "type": "shell",
-          "name": "Action: Restart Nginx Service",
-          "command": "ansible-playbook playbooks/remediation/fix_nginx.yml"
+          "type": "semaphore_api",
+          "project_name": "ansispire",
+          "template_name": "Auto Remediation: Disk Cleanup",
+          "name": "Auto Remediation: Disk Cleanup"
         }
       ]
     },
     {
-      "name": "Audit: Critical Resource Modified",
+      "name": "Remediation: DB Connection Failure",
+      "enabled": false,
+      "_disabled_reason": "playbooks/remediation/db_failover.yml is a placeholder (debug-only). Re-enable after a real failover playbook ships. Tracked under TASK-001 follow-up.",
+      "cooldown": 900,
       "condition": {
-        "type": "project_updated"
+        "description_contains": "database connection failed"
       },
       "actions": [
         {
           "type": "webhook",
-          "name": "Notification: Project configuration changed"
-        }
-      ]
-    },
-    {
-      "name": "Security: Access Key Deleted",
-      "condition": {
-        "type": "access_key_removed"
-      },
-      "actions": [
+          "name": "DB Alert",
+          "url": ""
+        },
         {
-          "type": "webhook",
-          "name": "Alert: A security key was removed from the system"
+          "type": "semaphore_api",
+          "project_name": "ansispire",
+          "template_name": "Auto Remediation: DB Failover",
+          "name": "DB Failover"
         }
       ]
     }

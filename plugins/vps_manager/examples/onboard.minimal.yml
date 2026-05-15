@@ -1,0 +1,43 @@
+---
+version: 1
+kind: vps
+action: onboard
+alias: jp-tokyo-01
+bootstrap:
+  host: 203.0.113.10
+  port: 22
+  user: root
+  auth:
+    method: password
+    password_env: VPS_JP_TOKYO_01_AUTH  # pragma: allowlist secret
+managed:
+  user: ansible
+  groups:
+    - sudo
+    - ssh-users
+  ansible_key:
+    private_key: ~/.ssh/ansispire_ed25519
+    public_key: ~/.ssh/ansispire_ed25519.pub
+  personal_keys:
+    - name: operator
+      public_key: ~/.ssh/id_ed25519.pub
+  sudo:
+    nopasswd: true
+ssh:
+  managed_port: 39222
+  disable_root_login: true
+  disable_password_login: true
+  allow_groups:
+    - ssh-users
+  close_bootstrap_port_after_success: true
+profile:
+  base_packages: true
+  ssh_hardening: true
+  ufw: true
+  fail2ban: true
+  docker: false
+local:
+  write_ssh_config: true
+  ssh_config_identity_file: ~/.ssh/id_ed25519
+options:
+  dry_run: false

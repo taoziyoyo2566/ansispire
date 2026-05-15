@@ -19,19 +19,21 @@ readme = "README.md"
 license = {text = "MIT"}
 
 dependencies = [
-    "ansible-core>=2.16,<2.18",
-    "ansible-lint>=25.0",
+    "ansible-core>=2.20.5",
+    "ansible-lint>=26.4.0",
     "yamllint>=1.35",
-    "jmespath>=1.0",
+    "PyYAML>=6.0.1",
+    "jmespath>=1.0.1",
 ]
 
 [project.optional-dependencies]
 # Test tools
 test = [
-    "molecule>=24.9",
-    "molecule-plugins[docker]>=23.5",
+    "molecule>=24.0.0",
+    "molecule-plugins[docker]>=23.5.0",
     "docker>=7.0",
     "pytest>=8.0",
+    "coverage>=7.5",
     "ansible-navigator>=24.0",
 ]
 
@@ -62,4 +64,12 @@ dev-dependencies = [
 
 [build-system]
 requires = ["hatchling"]
-build-backend = "hatchling.backends"
+build-backend = "hatchling.build"
+
+# This project ships no Python package source (Ansible roles + playbooks live
+# elsewhere); pyproject exists solely as a dependency manifest for the local
+# dev toolchain. `bypass-selection = true` lets hatchling build an empty
+# wheel so `pip install -e .` / `uv sync` succeed without inventing fake
+# package files.
+[tool.hatch.build.targets.wheel]
+bypass-selection = true

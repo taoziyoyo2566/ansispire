@@ -1,0 +1,28 @@
+---
+version: 1
+kind: vps
+action: modify
+alias: jp-tokyo-01
+changes:
+  packages:
+    install:
+      - ncdu
+    remove: []
+  firewall:
+    allowed_tcp_ports:
+      - 39222
+      - 80
+      - 443
+  fail2ban:
+    enabled: true
+    sshd:
+      bantime: 3600
+      findtime: 600
+      maxretry: 5
+  network_tuning:
+    enabled: true
+    bbr: true
+    tcp_fastopen: false
+    mtu_probing: true
+options:
+  dry_run: false

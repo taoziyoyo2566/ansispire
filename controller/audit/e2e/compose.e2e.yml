@@ -1,0 +1,144 @@
+# controller/audit/e2e/compose.e2e.yml — disposable end-to-end stack
+# for TEST-EDA-004 (L4). Spec: docs/reference/test-specs/eda-reactor-e2e.md.
+#
+# Isolation from the dev control plane:
+#   - compose project name:  ${E2E_PROJECT:-ansispire-e2e} (vs ansispire-* dev)
+#   - network:               ${CONTROLLER_NET_NAME:-controller-net-e2e}
+#   - host ports:            semaphore 3320 / sink 3330 (dev: 3300 / 3310)
+#   - container_names are overridable for per-run namespace isolation
+#   - volumes are project-scoped (no top-level name) so `down -v` truly purges
+#
+# Service names match dev (semaphore / audit-sink / audit-relay / audit-reactor)
+# and are aliased on controller-net-e2e, so reactor.py / relay.py default
+# `http://semaphore:3000` and `http://audit-sink:3010/event` work unchanged.
+#
+# Run via:  make test-eda-e2e        (orchestrates run.sh — bootstrap + inject + poll)
+# Manual :  cd controller/audit/e2e && ./run.sh
+---
+services:
+  semaphore:
+    image: "semaphoreui/semaphore:${SEMAPHORE_IMAGE_TAG:-v2.18.2}"
+    container_name: "${SEMAPHORE_CONTAINER_NAME:-ansispire-semaphore-e2e}"
+    restart: "no"
+    ports:
+      - "${SEMAPHORE_PORT:-3310}:3000"
+    environment:
+      SEMAPHORE_DB_DIALECT: sqlite
+      SEMAPHORE_DB_PATH: /var/lib/semaphore/semaphore.db
+      SEMAPHORE_ADMIN: "${SEMAPHORE_ADMIN:-admin}"
+      SEMAPHORE_ADMIN_NAME: "Administrator (e2e)"
+      SEMAPHORE_ADMIN_EMAIL: "admin@e2e.localhost"
+      SEMAPHORE_ADMIN_PASSWORD: "${SEMAPHORE_ADMIN_PASSWORD:?set in controller/audit/e2e/.env.<project>}"
+      SEMAPHORE_WEB_ROOT: ""
+      TZ: "${TZ:-UTC}"
+      ANSIBLE_HOST_KEY_CHECKING: "False"
+    volumes:
+      - semaphore-e2e-data:/var/lib/semaphore
+      - semaphore-e2e-config:/etc/semaphore
+      - semaphore-e2e-tmp:/tmp/semaphore
+      - semaphore-e2e-home:/home/semaphore
+      # Repo root mounted read-only so ansible-runner can resolve playbooks/
+      - ../../..:/workspace:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    networks:
+      controller-net-e2e:
+        aliases: [semaphore]
+
+  audit-sink:
+    image: "python:${AUDIT_IMAGE_TAG:-3.12-alpine}"
+    container_name: "${AUDIT_SINK_CONTAINER_NAME:-ansispire-audit-sink-e2e}"
+    restart: "no"
+    ports:
+      # Loopback only — sink is for the host's curl injection step.
+      - "127.0.0.1:${AUDIT_PORT:-3320}:3010"
+    volumes:
+      - ../sink.py:/app/sink.py:ro
+      - audit-e2e-data:/var/log/semaphore
+    working_dir: /app
+    environment:
+      AUDIT_LOG: /var/log/semaphore/events.jsonl
+      AUDIT_PORT: "3010"
+      PYTHONUNBUFFERED: "1"
+    command: ["python3", "/app/sink.py"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3010/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    networks:
+      controller-net-e2e:
+        aliases: [audit-sink]
+
+  audit-relay:
+    image: "python:${AUDIT_IMAGE_TAG:-3.12-alpine}"
+    container_name: "${AUDIT_RELAY_CONTAINER_NAME:-ansispire-audit-relay-e2e}"
+    restart: "no"
+    depends_on:
+      audit-sink:
+        condition: service_healthy
+      semaphore:
+        condition: service_healthy
+    volumes:
+      - ../relay.py:/app/relay.py:ro
+      - audit-e2e-relay-state:/var/lib/audit-relay
+    working_dir: /app
+    environment:
+      SEMAPHORE_URL: "http://semaphore:3000"
+      SEMAPHORE_API_TOKEN: "${SEMAPHORE_API_TOKEN:-}"
+      SINK_URL: "http://audit-sink:3010/event"
+      STATE_FILE: "/var/lib/audit-relay/cursor.json"
+      POLL_INTERVAL: "5"
+      PYTHONUNBUFFERED: "1"
+    command: ["python3", "/app/relay.py"]
+    networks:
+      - controller-net-e2e
+
+  audit-reactor:
+    image: "python:${AUDIT_IMAGE_TAG:-3.12-alpine}"
+    container_name: "${AUDIT_REACTOR_CONTAINER_NAME:-ansispire-audit-reactor-e2e}"
+    restart: "no"
+    depends_on:
+      audit-sink:
+        condition: service_healthy
+      semaphore:
+        condition: service_healthy
+    volumes:
+      - ../reactor.py:/app/reactor.py:ro
+      - ../../../extensions/eda/rules.json:/etc/ansispire/eda/rules.json:ro
+      - ../../../extensions/eda/events.schema.json:/etc/ansispire/eda/events.schema.json:ro
+      - audit-e2e-data:/var/log/semaphore:ro
+    working_dir: /app
+    environment:
+      JSONL_PATH: /var/log/semaphore/events.jsonl
+      RULES_PATH: /etc/ansispire/eda/rules.json
+      EVENTS_SCHEMA_PATH: /etc/ansispire/eda/events.schema.json
+      SEMAPHORE_URL: "http://semaphore:3000"
+      SEMAPHORE_API_TOKEN: "${SEMAPHORE_API_TOKEN:-}"
+      EDA_WEBHOOK_URL: ""
+      PYTHONUNBUFFERED: "1"
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache jq >/dev/null &&
+        exec python3 /app/reactor.py
+    networks:
+      - controller-net-e2e
+
+volumes:
+  semaphore-e2e-data:
+  semaphore-e2e-config:
+  semaphore-e2e-tmp:
+  semaphore-e2e-home:
+  audit-e2e-data:
+  audit-e2e-relay-state:
+
+networks:
+  controller-net-e2e:
+    name: "${CONTROLLER_NET_NAME:-controller-net-e2e}"

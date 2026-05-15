@@ -1,0 +1,7 @@
+# Managed by Ansispire vps_manager
+[sshd]
+enabled = true
+port = {{ (vps_ssh.managed_port if vps_ssh is defined else 'ssh') }}
+bantime = {{ vps_fail2ban.get('sshd', {}).get('bantime', 3600) }}
+findtime = {{ vps_fail2ban.get('sshd', {}).get('findtime', 600) }}
+maxretry = {{ vps_fail2ban.get('sshd', {}).get('maxretry', 5) }}

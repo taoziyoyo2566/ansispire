@@ -1,0 +1,41 @@
+# .gitleaks.toml — mirror of .gitguardian.yaml allowlist for local
+# parity. ggshield is the CI authority; this file lets `gitleaks
+# detect` run cleanly during local dev / pre-commit hooks.
+
+title = "Ansispire scan"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Vendor / build artefacts + curated false-positives"
+paths = [
+  '''^\.venv/''',
+  '''^\.ansible/''',
+  '''^collections/''',
+  '''^node_modules/''',
+  '''^docs/reviews/_archive/''',
+  '''^\.secrets\.baseline$''',
+  # gitignored runtime artefacts — locally present, never tracked
+  '''^controller/audit/e2e/\.secrets$''',
+  '''^controller/rbac/users\.yml$''',
+  '''^controller/semaphore/\.secrets$''',
+  '''^controller/semaphore/\.env$''',
+]
+
+# Per-finding allowlist entries (mirror of .gitguardian.yaml)
+regexes = [
+  # Placeholder SSH key envelope in bootstrap.yml — body is literal
+  # PLACEHOLDER-REPLACE-VIA-UI text, not a real key.
+  '''PLACEHOLDER-REPLACE-VIA-UI''',
+  # Molecule test fixtures (disposable container only)
+  '''TestRootPass123!''',
+  '''TestUserPass456!''',
+  '''IntegrationTestRoot123!''',
+  '''IntegrationTestApp456!''',
+  '''e2e_disposable_pw''',
+  '''YourStrongPasswordHere''',
+  '''ci-test-password''',
+  # Historical EDA token that was redacted in-place (tripwire)
+  '''ahen7kd4lx4getkojxrlmiwpqzej-pkddy4yyxswhhw=''',
+]

@@ -14,7 +14,7 @@
       vhost '{{ item.name | default('unknown') }}' is misconfigured.
       ssl={{ item.ssl | default(false) }},
       php_fpm={{ item.php_fpm | default(false) }}.
-  loop: "{{ nginx_vhosts | default(webserver__vhosts) }}"
+  loop: "{{ webserver__vhosts }}"
   loop_control:
     label: "{{ item.name | default('unknown') }}"
   tags: [always, preflight]

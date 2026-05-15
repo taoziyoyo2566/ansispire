@@ -1,0 +1,41 @@
+# playbooks/deploy_hub.yml
+# Usage: ansible-playbook playbooks/deploy_hub.yml -i inventory/hosts.ini --ask-vault-pass
+---
+- name: Deploy Ansispire Management Hub (All-in-One)
+  hosts: hub  # Target the explicit management group
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - "../config/manifest.yml"
+    - "../inventory/local/vault.yml"
+
+  roles:
+    - role: infra_baseline
+      tags: [infra, baseline]
+
+    - role: ansispire_hub
+      tags: [hub, semaphore]
+
+    - role: ansispire_audit
+      tags: [audit, eda]
+
+  post_tasks:
+    - name: Final | Verify Hub is reachable
+      ansible.builtin.uri:
+        url: "http://localhost:{{ ansispire_hub_port }}/api/ping"
+        status_code: 200
+      register: _hub_health
+      until: _hub_health.status == 200
+      retries: 5
+      delay: 5
+      tags: [verify]
+
+    - name: Final | Summary
+      ansible.builtin.debug:
+        msg: |
+          Ansispire Hub deployed successfully!
+          - URL: http://{{ ansible_facts['default_ipv4']['address'] }}:{{ ansispire_hub_port }}
+          - Audit Sink: http://{{ ansible_facts['default_ipv4']['address'] }}:{{ ansispire_audit_port }}
+          - Code Path: {{ ansispire_hub_base_dir }}
+      tags: [always]

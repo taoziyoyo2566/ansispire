@@ -1,0 +1,10 @@
+---
+version: 1
+kind: vps
+action: remove
+alias: jp-tokyo-01
+options:
+  remove_from_inventory: true
+  remove_from_ssh_config: true
+  remove_known_hosts: false
+  touch_remote: false

@@ -1,35 +1,26 @@
-# GEMINI.md — Project Governance & Execution Rules
+# GEMINI.md — 项目治理与执行总纲
 
-This file is the foundational mandate for all Gemini CLI sessions. It takes precedence over general defaults.
+本文件是 Ansispire 项目的最高执行契约。
 
-## 0. AI Behavioral Protocol (The Peer Rule)
-- **Proactive Challenge**: AI MUST NOT blindly implement changes. Perform an Impact Analysis first.
-- **Sync Guard (Consistency)**: Before marking any task as "Done", AI MUST verify:
-    1. Does the change affect `SUMMARY.md` (Architecture)? If yes, sync it.
-    2. Does the change affect `README.md` (Operational)? If yes, sync it.
-    3. Is there a relevant `Feature Map`? Create/Update it.
-    **Only after all three are confirmed can the task be closed in the ledger.**
+## 0. AI 行为协议 (The Peer Rule)
+- **主动挑战**：AI 严禁盲目执行指令。任何修改必须先进行影响分析（Impact Analysis）。
+- **交付门禁 (Delivery Gate)**：任何修改在向用户交付前，必须经过 100% 全链路验证。
+- **一致性保护**：任务关闭前必须确认：1. ARCHITECTURE.md 已更新；2. README.md 已更新；3. 验证经验已整理入对应的 operations.md（最终参考手册）。
 
-## 1. Workload Classification & Branch Constraints
+## 1. 验证与知识沉淀 (Testing & Codification)
+- **强制规程**：执行验证阶段时，必须强制遵循 `docs/governance/testing-governance.md`。
+- **消灭“口传知识”**：严禁将复杂的命令序列留在聊天记录中。所有被证实有效的操作路径必须沉淀为功能指南，作为系统的最终参考手册。
 
-### The Task Ledger (Branch: `todo`)
-- **SSOT**: The authoritative task list is `TODO.md` on the `todo` branch. 
-- **Isolation**: `TODO.md` MUST NOT exist on `master` or other code branches.
-- **Operation**: Use `git show todo:TODO.md` to read, and `git checkout todo -- TODO.md` to update progress.
+## 2. 工程标准 (Engineering Standards)
+- **幂等性原则**：严禁使用 `recreate: always` 等暴力手段。必须通过任务状态感知（changed/handler）驱动资源变更。
+- **解耦原则**：控制面与执行面物理分离。M2M 集成必须使用 Bearer Token。
+- **配置即代码 (IaC)**：所有资源（Project, Template）必须通过剧本拨备，禁止手动 UI 操作。
 
-### Branch Naming & Semantics
-- Pattern: `<type>/<subsystem>-<target>`.
-- **feat**: Requires Design RFC.
-- **fix**: Requires RCA (Root Cause Analysis).
-- **refactor**: No new features. Behavioral equivalence only.
+## 3. 冲突阻断与审计 (Audit Protocol)
+- **半径 3 米审计**：发现问题时，必须检查代码库其他位置是否存在类似缺陷。
+- **Git 提交纪律 (Atomic Commits)**：严禁碎步提交。原则上一个逻辑任务（包含 Bug 修复和反馈循环）只允许一个提交。在未经过 100% 验证（包括逻辑时序分析）前，禁止执行 `git commit`。
+- **生命周期审计 (Lifecycle Audit)**：涉及网络、SSH 或执行流修改时，必须显式审计其在工具（如 Ansible）执行周期中的位置。严禁仅凭“通过单元测试”就假设逻辑正确，必须论证其在真实调用链路中的有效性。
+- **强制 Gate**：提交前必须提供 `make syntax` 和 `ansible-lint` 通过日志。
 
-## 2. Layered Context Governance (Lazy-loading)
-1. **Design Truth**: `SUMMARY.md` (Global architecture - Read FIRST).
-2. **Dynamic Truth**: `todo branch / TODO.md` (Task state - Read SECOND).
-3. **Logic Truth**: `docs/features/<name>/summary.md` (Module scope).
-4. **Deep Implementation**: `details.md` or Code (Deep-dive on demand).
-
-## 3. Engineering Standards
-- **Control vs. Data**: Decouple Controller from Roles.
-- **Vendor Integrity**: Note local patches to external roles in SUMMARY.md.
-- **Evidence-based Verification**: Every unit must provide terminal logs (lint/syntax/test).
+---
+*遵循本准则以确保 Ansispire 项目的工业级稳定性。*

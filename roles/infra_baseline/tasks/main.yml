@@ -1,0 +1,117 @@
+# roles/infra_baseline/tasks/main.yml
+#
+# OS-family branching: today only the Debian family path is implemented
+# (Debian / Ubuntu). RHEL family (Rocky, Alma) and Alpine paths are stubbed
+# for the next stage when targets_{rhel,alpine} VPS come online. Each
+# family-specific block is gated by ansible_facts['os_family'] so the role
+# is safe to assign to a heterogeneous fleet — unsupported OS just no-ops
+# its block instead of failing on `apt:` / `apt_repository:`.
+#
+# Family-agnostic tasks (Python assert, user/group, sudoers, authorized key)
+# live at the bottom and run on every host.
+---
+- name: Baseline | Assert Python version meets minimum requirements
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['python_version'] is version(infra_baseline_python_min_version, '>=')
+    fail_msg: "Python version {{ ansible_facts['python_version'] }} is too old. Min required: {{ infra_baseline_python_min_version }}"
+
+# ── Debian family (Debian, Ubuntu) ──────────────────────────────────────
+- name: Baseline | Debian-family setup
+  when: ansible_facts['os_family'] == "Debian"
+  block:
+    - name: Baseline | (Debian) Install prerequisite packages
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - rsync
+        state: present
+        update_cache: true
+
+    - name: Baseline | (Debian) Add Docker GPG key
+      ansible.builtin.get_url:
+        url: "{{ infra_baseline_docker_gpg_url }}"
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+
+    - name: Baseline | (Debian) Add Docker repository
+      ansible.builtin.apt_repository:
+        repo: >-
+          deb [arch={{ 'amd64' if ansible_facts['architecture'] == 'x86_64' else 'arm64' }}
+          signed-by=/etc/apt/keyrings/docker.asc]
+          {{ infra_baseline_docker_repo_url }}
+          {{ ansible_facts['distribution_release'] }}
+          stable
+        state: present
+        filename: docker
+
+    - name: Baseline | (Debian) Install Docker and Compose plugin
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+# ── RHEL family (Rocky, Alma, RHEL) — STUB for next stage ───────────────
+- name: Baseline | RHEL-family setup (NOT IMPLEMENTED)
+  when: ansible_facts['os_family'] == "RedHat"
+  ansible.builtin.fail:
+    msg: >-
+      RHEL-family infra_baseline is not implemented yet. This stub exists
+      so {{ inventory_hostname }} doesn't silently skip baseline. Implement
+      dnf-based docker install in roles/infra_baseline/tasks/redhat.yml and
+      include_tasks here, then drop this fail.
+
+# ── Alpine — STUB for next stage ────────────────────────────────────────
+- name: Baseline | Alpine setup (NOT IMPLEMENTED)
+  when: ansible_facts['os_family'] == "Alpine"
+  ansible.builtin.fail:
+    msg: >-
+      Alpine infra_baseline is not implemented yet. This stub exists so
+      {{ inventory_hostname }} doesn't silently skip baseline. Implement
+      apk-based docker install in roles/infra_baseline/tasks/alpine.yml and
+      include_tasks here, then drop this fail.
+
+# ── Service + user (family-agnostic; run after package install) ─────────
+- name: Baseline | Ensure Docker service is running and enabled
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Baseline | Create management group
+  ansible.builtin.group:
+    name: "{{ infra_baseline_mgr_user }}"
+    state: present
+
+- name: Baseline | Create management user with sudo access
+  ansible.builtin.user:
+    name: "{{ infra_baseline_mgr_user }}"
+    group: "{{ infra_baseline_mgr_user }}"
+    groups: sudo
+    append: true
+    shell: "{{ infra_baseline_mgr_shell }}"
+    state: present
+
+- name: Baseline | Configure passwordless sudo for management user
+  ansible.builtin.copy:
+    content: "{{ infra_baseline_mgr_user }} ALL=(ALL) NOPASSWD:ALL"
+    dest: "/etc/sudoers.d/{{ infra_baseline_mgr_user }}"
+    mode: '0440'
+    validate: /usr/sbin/visudo -cf %s
+
+- name: Baseline | Set authorized key for management user
+  ansible.builtin.shell:
+    cmd: >-
+      mkdir -p /home/{{ infra_baseline_mgr_user }}/.ssh &&
+      cp /root/.ssh/authorized_keys /home/{{ infra_baseline_mgr_user }}/.ssh/ &&
+      chown -R {{ infra_baseline_mgr_user }}:{{ infra_baseline_mgr_user }}
+      /home/{{ infra_baseline_mgr_user }}/.ssh &&
+      chmod 700 /home/{{ infra_baseline_mgr_user }}/.ssh &&
+      chmod 600 /home/{{ infra_baseline_mgr_user }}/.ssh/authorized_keys
+    creates: "/home/{{ infra_baseline_mgr_user }}/.ssh/authorized_keys"

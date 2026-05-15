@@ -1,0 +1,107 @@
+---
+- name: Prepare VPS as a Docker host
+  hosts: vps_targets
+  become: true
+  gather_facts: true
+  vars:
+    vps_docker: "{{ vps_task.docker | default({}) }}"
+    vps_firewall: "{{ vps_task.firewall | default({}) }}"
+
+  tasks:
+    - name: Install Docker repository prerequisites on Debian
+      ansible.builtin.package:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_docker.install | default(true) | bool
+        - vps_docker.install_method | default('official_apt_repo') == 'official_apt_repo'
+
+    - name: Ensure Docker apt keyring directory exists
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_docker.install | default(true) | bool
+        - vps_docker.install_method | default('official_apt_repo') == 'official_apt_repo'
+
+    - name: Install Docker apt repository key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/{{ ansible_facts.distribution | lower }}/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        owner: root
+        group: root
+        mode: "0644"
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_docker.install | default(true) | bool
+        - vps_docker.install_method | default('official_apt_repo') == 'official_apt_repo'
+
+    - name: Configure Docker apt repository
+      ansible.builtin.apt_repository:
+        repo: >-
+          deb [arch={{ ansible_facts.architecture | replace('x86_64', 'amd64') }} signed-by=/etc/apt/keyrings/docker.asc]
+          https://download.docker.com/linux/{{ ansible_facts.distribution | lower }}
+          {{ ansible_facts.distribution_release }} stable
+        filename: docker
+        state: present
+        update_cache: true
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_docker.install | default(true) | bool
+        - vps_docker.install_method | default('official_apt_repo') == 'official_apt_repo'
+
+    - name: Install Docker Engine packages
+      ansible.builtin.package:
+        name: "{{ vps_docker_packages }}"
+        state: present
+      vars:
+        vps_docker_packages: >-
+          {{
+            ['docker-ce', 'docker-ce-cli', 'containerd.io', 'docker-buildx-plugin']
+            + (['docker-compose-plugin'] if vps_docker.compose_plugin | default(true) | bool else [])
+          }}
+      when: vps_docker.install | default(true) | bool
+
+    - name: Configure Docker daemon
+      ansible.builtin.template:
+        src: "{{ vps_plugin_dir }}/templates/docker_daemon.json.j2"
+        dest: /etc/docker/daemon.json
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Docker
+
+    - name: Ensure Docker service is enabled
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+        state: started
+      when: not ansible_check_mode
+
+    - name: Add managed user to docker group when explicitly requested
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        groups:
+          - docker
+        append: true
+      when: vps_docker.add_managed_user_to_docker_group | default(false) | bool
+
+    - name: Document Docker firewall boundary
+      ansible.builtin.debug:
+        msg: "VPS Manager keeps host UFW and Docker exposure separate; compose ports should bind 127.0.0.1 unless expose.mode is public."
+      when: vps_firewall.manage_docker_user_chain | default(true) | bool
+
+  handlers:
+    - name: Restart Docker
+      ansible.builtin.systemd:
+        name: docker
+        state: restarted
+      when: not ansible_check_mode

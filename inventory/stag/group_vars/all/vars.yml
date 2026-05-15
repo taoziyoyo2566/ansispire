@@ -1,0 +1,15 @@
+# staging overrides on top of production defaults
+
+---
+env: stag
+ansible_managed: "Ansible managed: modified on %Y-%m-%d %H:%M:%S"
+
+# Staging does not need strict security
+ssh_permit_root_login: "yes"
+ssh_password_auth: "yes"
+
+# Shorter log retention
+log_retention_days: 7
+
+# Debug mode
+app_debug: true

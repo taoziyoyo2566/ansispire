@@ -86,7 +86,7 @@ dependencies:
 db_role: primary
 ```
 
-`inventory/production/group_vars/dbservers/vars.yml`:
+`inventory/prod/group_vars/dbservers/vars.yml`:
 ```yaml
 database__mysql_root_password: "{{ vault_db_root_password }}"
 database__databases:

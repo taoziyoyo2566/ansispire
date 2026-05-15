@@ -1,0 +1,61 @@
+---
+# Ansispire — Manifest (Single Source of Truth for ports + image versions)
+#
+# This file replaces the older config/ports.yml and adds a versions section.
+# It is the ONLY place where Ansispire-owned host port literals AND container
+# image tags live. Edit a value here, then `make manifest-sync` propagates it
+# to every consumer:
+#   - controller/semaphore/.env       (SEMAPHORE_PORT, SEMAPHORE_IMAGE_TAG)
+#   - controller/audit/  via the same .env (AUDIT_PORT, AUDIT_IMAGE_TAG)
+#   - any Ansible role that reads ansispire_ports.* / ansispire_versions.*
+#
+# Ansible consumption:
+#   vars_files:
+#     - "{{ playbook_dir }}/../config/manifest.yml"
+#
+# Compose consumption: variables interpolated via ${...} from the rendered
+# .env. Container-side ports stay at the upstream image defaults (3000 for
+# Semaphore, 3010 for the audit sink) — image upgrades don't require port
+# edits on our side.
+#
+# Forward compatibility: when targets_{debian,rhel,alpine} groups come online
+# in the next phase, OS-family-specific package pins go in this file too
+# (e.g. ansispire_versions.docker_engine_debian / ..._alpine).
+
+# ── Versions ──────────────────────────────────────────────────────────────
+ansispire_versions:
+  # Default tag used when nothing more specific is set. `latest` is the
+  # default so a fresh clone always pulls something current. To pin in
+  # production, set semaphore_pinned (and others) below.
+  default_tag: latest
+
+  # Pinned tags for production. Empty/null → fall back to default_tag.
+  # Bump deliberately, with a PR.
+  semaphore_pinned: v2.18.2
+  audit_python_pinned: "3.12-alpine"
+
+  # Resolved tags (consumed by templates and compose). DO NOT edit by hand —
+  # these are the {pinned ?? default} computation, mirrored here so other
+  # consumers (compose interpolation) can read a single resolved key.
+  # Keep the | default(...) chain in lockstep with the pinned keys above.
+  semaphore: "{{ ansispire_versions.semaphore_pinned | default(ansispire_versions.default_tag, true) }}"
+  audit_python: "{{ ansispire_versions.audit_python_pinned | default(ansispire_versions.default_tag, true) }}"
+
+# ── Ports ─────────────────────────────────────────────────────────────────
+# Convention: host port = container port + 300, to avoid collisions with
+# common defaults of co-resident services (n8n 5678, postgres 5432, redis
+# 6379, generic web 3000, prometheus 9090). IANA-standard protocol ports
+# (e.g. MySQL 3306) are excluded — they are not Ansispire-owned.
+ansispire_ports:
+  # Control plane (Semaphore)
+  semaphore_host: 3300
+  semaphore_container: 3000
+
+  # Reaction plane (audit sink — relay/reactor have no listeners)
+  audit_sink_host: 3310
+  audit_sink_container: 3010
+
+  # Reserved for future phases (kept here so the convention does not drift
+  # the day they are introduced)
+  prometheus_host: 9390
+  prometheus_container: 9090

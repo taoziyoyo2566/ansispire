@@ -1,0 +1,31 @@
+---
+- name: Remediation | Disk Cleanup
+  hosts: all
+  # 移除全局 become: true，改为任务级按需提权
+  become: false
+  gather_facts: true
+
+  tasks:
+    - name: Environment | Detect Sudo Capability
+      ansible.builtin.command: "which sudo"
+      register: _sudo_check
+      failed_when: false
+      changed_when: false
+
+    - name: Cleanup | System Cache (Requires Sudo)
+      ansible.builtin.apt:
+        autoclean: true
+      become: true
+      # 仅在有 sudo 的环境下执行（如目标节点 ans-hk01）
+      when:
+        - ansible_facts['os_family'] == "Debian"
+        - _sudo_check.rc == 0
+
+    - name: Cleanup | Local Temp Files (Generic)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/tmp/ansible-*"
+        - "/tmp/*.log"
+      # 不需要 become，普通用户也能清理自己的临时文件

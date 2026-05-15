@@ -15,7 +15,9 @@
 set -euo pipefail
 
 SEM="${SEMAPHORE_URL:-http://localhost:3001}"
-USERS_FILE="$(dirname "$0")/users.yml"
+USERS_FILE="${RBAC_USERS_FILE:-$(dirname "$0")/users.yml}"
+ENV_FILE="${SEMAPHORE_ENV_FILE:-controller/semaphore/.env}"
+ADMIN_USER="${SEMAPHORE_ADMIN_USER:-admin}"
 
 if [[ ! -f "$USERS_FILE" ]]; then
   echo "FAIL: $USERS_FILE not found — run 'make controller-bootstrap' first" >&2
@@ -59,8 +61,13 @@ expect_code() {
   fi
 }
 
-admin_pw=$(grep '^SEMAPHORE_ADMIN_PASSWORD=' controller/semaphore/.env | cut -d= -f2-)
-admin_cookie=$(login admin "$admin_pw")
+if [[ -n "${SEMAPHORE_ADMIN_PASSWORD:-}" ]]; then
+  admin_pw="$SEMAPHORE_ADMIN_PASSWORD"
+else
+  [[ -f "$ENV_FILE" ]] || { echo "FAIL: $ENV_FILE not found — run 'make controller-bootstrap' first" >&2; exit 1; }
+  admin_pw=$(grep '^SEMAPHORE_ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2-)
+fi
+admin_cookie=$(login "$ADMIN_USER" "$admin_pw")
 demo_project_id=$(curl -s -b "$admin_cookie" "$SEM/api/projects" | \
   python3 -c "import sys,json; print(next(p['id'] for p in json.load(sys.stdin) if p['name']=='round8-rbac-demo'))")
 echo "Demo project id: $demo_project_id"
@@ -106,6 +113,16 @@ code=$(curl -s -b "$cookie" -o /dev/null -w "%{http_code}" \
 expect_code "owner GET /keys" "200" "$code"
 echo
 
+expect_code_or() {
+  local desc="$1" expected1="$2" expected2="$3" actual="$4"
+  if [[ "$actual" == "$expected1" || "$actual" == "$expected2" ]]; then
+    printf "  PASS  %-60s (HTTP %s)\n" "$desc" "$actual"
+  else
+    printf "  FAIL  %-60s (got HTTP %s, expected %s or %s)\n" "$desc" "$actual" "$expected1" "$expected2" >&2
+    FAIL=1
+  fi
+}
+
 echo "── cross-project scoping ──"
 # demo_audit should have NO access to the main ansispire project
 r7_pid=$(curl -s -b "$admin_cookie" "$SEM/api/projects" | \
@@ -116,8 +133,7 @@ if [[ -n "$r7_pid" ]]; then
   cookie=$(login demo_audit "$pw")
   code=$(curl -s -b "$cookie" -o /dev/null -w "%{http_code}" \
     "$SEM/api/project/$r7_pid/templates")
-  expect_code "demo_audit cross-project (expect 403/404)" "403" "$code" || \
-    expect_code "demo_audit cross-project (expect 404)" "404" "$code"
+  expect_code_or "demo_audit cross-project (expect 403/404)" "403" "404" "$code"
 else
   echo "  SKIP  ansispire project not found (run controller-bootstrap first)"
 fi

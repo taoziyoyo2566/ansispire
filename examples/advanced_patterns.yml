@@ -56,7 +56,7 @@
     # Use case: inventory is not grouped by OS but a role needs Debian/RedHat distinction.
     - name: Group hosts by OS family
       ansible.builtin.group_by:
-        key: "os_{{ ansible_os_family | lower }}"
+        key: "os_{{ ansible_facts['os_family'] | lower }}"
       changed_when: false
       tags: [grouping]
 
@@ -64,8 +64,8 @@
     - name: Group hosts by memory tier
       ansible.builtin.group_by:
         key: >-
-          mem_{{ 'large' if ansible_memtotal_mb > 8192
-                 else 'medium' if ansible_memtotal_mb > 2048
+          mem_{{ 'large' if ansible_facts['memtotal_mb'] > 8192
+                 else 'medium' if ansible_facts['memtotal_mb'] > 2048
                  else 'small' }}
       changed_when: false
       tags: [grouping]
@@ -91,7 +91,7 @@
   tasks:
     - name: Example Debian-only task
       ansible.builtin.debug:
-        msg: "Running on Debian family: {{ ansible_distribution }}"
+        msg: "Running on Debian family: {{ ansible_facts['distribution'] }}"
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -115,7 +115,7 @@
 
     - name: Check if host meets requirements
       ansible.builtin.set_fact:
-        meets_requirements: "{{ ansible_memtotal_mb > 512 }}"
+        meets_requirements: "{{ ansible_facts['memtotal_mb'] > 512 }}"
 
     # meta: end_host — skip the remaining tasks for this host; other hosts continue.
     - name: Skip low-memory hosts for this play
@@ -362,7 +362,7 @@
     # include_role: dynamic; resolved at runtime; supports conditions and loops.
     - name: Apply platform-specific role dynamically
       ansible.builtin.include_role:
-        name: "platform_{{ ansible_os_family | lower }}"
+        name: "platform_{{ ansible_facts['os_family'] | lower }}"
       tags: [never, example]   # example — skipped by default
 
     # include_role with vars: override role variables for this call only.
@@ -396,9 +396,9 @@
   vars:
     users:
       - { name: alice, role: admin, active: true, score: 95 }
-      - { name: bob,  role: user,  active: false, score: 72 }
+      - { name: bob, role: user, active: false, score: 72 }
       - { name: carol, role: admin, active: true, score: 88 }
-      - { name: dave, role: user,  active: true, score: 60 }
+      - { name: dave, role: user, active: true, score: 60 }
 
     app_config:
       base:

@@ -1,0 +1,36 @@
+---
+name: vps_manager
+version: "0.1.0"
+description: Lightweight VPS lifecycle manager for Ansispire.
+entrypoint: vps_manager.py
+runtime:
+  inbox: runtime/inbox/vps
+  inventory: runtime/state/vps_inventory.yml
+  logs: runtime/logs/vps_manager
+actions:
+  onboard:
+    playbook: playbooks/onboard.yml
+    remote: true
+  recover:
+    playbook: playbooks/onboard.yml
+    remote: true
+  modify:
+    playbook: playbooks/modify.yml
+    remote: true
+  remove:
+    playbook: playbooks/remove.yml
+    remote: false
+  audit:
+    playbook: playbooks/audit.yml
+    remote: true
+  docker_host:
+    playbook: playbooks/docker_host.yml
+    remote: true
+  deploy_compose:
+    playbook: playbooks/deploy_compose.yml
+    remote: true
+safety:
+  managed_port_must_not_be_22: true
+  archive_redacts_secrets: true
+  active_alias_rejects_repeat_onboard: true
+  docker_default_bind_address: 127.0.0.1

@@ -38,8 +38,8 @@ repos:
         # exclude known placeholder and encrypted files
         exclude: |
           (?x)^(
-            inventory/production/group_vars/all/vault\.yml|
-            inventory/production/group_vars/all/vault\.example\.yml
+            inventory/local/vault\.yml|
+            inventory/local/vault\.yml\.example
           )$
 
   - repo: https://github.com/shellcheck-py/shellcheck-py

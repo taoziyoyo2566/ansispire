@@ -1,49 +1,57 @@
-# Vault 密码文件 — 绝对不能提交
+# ── Secrets (never commit) ──────────────────────────────────────────────
 .vault_pass
 *.vault_pass
+*.secrets
+controller/semaphore/.env
+controller/semaphore/.secrets
+controller/audit/e2e/.env
+controller/audit/e2e/.env.*
+controller/audit/e2e/.secrets
+controller/audit/e2e/.secrets.*
+controller/audit/e2e/hosts.*.ini
 
-# vault.yml 明文文件 — 必须加密后才能提交，建议直接排除
-# 如果你决定提交加密后的 vault.yml，删除下面这行
+# Project-root junk
+loop_status.tmp
+molecule_results.log
+codex-*.tar.gz
+ansible-plugin.txt
+ansible-pulgin.txt
+controller/rbac/users.yml
+controller/rbac/.demo_*.pw
 inventory/**/vault.yml
 
-# Ansible 运行产物
+# ── Ansible runtime ─────────────────────────────────────────────────────
+.ansible/
 *.retry
-
-# fact 缓存
 .facts/
 fact_cache/
 /tmp/ansible_facts_cache/
+.molecule/
+.cache/
+collections/
 
-# 日志
-*.log
+# ── Python ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+uv.lock
 
-# 编辑器
+# ── Coverage / test runner artifacts ────────────────────────────────────
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+test_results/
+
+# ── Editors / OS ────────────────────────────────────────────────────────
 .idea/
 .vscode/
 *.swp
 *~
 
-# Python
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.venv/
-*.egg-info/
-uv.lock
-
-# Molecule 产物
-.molecule/
-
-# 本地安装的 collections（由 ansible-galaxy install -r requirements.yml 生成）
-collections/
-
-# ansible-navigator 产物
-.cache/
-
-# 控制面（Semaphore）本地环境文件
-controller/semaphore/.env
-
-# Round 8: RBAC demo user credentials (random-generated at bootstrap)
-controller/rbac/users.yml
-# Round 8: audit sink persisted JSONL + rotated logs
+# ── Logs / data ─────────────────────────────────────────────────────────
+*.log
 controller/audit/data/
+runtime/

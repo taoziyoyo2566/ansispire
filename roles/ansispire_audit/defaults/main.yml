@@ -1,0 +1,10 @@
+# roles/ansispire_audit/defaults/main.yml
+#
+# Defaults consumed by deploy_hub.yml. Ports + image tags come from
+# config/manifest.yml (SSOT). Base_dir defaults to the hub's base_dir
+# because audit is co-located with the hub today (All-in-One); split to a
+# separate host by overriding ansispire_audit_base_dir.
+---
+ansispire_audit_port: "{{ ansispire_ports.audit_sink_host | default(3310) }}"
+ansispire_audit_image_tag: "{{ ansispire_versions.audit_python | default('3.12-alpine') }}"
+ansispire_audit_base_dir: "{{ ansispire_hub_base_dir }}"

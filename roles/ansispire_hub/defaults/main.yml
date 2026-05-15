@@ -1,0 +1,21 @@
+# roles/ansispire_hub/defaults/main.yml
+#
+# Defaults consumed by deploy_hub.yml. Ports + image tags come from
+# config/manifest.yml (SSOT) — the play loads it via vars_files. Override
+# at the inventory or extra-vars level if a specific host needs different
+# values.
+---
+ansispire_hub_base_dir: /opt/ansispire
+ansispire_hub_state_dir: /var/lib/ansispire/state
+
+# Sourced from config/manifest.yml. The role-level fallback to 3300 / latest
+# applies only if the play forgot to load manifest.yml — under normal flow
+# the manifest is always loaded, so the | default(...) tail is just safety.
+ansispire_hub_port: "{{ ansispire_ports.semaphore_host | default(3300) }}"
+ansispire_hub_image_tag: "{{ ansispire_versions.semaphore | default('latest') }}"
+
+ansispire_hub_admin_user: admin
+ansispire_hub_admin_email: admin@ansispire.local
+
+# Defined in inventory/local/vault.yml (gitignored vault file).
+ansispire_hub_admin_password: "{{ vault_semaphore_admin_password }}"

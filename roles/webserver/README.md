@@ -32,10 +32,10 @@ All variables use the `webserver__` prefix.
 
 ### Virtual host definition
 
-Each entry in `webserver__vhosts` (or `nginx_vhosts` from group_vars):
+Each entry in `webserver__vhosts`:
 
 ```yaml
-nginx_vhosts:
+webserver__vhosts:
   - name: app.example.com        # Server name (required)
     root: /var/www/app           # Document root (required)
     ssl: true                    # Enable HTTPS redirect
@@ -62,7 +62,7 @@ dependencies:
   hosts: webservers
   become: true
   vars:
-    nginx_vhosts:
+    webserver__vhosts:
       - name: app.example.com
         root: /var/www/app
         ssl: false

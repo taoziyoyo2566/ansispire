@@ -1,0 +1,11 @@
+# controller/semaphore/.env — rendered by ansispire_hub role
+# DO NOT edit on the deploy target; re-run deploy_hub.yml to refresh.
+SEMAPHORE_PORT={{ ansispire_hub_port }}
+SEMAPHORE_IMAGE_TAG={{ ansispire_hub_image_tag }}
+AUDIT_PORT={{ ansispire_audit_port }}
+AUDIT_IMAGE_TAG={{ ansispire_audit_image_tag }}
+SEMAPHORE_ADMIN={{ ansispire_hub_admin_user }}
+SEMAPHORE_ADMIN_NAME=Ansispire Administrator
+SEMAPHORE_ADMIN_EMAIL={{ ansispire_hub_admin_email }}
+SEMAPHORE_ADMIN_PASSWORD={{ ansispire_hub_admin_password }}
+TZ={{ system_timezone | default('UTC') }}

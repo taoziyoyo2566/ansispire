@@ -9,8 +9,10 @@ exclude_paths:
   - .git/
   - .venv/
   - .cache/
+  - inventory/local/
   - molecule/
   - collections/
+  - roles/geerlingguy.docker/
 
 # Rules to skip or treat as warnings
 warn_list:
@@ -22,5 +24,5 @@ var_naming_pattern: "^[a-z_][a-z0-9_]*$"
 # Ensure we use default rules and FQCN
 use_default_rules: true
 
-# Note: YAML formatting is handled by .yamllint. 
+# Note: YAML formatting is handled by .yamllint.
 # The nested 'yaml:' section is deprecated in recent ansible-lint versions.

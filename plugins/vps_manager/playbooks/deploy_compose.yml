@@ -1,0 +1,101 @@
+---
+- name: Deploy Docker Compose application to VPS
+  hosts: vps_targets
+  become: true
+  gather_facts: false
+  vars:
+    vps_app: "{{ vps_task.app }}"
+    vps_compose: "{{ vps_task.compose }}"
+    vps_deploy: "{{ vps_task.deploy | default({}) }}"
+    vps_expose: "{{ vps_task.expose | default({}) }}"
+    vps_healthcheck: "{{ vps_task.healthcheck | default({}) }}"
+
+  pre_tasks:
+    - name: Assert non-public compose exposure binds locally
+      ansible.builtin.assert:
+        that:
+          - vps_expose.mode == 'public' or vps_expose.bind_address | default('127.0.0.1') == '127.0.0.1'
+        fail_msg: "Non-public compose exposure must bind to 127.0.0.1."
+
+  tasks:
+    - name: Ensure application project directory exists
+      ansible.builtin.file:
+        path: "{{ vps_app.project_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Upload compose file
+      ansible.builtin.copy:
+        src: "{{ vps_compose.source }}"
+        dest: "{{ vps_app.project_dir }}/docker-compose.yml"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Upload compose env file when provided
+      ansible.builtin.copy:
+        src: "{{ vps_compose.env_file }}"
+        dest: "{{ vps_app.project_dir }}/.env"
+        owner: root
+        group: root
+        mode: "0600"
+      when: vps_compose.env_file is defined and vps_compose.env_file | length > 0
+      no_log: true
+
+    - name: Pull compose images
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - -f
+          - "{{ vps_app.project_dir }}/docker-compose.yml"
+          - pull
+      changed_when: true
+      when:
+        - vps_deploy.pull | default(true) | bool
+        - not ansible_check_mode
+
+    - name: Start compose project and remove orphans
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - -f
+          - "{{ vps_app.project_dir }}/docker-compose.yml"
+          - up
+          - -d
+          - --remove-orphans
+      changed_when: true
+      when:
+        - vps_deploy.remove_orphans | default(true) | bool
+        - not ansible_check_mode
+
+    - name: Start compose project without orphan cleanup
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - -f
+          - "{{ vps_app.project_dir }}/docker-compose.yml"
+          - up
+          - -d
+      changed_when: true
+      when:
+        - not (vps_deploy.remove_orphans | default(true) | bool)
+        - not ansible_check_mode
+
+    - name: Wait for application health endpoint
+      ansible.builtin.uri:
+        url: "{{ vps_healthcheck.url }}"
+        status_code: "{{ vps_healthcheck.expected_status | default(200) }}"
+        timeout: 5
+      register: vps_health_result
+      retries: 12
+      delay: 5
+      until: vps_health_result.status == (vps_healthcheck.expected_status | default(200) | int)
+      when:
+        - vps_healthcheck.url is defined
+        - vps_healthcheck.url | length > 0
+        - not ansible_check_mode

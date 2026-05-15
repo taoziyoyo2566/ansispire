@@ -1,12 +1,12 @@
 {# nginx.conf.j2 — demonstrates advanced Jinja2 usage #}
-{{ ansible_managed }}
+{{ ansible_managed | comment }}
 
 user  {{ webserver__nginx_user }};
 worker_processes  {{ webserver__worker_processes }};
 pid  {{ webserver__nginx_pid }};
 
 # Dynamic reference to ansible facts
-# ansible_processor_vcpus: CPU core count collected from the target host
+# ansible_facts['processor_vcpus']: CPU core count collected from the target host
 # Tip: apply the | int filter for type safety
 worker_rlimit_nofile  {{ [webserver__worker_connections * 2, 65535] | min }};
 

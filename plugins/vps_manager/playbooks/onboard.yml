@@ -1,0 +1,545 @@
+---
+- name: Onboard VPS into Ansispire management
+  hosts: vps_targets
+  become: true
+  gather_facts: true
+  gather_subset:
+    - min
+  vars:
+    vps_bootstrap: "{{ vps_task.bootstrap }}"
+    vps_managed: "{{ vps_task.managed }}"
+    vps_ssh: "{{ vps_task.ssh }}"
+    vps_profile: "{{ vps_task.profile | default({}) }}"
+    vps_firewall: "{{ vps_task.firewall | default({}) }}"
+    vps_fail2ban: "{{ vps_task.fail2ban | default({}) }}"
+    vps_network_tuning: "{{ vps_task.network_tuning | default({}) }}"
+    vps_swap: "{{ vps_task.swap | default({}) }}"
+    vps_package_install_list: "{{ vps_task.packages.install | default([]) }}"
+    vps_base_packages_enabled: "{{ vps_profile.base_packages | default(true) | bool }}"
+
+  pre_tasks:
+    - name: Assert managed SSH port policy
+      ansible.builtin.assert:
+        that:
+          - vps_ssh.managed_port | int != 22
+          - vps_ssh.managed_port | int >= 1024
+          - vps_ssh.managed_port | int <= 65535
+        fail_msg: "ssh.managed_port must be a non-22 high port."
+
+    - name: Collect service facts
+      ansible.builtin.service_facts:
+      check_mode: false
+
+    - name: Resolve SSH service name
+      ansible.builtin.set_fact:
+        vps_ssh_service_name: "{{ 'ssh' if 'ssh.service' in ansible_facts.services else 'sshd' }}"
+
+    - name: Initialize SSH socket activation facts
+      ansible.builtin.set_fact:
+        vps_ssh_socket_unit_name: ""
+        vps_ssh_socket_activation_enabled: false
+
+    - name: Probe active SSH socket activation units
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - --quiet
+          - "{{ item }}"
+      loop:
+        - ssh.socket
+        - sshd.socket
+      register: vps_ssh_socket_active_probe
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      when: ansible_facts.service_mgr == 'systemd'
+
+    - name: Resolve active SSH socket activation unit
+      ansible.builtin.set_fact:
+        vps_ssh_socket_unit_name: "{{ vps_ssh_socket_active_units[0] if (vps_ssh_socket_active_units | length) > 0 else '' }}"
+        vps_ssh_socket_activation_enabled: "{{ (vps_ssh_socket_active_units | length) > 0 }}"
+      vars:
+        vps_ssh_socket_active_units: >-
+          {{
+            vps_ssh_socket_active_probe.results | default([])
+            | selectattr('rc', 'equalto', 0)
+            | map(attribute='item')
+            | list
+          }}
+      when: ansible_facts.service_mgr == 'systemd'
+
+  tasks:
+    - name: Install requested base packages
+      ansible.builtin.package:
+        name: "{{ vps_task.packages.install | default([]) }}"
+        state: present
+      when:
+        - vps_base_packages_enabled
+        - (vps_package_install_list | default([])) | length > 0
+
+    - name: Remove explicitly unwanted packages
+      ansible.builtin.package:
+        name: "{{ vps_task.packages.remove | default([]) }}"
+        state: absent
+      when: (vps_task.packages.remove | default([])) | length > 0
+
+    - name: Ensure managed groups exist
+      ansible.builtin.group:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ vps_managed.groups | default([]) }}"
+
+    - name: Ensure managed user exists
+      ansible.builtin.user:
+        name: "{{ vps_managed.user }}"
+        groups: "{{ vps_managed.groups | default([]) }}"
+        append: true
+        shell: "{{ vps_managed.shell | default('/bin/bash') }}"
+        create_home: true
+        state: present
+
+    - name: Install managed user authorized keys
+      ansible.posix.authorized_key:
+        user: "{{ vps_managed.user }}"
+        key: |
+          {% for key_item in vps_managed.authorized_keys -%}
+          {{ lookup('ansible.builtin.file', key_item.public_key) }}
+          {% endfor %}
+        state: present
+        exclusive: false
+      no_log: true
+
+    - name: Configure managed sudo policy
+      ansible.builtin.template:
+        src: "{{ vps_plugin_dir }}/templates/sudoers_ansispire.j2"
+        dest: "/etc/sudoers.d/99-ansispire-{{ vps_managed.user }}"
+        owner: root
+        group: root
+        mode: "0440"
+        validate: "/usr/sbin/visudo -cf %s"
+      vars:
+        vps_sudo_nopasswd: "{{ vps_managed.sudo.nopasswd | default(true) | bool }}"
+
+    - name: Configure system limits
+      ansible.builtin.copy:
+        content: |
+          # Managed by Ansispire vps_manager
+          * soft nofile 65536
+          * hard nofile 65536
+          root soft nofile 65536
+          root hard nofile 65536
+        dest: /etc/security/limits.d/99-ansispire.conf
+        owner: root
+        group: root
+        mode: "0644"
+      when: vps_profile.system_limits | default(true) | bool
+
+    - name: Install unattended upgrades package
+      ansible.builtin.package:
+        name: unattended-upgrades
+        state: present
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_profile.unattended_upgrades | default(true) | bool
+        - not (vps_base_packages_enabled and 'unattended-upgrades' in vps_package_install_list)
+
+    - name: Configure optional swapfile
+      when:
+        - vps_swap.enabled | default(false) | bool
+        - not ansible_check_mode
+      block:
+        - name: Check swapfile state
+          ansible.builtin.stat:
+            path: /swapfile
+          register: vps_swapfile_stat
+
+        - name: Allocate swapfile
+          ansible.builtin.command:
+            argv:
+              - fallocate
+              - -l
+              - "{{ vps_swap.size_gb | default(1) }}G"
+              - /swapfile
+          when: not vps_swapfile_stat.stat.exists
+          changed_when: true
+
+        - name: Set swapfile permissions
+          ansible.builtin.file:
+            path: /swapfile
+            owner: root
+            group: root
+            mode: "0600"
+
+        - name: Format swapfile
+          ansible.builtin.command:
+            argv:
+              - mkswap
+              - /swapfile
+          when: not vps_swapfile_stat.stat.exists
+          changed_when: true
+
+        - name: Ensure swapfile is mounted
+          ansible.posix.mount:
+            path: none
+            src: /swapfile
+            fstype: swap
+            opts: sw
+            state: present
+
+        - name: Enable swapfile now
+          ansible.builtin.command:
+            argv:
+              - swapon
+              - /swapfile
+          register: vps_swapon_result
+          failed_when: vps_swapon_result.rc not in [0, 255]
+          changed_when: vps_swapon_result.rc == 0
+
+    - name: Apply optional BBR tuning
+      ansible.posix.sysctl:
+        name: net.ipv4.tcp_congestion_control
+        value: bbr
+        sysctl_set: true
+        state: present
+        reload: true
+      when:
+        - vps_network_tuning.enabled | default(false) | bool
+        - vps_network_tuning.bbr | default(false) | bool
+
+    - name: Apply optional TCP Fast Open tuning
+      ansible.posix.sysctl:
+        name: net.ipv4.tcp_fastopen
+        value: "3"
+        sysctl_set: true
+        state: present
+        reload: true
+      when:
+        - vps_network_tuning.enabled | default(false) | bool
+        - vps_network_tuning.tcp_fastopen | default(false) | bool
+
+    - name: Apply optional MTU probing tuning
+      ansible.posix.sysctl:
+        name: net.ipv4.tcp_mtu_probing
+        value: "1"
+        sysctl_set: true
+        state: present
+        reload: true
+      when:
+        - vps_network_tuning.enabled | default(false) | bool
+        - vps_network_tuning.mtu_probing | default(false) | bool
+
+    - name: Install fail2ban
+      ansible.builtin.package:
+        name: fail2ban
+        state: present
+      when:
+        - vps_fail2ban.enabled | default(false) | bool
+        - not (vps_base_packages_enabled and 'fail2ban' in vps_package_install_list)
+
+    - name: Configure fail2ban sshd jail
+      ansible.builtin.template:
+        src: "{{ vps_plugin_dir }}/templates/fail2ban_sshd.local.j2"
+        dest: /etc/fail2ban/jail.d/sshd.local
+        owner: root
+        group: root
+        mode: "0644"
+      when: vps_fail2ban.enabled | default(false) | bool
+
+    - name: Ensure fail2ban is enabled
+      ansible.builtin.systemd:
+        name: fail2ban
+        enabled: true
+        state: started
+      when:
+        - vps_fail2ban.enabled | default(false) | bool
+        - not ansible_check_mode
+
+    - name: Install UFW on Debian family
+      ansible.builtin.package:
+        name: ufw
+        state: present
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_profile.ufw | default(true) | bool
+        - not (vps_base_packages_enabled and 'ufw' in vps_package_install_list)
+
+    - name: Allow managed SSH port before enabling UFW
+      community.general.ufw:
+        rule: allow
+        port: "{{ vps_ssh.managed_port | string }}"
+        proto: tcp
+        comment: Ansispire SSH
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_profile.ufw | default(true) | bool
+
+    - name: Keep bootstrap SSH port open until final validation
+      community.general.ufw:
+        rule: allow
+        port: "{{ vps_bootstrap.port | string }}"
+        proto: tcp
+        comment: Ansispire bootstrap SSH
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_profile.ufw | default(true) | bool
+        - vps_bootstrap.port | int != vps_ssh.managed_port | int
+
+    - name: Allow requested additional TCP ports
+      community.general.ufw:
+        rule: allow
+        port: "{{ item | string }}"
+        proto: tcp
+      loop: "{{ vps_firewall.allowed_tcp_ports | default([]) }}"
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_profile.ufw | default(true) | bool
+        - item | int != vps_ssh.managed_port | int
+        - item | int != vps_bootstrap.port | int
+
+    - name: Allow HTTP and HTTPS when explicitly requested
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "80"
+        - "443"
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_profile.ufw | default(true) | bool
+        - vps_firewall.allow_http_https | default(false) | bool
+
+    - name: Set UFW incoming default
+      community.general.ufw:
+        default: "{{ vps_firewall.default_incoming | default('deny') }}"
+        direction: incoming
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_profile.ufw | default(true) | bool
+
+    - name: Set UFW outgoing default
+      community.general.ufw:
+        default: "{{ vps_firewall.default_outgoing | default('allow') }}"
+        direction: outgoing
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_profile.ufw | default(true) | bool
+
+    - name: Enable UFW
+      community.general.ufw:
+        state: enabled
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_profile.ufw | default(true) | bool
+
+    - name: Ensure sshd drop-in directory exists
+      ansible.builtin.file:
+        path: /etc/ssh/sshd_config.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Comment direct Ansispire-managed lines in main sshd_config
+      ansible.builtin.replace:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ vps_sshd_directive_regexp }}"
+        replace: '# \1 managed by /etc/ssh/sshd_config.d/00-ansispire.conf'
+        backup: true
+      vars:
+        vps_sshd_directives:
+          - Port
+          - PubkeyAuthentication
+          - X11Forwarding
+          - ClientAliveInterval
+          - ClientAliveCountMax
+          - LoginGraceTime
+          - PermitRootLogin
+          - PasswordAuthentication
+          - KbdInteractiveAuthentication
+          - ChallengeResponseAuthentication
+          - AllowGroups
+        vps_sshd_directive_regexp: "^\\s*({{ vps_sshd_directives | join('|') }})\\s+.*$"
+
+    - name: Install transitional sshd drop-in with managed port
+      ansible.builtin.template:
+        src: "{{ vps_plugin_dir }}/templates/sshd_ansispire.conf.j2"
+        dest: /etc/ssh/sshd_config.d/00-ansispire.conf
+        owner: root
+        group: root
+        mode: "0644"
+      vars:
+        vps_ssh_lockdown_enabled: false
+
+    - name: Remove legacy late sshd drop-in
+      ansible.builtin.file:
+        path: /etc/ssh/sshd_config.d/99-ansispire.conf
+        state: absent
+
+    - name: Ensure SSH socket drop-in directory exists
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ vps_ssh_socket_unit_name }}.d"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: vps_ssh_socket_activation_enabled | bool
+
+    - name: Install transitional SSH socket override
+      ansible.builtin.template:
+        src: "{{ vps_plugin_dir }}/templates/ssh_socket_ansispire.conf.j2"
+        dest: "/etc/systemd/system/{{ vps_ssh_socket_unit_name }}.d/99-ansispire.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      vars:
+        vps_ssh_lockdown_enabled: false
+      when: vps_ssh_socket_activation_enabled | bool
+
+    - name: Validate sshd configuration
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/sshd
+          - -t
+      changed_when: false
+      check_mode: false
+
+    - name: Reload systemd manager for transitional SSH socket override
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when:
+        - vps_ssh_socket_activation_enabled | bool
+        - not ansible_check_mode
+
+    - name: Restart SSH socket for managed port
+      ansible.builtin.systemd:
+        name: "{{ vps_ssh_socket_unit_name }}"
+        state: restarted
+      when:
+        - vps_ssh_socket_activation_enabled | bool
+        - not ansible_check_mode
+
+    - name: Reload SSH service for managed port
+      ansible.builtin.systemd:
+        name: "{{ vps_ssh_service_name }}"
+        state: reloaded
+      when: not ansible_check_mode
+
+    - name: Wait for managed SSH port to answer
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
+        port: "{{ vps_ssh.managed_port | int }}"
+        timeout: 30
+      delegate_to: localhost
+      become: false
+      when: not ansible_check_mode
+
+    - name: Validate managed user sudo on new SSH port
+      ansible.builtin.command:
+        argv:
+          - ssh
+          - -i
+          - "{{ vps_managed.ansible_key.private_key }}"
+          - -p
+          - "{{ vps_ssh.managed_port | string }}"
+          - -o
+          - BatchMode=yes
+          - -o
+          - StrictHostKeyChecking=no
+          - -o
+          - UserKnownHostsFile=/dev/null
+          - "{{ vps_managed.user }}@{{ ansible_host }}"
+          - sudo
+          - -n
+          - "true"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      check_mode: false
+      when: not ansible_check_mode
+
+    - name: Install final locked-down sshd drop-in
+      ansible.builtin.template:
+        src: "{{ vps_plugin_dir }}/templates/sshd_ansispire.conf.j2"
+        dest: /etc/ssh/sshd_config.d/00-ansispire.conf
+        owner: root
+        group: root
+        mode: "0644"
+      vars:
+        vps_ssh_lockdown_enabled: true
+
+    - name: Install final locked-down SSH socket override
+      ansible.builtin.template:
+        src: "{{ vps_plugin_dir }}/templates/ssh_socket_ansispire.conf.j2"
+        dest: "/etc/systemd/system/{{ vps_ssh_socket_unit_name }}.d/99-ansispire.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      vars:
+        vps_ssh_lockdown_enabled: true
+      when: vps_ssh_socket_activation_enabled | bool
+
+    - name: Validate final sshd configuration
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/sshd
+          - -t
+      changed_when: false
+      check_mode: false
+
+    - name: Reload systemd manager for final SSH socket override
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when:
+        - vps_ssh_socket_activation_enabled | bool
+        - not ansible_check_mode
+
+    - name: Restart SSH socket after lockdown
+      ansible.builtin.systemd:
+        name: "{{ vps_ssh_socket_unit_name }}"
+        state: restarted
+      when:
+        - vps_ssh_socket_activation_enabled | bool
+        - not ansible_check_mode
+
+    - name: Reload SSH service after lockdown
+      ansible.builtin.systemd:
+        name: "{{ vps_ssh_service_name }}"
+        state: reloaded
+      when: not ansible_check_mode
+
+    - name: Close bootstrap SSH port after final validation
+      community.general.ufw:
+        rule: allow
+        port: "{{ vps_bootstrap.port | string }}"
+        proto: tcp
+        delete: true
+      when:
+        - ansible_facts.os_family == 'Debian'
+        - vps_profile.ufw | default(true) | bool
+        - vps_ssh.close_bootstrap_port_after_success | default(true) | bool
+        - vps_bootstrap.port | int != vps_ssh.managed_port | int
+        - not ansible_check_mode
+
+    - name: Validate final managed login
+      ansible.builtin.command:
+        argv:
+          - ssh
+          - -i
+          - "{{ vps_managed.ansible_key.private_key }}"
+          - -p
+          - "{{ vps_ssh.managed_port | string }}"
+          - -o
+          - BatchMode=yes
+          - -o
+          - StrictHostKeyChecking=no
+          - -o
+          - UserKnownHostsFile=/dev/null
+          - "{{ vps_managed.user }}@{{ ansible_host }}"
+          - "true"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      check_mode: false
+      when: not ansible_check_mode

@@ -1,0 +1,8 @@
+# Managed by Ansispire vps_manager
+Host {{ server.alias }}
+  HostName {{ server.host }}
+  Port {{ server.managed_port }}
+  User {{ server.managed_user }}
+  IdentityFile {{ server.identity_file }}
+  IdentitiesOnly yes
+  ServerAliveInterval 30

@@ -1,0 +1,17 @@
+---
+version: 1
+kind: vps
+action: docker_host
+alias: jp-tokyo-01
+docker:
+  install: true
+  install_method: official_apt_repo
+  add_managed_user_to_docker_group: false
+  compose_plugin: true
+  enable_ipv6: false
+  logging:
+    driver: json-file
+    max_size: 50m
+    max_file: 3
+firewall:
+  manage_docker_user_chain: true

@@ -17,7 +17,7 @@
     name: "{{ _common__ssh_service | default('ssh') }}"
     state: restarted
   # `listen` lets the task notify by a semantic name; the handler name does not matter
-  listen: "Restart {{ _common__ssh_service | default('ssh') }} service"
+  listen: Restart SSH service
 
 # ── Cron ────────────────────────────────────────────────────────────────────
 - name: Restart Cron service
