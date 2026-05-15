@@ -1,0 +1,7 @@
+# Managed by Ansispire vps_manager
+[Socket]
+ListenStream=
+{% if not (vps_ssh_lockdown_enabled | bool) and (vps_bootstrap.port | int) != (vps_ssh.managed_port | int) %}
+ListenStream={{ vps_bootstrap.port }}
+{% endif %}
+ListenStream={{ vps_ssh.managed_port }}

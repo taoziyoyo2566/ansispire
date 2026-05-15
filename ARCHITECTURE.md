@@ -12,6 +12,7 @@ Ansispire is a **Multi-Server Management Control System** for high-availability 
 - **Control Plane** (`controller/`): Go-based (Semaphore) management interface; deployed via Ansible role (`ansispire_hub`) or directly via docker compose.
 - **Audit Plane** (`controller/audit/`): Real-time event tracking + non-repudiation logging (sink + relay + reactor).
 - **Data Plane** (`roles/`, `playbooks/`): Idempotent server state definitions.
+- **Plugin Plane** (`plugins/`): Lightweight local extensions. `vps_manager` turns one-shot YAML tasks into Ansible playbook runs and local runtime state for VPS lifecycle management.
 - **Reaction Plane** (EDA / Reactor): Event-driven remediation (API-driven via Bearer Token) and notification. Supports dynamic template resolution by name.
 - **Database Backend**: SQLite (BoltDB deprecated upstream).
 - **Config-as-Code (IaC)**: Standardized bootstrap via `controller/semaphore/bootstrap.yml` automates project / template / token provisioning. UI zero-touch.
@@ -29,6 +30,7 @@ Ansispire is a **Multi-Server Management Control System** for high-availability 
 - [EDA Remediation (Nginx)](docs/reference/feature-map/eda-remediation.md) — first remediation rule
 - **[EDA Self-Healing Operator Guide](docs/user-guide/02-quickstart-eda.md)** — long-form user guide (zero-knowledge → production)
 - [Test Infrastructure & Stability](docs/reference/feature-map/test-infra.md)
+- [VPS Manager Plugin](docs/reference/feature-map/vps-manager.md)
 - [Empirical Investigations Index](docs/reference/investigations/INDEX.md) — root cause analysis and feasibility spike history
 - [Test Specifications (TSVS)](docs/reference/test-specs/) — mandatory verification records
 

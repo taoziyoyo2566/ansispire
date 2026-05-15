@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ansispire.local/schemas/vps-manager-task.json",
+  "title": "Ansispire VPS Manager Task",
+  "type": "object",
+  "required": ["version", "kind", "action"],
+  "additionalProperties": true,
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "vps"
+    },
+    "action": {
+      "enum": ["onboard", "modify", "remove", "audit", "docker_host", "deploy_compose"]
+    },
+    "alias": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+    },
+    "bootstrap": {
+      "type": "object",
+      "required": ["host", "port", "user", "auth"],
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "user": {
+          "type": "string",
+          "minLength": 1
+        },
+        "auth": {
+          "type": "object",
+          "required": ["method"],
+          "properties": {
+            "method": {
+              "enum": ["password", "private_key"]
+            },
+            "password_env": {
+              "type": "string"
+            },
+            "private_key": {
+              "type": ["string", "null"]
+            }
+          }
+        }
+      }
+    },
+    "managed": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "type": "string"
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "public_key": {
+          "type": "string",
+          "deprecated": true
+        },
+        "private_key": {
+          "type": "string",
+          "deprecated": true
+        },
+        "ansible_key": {
+          "type": "object",
+          "required": ["private_key"],
+          "properties": {
+            "private_key": {
+              "type": "string"
+            },
+            "public_key": {
+              "type": "string"
+            }
+          }
+        },
+        "personal_keys": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "required": ["public_key"],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "public_key": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "ssh": {
+      "type": "object",
+      "properties": {
+        "managed_port": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535,
+          "not": {
+            "const": 22
+          }
+        },
+        "disable_root_login": {
+          "type": "boolean"
+        },
+        "disable_password_login": {
+          "type": "boolean"
+        },
+        "allow_groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "options": {
+      "type": "object",
+      "properties": {
+        "force": {
+          "type": "boolean"
+        },
+        "dry_run": {
+          "type": "boolean"
+        }
+      }
+    },
+    "local": {
+      "type": "object",
+      "properties": {
+        "write_ssh_config": {
+          "type": "boolean"
+        },
+        "ssh_config_file": {
+          "type": "string"
+        },
+        "ssh_config_identity_file": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "onboard"
+          }
+        }
+      },
+      "then": {
+        "required": ["alias", "bootstrap", "managed", "ssh"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": ["modify", "remove", "docker_host", "deploy_compose"]
+          }
+        }
+      },
+      "then": {
+        "required": ["alias"]
+      }
+    }
+  ]
+}

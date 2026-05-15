@@ -1,0 +1,22 @@
+---
+version: 1
+kind: vps
+action: audit
+target:
+  aliases:
+    - jp-tokyo-01
+checks:
+  ssh: true
+  cpu: true
+  memory: true
+  disk: true
+  failed_services: true
+  reboot_required: true
+  docker: false
+thresholds:
+  disk_warning_percent: 80
+  disk_critical_percent: 90
+  memory_warning_percent: 80
+  memory_critical_percent: 90
+  load_warning_per_core: 1.5
+  load_critical_per_core: 3.0

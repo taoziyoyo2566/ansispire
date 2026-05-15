@@ -35,6 +35,17 @@
 | `advanced_patterns.yml` | **示例** | 高级 pattern 教学（block/rescue/handler 等），非生产功能 |
 | `vault_demo.yml` | **示例** | Vault 用法演示，非生产功能 |
 
+### 2.1 插件内剧本
+
+| 剧本 | 插件 | 用途 |
+| :--- | :--- | :--- |
+| `plugins/vps_manager/playbooks/onboard.yml` | `vps_manager` | VPS 纳管：bootstrap SSH → managed user/key/sudo → UFW/fail2ban → 非 22 SSH 管理端口 |
+| `plugins/vps_manager/playbooks/modify.yml` | `vps_manager` | 已纳管 VPS 的包、防火墙、fail2ban、网络参数修改 |
+| `plugins/vps_manager/playbooks/audit.yml` | `vps_manager` | VPS 健康巡检（磁盘 / 内存 / failed services / reboot marker） |
+| `plugins/vps_manager/playbooks/remove.yml` | `vps_manager` | 本地取消纳管为主，远端清理 opt-in |
+| `plugins/vps_manager/playbooks/docker_host.yml` | `vps_manager` | 安装 Docker Engine 与 daemon 安全默认值 |
+| `plugins/vps_manager/playbooks/deploy_compose.yml` | `vps_manager` | 上传并运行 Compose，非公网模式强制 `127.0.0.1` 绑定 |
+
 ---
 
 ## 3. 控制面模块 (Controller / Hub-side)
@@ -57,6 +68,14 @@
 ### 3.3 RBAC 模型 (`controller/rbac/`)
 - **三角色**：`owner`（全权限）/ `task_runner`（仅运行）/ `guest`（仅查看）
 - **验证**：`smoke.sh` 每次 deploy 后跑（也是 `make controller-rbac-smoke` 入口）
+
+### 3.4 插件层 (`plugins/`)
+- **`vps_manager`** — YAML task 驱动的 VPS 生命周期插件：
+  - inbox 生命周期：`pending → processing → done|failed`
+  - 长期状态：`runtime/state/vps_inventory.yml`
+  - 安全策略：拒绝内联密码、强制 managed SSH 端口非 22、Ansible 专用 key 与个人 key 分离、active alias 重复 onboard 拒绝、归档脱敏
+  - 扩展面：`onboard` / `modify` / `audit` / `remove` / `docker_host` / `deploy_compose`
+  - 详见 [`vps-manager.md`](vps-manager.md)
 
 ---
 
@@ -112,6 +131,7 @@
   - 断言规格：[`docs/reference/test-specs/molecule-{common,webserver,database,full-stack}.md`](../test-specs/)
 - **CI**（`.github/workflows/ci.yml`）：6 job —— `yamllint` → `{ansible-lint, syntax-check}` → `{dry-run, molecule matrix}`，外加独立 `detect-secrets`；触发 push `dev|master|hotfix/*` + PR `dev|stg|master`；Dependabot 周维度提依赖升级 PR
 - **测试卫生**：失败的 L4/L5 必须先清 ephemeral state（`~/.ansible/tmp/molecule.*`）+ leave-running stack 才能复测——见 testing-governance.md §9
+- **VPS Manager**：`make test-vps-manager` 覆盖本地任务生命周期、inventory/SSH config、脱敏、防重复和 compose 暴露 guard；`make vps-manager-syntax` 用原生 Ansible syntax-check 覆盖插件 action playbook。
 
 ---
 
@@ -124,7 +144,8 @@
 | **Hub 部署** | `hub-deploy [HUB_NODE=local|remote|all]` + `hub-deploy-check` | Path A 入口 |
 | **Controller 生命周期** | `controller-{up,down,logs,reset,bootstrap}` | Path B 入口 |
 | **审计链路** | `controller-audit-{up,down,tail,stats}` | sink + relay 容器管理 |
-| **测试** | `test-eda*` 三 L 拆分 / `test-eda-e2e` / `molecule-all` / smoke 系列 | 见 §7 |
+| **测试** | `test-eda*` 三 L 拆分 / `test-eda-e2e` / `molecule-all` / `vps-manager-syntax` / smoke 系列 | 见 §7 |
+| **VPS 管理插件** | `vps-new` / `vps-submit` / `vps-manager-init` / `vps-manager-process` / `vps-manager-validate` / `test-vps-manager` | YAML task inbox 驱动的 VPS 纳管与本地状态维护 |
 | **Vault** | `vault-edit FILE=...` / `vault-encrypt` | Vault 操作包装 |
 | **EE** | `ee-build` / `navigator` / `navigator-local` | Execution Environment 模式 |
 | **SSOT** | `manifest-sync` / `ports-sync` (deprecated alias) | 见 §6 |
@@ -139,6 +160,7 @@
 - 基于审计日志的闭环自愈（当前实战级：**Disk Full**；剧本就绪未挂规则：Nginx restart）
 - 工业级 lint + syntax + unit + component + e2e + molecule 测试链
 - Hub 远端部署（含 SSH 用户拨备 / rsync 代码同步 / EDA token 持久化）
+- VPS Manager MVP：通过 YAML task 纳管/修改/巡检/取消纳管 VPS，强制非 22 SSH 管理端口，归档脱敏，维护本地 VPS inventory
 - 失败安全：dry-run 对全栈兼容（check-mode safety）
 
 ### 不能做什么 ❌ / 半完成 ⚠
@@ -149,6 +171,7 @@
 - ⚠ **Stag 环境真机**（结构就绪等接入）
 - ⚠ **多 OS target fleet**（占位组就绪，等 4 台 VPS 上线）
 - ⚠ **`molecule/hub/` scenario**（hub role 目前无独立 molecule 测试，靠 `make hub-deploy-check` 间接 dry-run）
+- ⚠ **VPS Manager 实机闭环**（MVP 已有 L1 本地生命周期测试；真实远端 onboard / SSH 回滚路径仍需实机或 Molecule 场景验证）
 
 ---
-*最后更新：2026-05-13 | 对应分支：`feat/eda-advanced-healing` | PR #12 → `dev`*
+*最后更新：2026-05-14 | 对应分支：`feat/eda-advanced-healing` | PR #12 → `dev`*

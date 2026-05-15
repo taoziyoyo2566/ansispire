@@ -1,0 +1,68 @@
+---
+- name: Audit onboarded VPS hosts
+  hosts: vps_targets
+  become: true
+  gather_facts: true
+  vars:
+    vps_checks: "{{ vps_task.checks | default({}) }}"
+    vps_thresholds: "{{ vps_task.thresholds | default({}) }}"
+
+  tasks:
+    - name: Check disk usage for root filesystem
+      ansible.builtin.shell:
+        cmd: "set -o pipefail && df -P / | awk 'NR==2 {gsub(/%/, \"\", $5); print $5}'"
+        executable: /bin/bash
+      register: vps_disk_usage
+      changed_when: false
+      when: vps_checks.disk | default(true) | bool
+
+    - name: Check memory usage percent
+      ansible.builtin.shell:
+        cmd: "set -o pipefail && free | awk '/Mem:/ {printf(\"%.0f\", $3/$2*100)}'"
+        executable: /bin/bash
+      register: vps_memory_usage
+      changed_when: false
+      when: vps_checks.memory | default(true) | bool
+
+    - name: Check failed systemd services
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - --failed
+          - --no-legend
+      register: vps_failed_services
+      changed_when: false
+      failed_when: false
+      when:
+        - vps_checks.failed_services | default(true) | bool
+        - ansible_service_mgr == 'systemd'
+
+    - name: Check reboot-required marker
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: vps_reboot_required
+      when: vps_checks.reboot_required | default(true) | bool
+
+    - name: Assert disk usage below critical threshold
+      ansible.builtin.assert:
+        that:
+          - (vps_disk_usage.stdout | int) < (vps_thresholds.disk_critical_percent | default(90) | int)
+        fail_msg: "Disk usage is critical: {{ vps_disk_usage.stdout }}%"
+      when: vps_checks.disk | default(true) | bool
+
+    - name: Assert memory usage below critical threshold
+      ansible.builtin.assert:
+        that:
+          - (vps_memory_usage.stdout | int) < (vps_thresholds.memory_critical_percent | default(90) | int)
+        fail_msg: "Memory usage is critical: {{ vps_memory_usage.stdout }}%"
+      when: vps_checks.memory | default(true) | bool
+
+    - name: Emit audit summary
+      ansible.builtin.debug:
+        msg:
+          host: "{{ inventory_hostname }}"
+          distribution: "{{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+          disk_percent: "{{ vps_disk_usage.stdout | default('skipped') }}"
+          memory_percent: "{{ vps_memory_usage.stdout | default('skipped') }}"
+          reboot_required: "{{ vps_reboot_required.stat.exists | default(false) }}"
+          failed_services_lines: "{{ vps_failed_services.stdout_lines | default([]) }}"

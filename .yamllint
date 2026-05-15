@@ -13,6 +13,7 @@ ignore: |
   .molecule/
   test_results/
   htmlcov/
+  runtime/
 
 rules:
   line-length:

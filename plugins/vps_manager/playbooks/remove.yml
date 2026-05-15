@@ -1,0 +1,25 @@
+---
+- name: Remote cleanup for VPS removal
+  hosts: vps_targets
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Remove Ansispire sshd drop-in when explicitly requested
+      ansible.builtin.file:
+        path: /etc/ssh/sshd_config.d/99-ansispire.conf
+        state: absent
+      when: vps_task.options.remove_remote_sshd_dropin | default(false) | bool
+
+    - name: Validate sshd after optional cleanup
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/sshd
+          - -t
+      changed_when: false
+      check_mode: false
+      when: vps_task.options.remove_remote_sshd_dropin | default(false) | bool
+
+    - name: Remote removal intentionally keeps users and keys by default
+      ansible.builtin.debug:
+        msg: "Local inventory removal complete; remote user/key cleanup was not requested."

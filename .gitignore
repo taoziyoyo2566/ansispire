@@ -14,6 +14,8 @@ controller/audit/e2e/hosts.*.ini
 loop_status.tmp
 molecule_results.log
 codex-*.tar.gz
+ansible-plugin.txt
+ansible-pulgin.txt
 controller/rbac/users.yml
 controller/rbac/.demo_*.pw
 inventory/**/vault.yml
@@ -52,3 +54,4 @@ test_results/
 # ── Logs / data ─────────────────────────────────────────────────────────
 *.log
 controller/audit/data/
+runtime/

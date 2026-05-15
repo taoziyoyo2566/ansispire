@@ -1,0 +1,3 @@
+# Managed by Ansispire vps_manager
+{{ vps_managed.user }} ALL=(ALL) {{ 'NOPASSWD:' if vps_sudo_nopasswd | bool else '' }} ALL
+

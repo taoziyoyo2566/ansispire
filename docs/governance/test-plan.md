@@ -34,6 +34,7 @@
 | rules contract | `extensions/eda/rules.json` ↔ `bootstrap.yml` | Config 契约 | EDA L2 | `eda-rules-contract.md` |
 | rbac controller | `controller/rbac/` | Bash + Semaphore API | RBAC smoke | `rbac-functional-smoke.md` |
 | audit relay/sink | `controller/audit/e2e/`、`controller/audit/{relay,sink}.py` | Docker stack | loop-smoke + e2e | `audit-loopback-functional.md` |
+| vps_manager plugin | `plugins/vps_manager/` | Python + Ansible playbooks | L1 local lifecycle + native Ansible syntax | `vps-manager-unit.md`（TSVS-VPS-MANAGER-UNIT-001） |
 | Cross-role integration | `roles/{common,webserver,database}/*` 共存 | combo | `molecule -s full-stack` | `molecule-full-stack.md`（TSVS-MOL-FULLSTACK-001） |
 | playbooks/inventory | `playbooks/site.yml`、`inventory/{stag,prod}/` | 编排 | lint + syntax + dry-run | **无**（dry-run 即覆盖） |
 
@@ -46,7 +47,7 @@
 | 质量属性 | L0 静态 | L1 单元 | L2 契约 | L3 组件 | L4 集成 | L5 E2E |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | 语法 / 风格 | ✅ lint+yamllint | — | — | — | — | — |
-| Python 纯函数逻辑 | — | ✅ EDA L1 (14) | — | — | — | — |
+| Python 纯函数逻辑 | — | ✅ EDA L1 (14) + VPS Manager lifecycle (5) | — | — | — | — |
 | 跨配置文件契约 | — | — | ✅ EDA L2 (9) | — | — | — |
 | 组件 + mock 外部 | — | — | — | ✅ EDA L3 (5) | — | — |
 | Role 部署正确性 | ⚠ syntax (有限) | ✗ | ✗ | ✗ | ✅ Molecule (3 个 role) | ✗ |
@@ -151,6 +152,20 @@
 - `/etc/mysql/mysql.conf.d/mysqld.cnf` 含 `Ansible managed`（**soft check**：`failed_when: false`，不实际中断 verify）
 - nginx **AND** mysql 同时 running（co-existence assertion）
 
+### 4.12 vps_manager plugin
+
+详见 `vps-manager-unit.md`（TSVS-VPS-MANAGER-UNIT-001）：
+- local task lifecycle：`pending → done|failed`
+- active alias 重复 onboard 拒绝
+- archive secret redaction
+- `runtime/state/vps_inventory.yml` 更新
+- generated SSH config block 更新 / 移除
+- Ansible automation key 与 operator SSH identity 分离
+- non-public compose exposure 必须绑定 `127.0.0.1`
+- action playbooks 只做原生 Ansible syntax-check；不在 Python 单测中模拟 UFW/fail2ban/Docker 远端效果
+
+**未断言**：真实远端 SSH 切端口、UFW/fail2ban 实际效果、Docker 安装、Compose 健康检查。
+
 ---
 
 ## 5. 已知缺口与风险分级
@@ -166,6 +181,7 @@
 | G7 | 本地 `molecule-all` 串行 | 低 | release 前耗时 10–20 min；CI 已并行不影响 | xargs -P 或并行 Make target | Tier C |
 | G8 | 模板渲染产物只有 Molecule 验证 | 低 | 现状勉强可接受，毕竟有 L4 兜底 | 维持现状 + round 2 在 `webserver`/`database` TSVS 显式登记 | round 2 |
 | G9 | `roles/common/verify.yml` 不验证 UFW 规则具体内容 | 低 | round 5 已知问题（UFW lo），加规则后仅靠功能测试间接验证 | round 2 在 common TSVS 列入 known limitation | round 2 |
+| G10 | `vps_manager` 缺真实远端 onboarding 测试 | 中 | SSH 端口切换 / UFW / 回滚路径只有静态与 L1 覆盖 | 增加实机 smoke 或 Molecule-style SSH target 场景 | VPS Manager follow-up |
 
 **风险评级原则**：
 - **高**：缺口可直接导致生产事故，无人工兜底

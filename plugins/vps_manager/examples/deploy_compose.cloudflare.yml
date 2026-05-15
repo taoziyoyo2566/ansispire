@@ -1,0 +1,23 @@
+---
+version: 1
+kind: vps
+action: deploy_compose
+alias: jp-tokyo-01
+app:
+  name: my-service
+  project_dir: /opt/apps/my-service
+compose:
+  source: ./deploy/my-service/docker-compose.yml
+  env_file: ./deploy/my-service/.env
+deploy:
+  pull: true
+  recreate: smart
+  remove_orphans: true
+expose:
+  mode: cloudflare_tunnel
+  bind_address: 127.0.0.1
+  local_port: 8080
+  public_hostname: app.example.com
+healthcheck:
+  url: http://127.0.0.1:8080/health
+  expected_status: 200

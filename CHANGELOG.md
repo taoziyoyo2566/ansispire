@@ -27,7 +27,34 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ---
 
-## [Unreleased] — branch `feat/eda-advanced-healing`
+## [Unreleased] — branch `feat/vps-manager-plugin`
+
+### VPS Manager plugin MVP (2026-05-14)
+
+- **New plugin**: `plugins/vps_manager/` processes one-shot VPS task YAML from
+  `runtime/inbox/vps/pending/`, moves tasks through
+  `processing → done|failed`, redacts archives, and maintains
+  `runtime/state/vps_inventory.yml`.
+- **Actions**: `onboard`, `modify`, `audit`, `remove`, `docker_host`, and
+  `deploy_compose` ship with playbooks, examples, templates, and schema
+  documentation.
+- **Security defaults**: managed SSH port must be non-22, inline passwords and
+  inline private key material are rejected, duplicate active `onboard` is
+  refused, automation keys are separated from personal operator keys, and
+  non-public Compose exposure must bind `127.0.0.1`; missing bootstrap
+  password env vars can be supplied through an interactive hidden prompt
+  without persisting the secret.
+- **Onboarding hardening**: Ubuntu 24.04 `ssh.socket` activation is handled
+  explicitly by staging the bootstrap and managed ports together, validating
+  the managed login, then locking down to the managed port only. SSH hardening
+  is installed as `00-ansispire.conf` so it wins over provider/cloud-init
+  drop-ins that enable root or password auth.
+- **Defaults**: newly generated onboarding tasks now default the managed user
+  to `ansible` when the operator leaves the prompt or `--managed-user` unset.
+- **Operator UX**: new Make targets `vps-new`, `vps-submit`, `vps-tasks`,
+  `vps-manager-init`, `vps-manager-process`, `vps-manager-validate`,
+  `vps-manager-syntax`, and `test-vps-manager`; `make verify` now includes
+  the VPS Manager L1 lifecycle tests and native Ansible syntax checks.
 
 ### Testing governance §9 + feature-map sync (2026-05-13)
 
