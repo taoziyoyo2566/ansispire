@@ -1,0 +1,74 @@
+---
+# Requires this alias to already exist in runtime/state/vps_inventory.yml.
+version: 1
+kind: vps
+action: recover
+alias: jp-tokyo-01
+description: Recover management for an existing alias through bootstrap SSH.
+bootstrap:
+  host: 203.0.113.10
+  port: 22
+  user: root
+  auth:
+    method: password
+    password_env: VPS_JP_TOKYO_01_AUTH  # pragma: allowlist secret
+managed:
+  user: ansible
+  groups:
+    - sudo
+    - ssh-users
+  shell: /bin/bash
+  ansible_key:
+    private_key: ~/.ssh/ansispire_ed25519
+    public_key: ~/.ssh/ansispire_ed25519.pub
+  personal_keys:
+    - name: operator
+      public_key: ~/.ssh/id_ed25519.pub
+  sudo:
+    nopasswd: true
+ssh:
+  managed_port: 39222
+  disable_root_login: true
+  disable_password_login: true
+  disable_kbd_interactive: true
+  allow_groups:
+    - ssh-users
+  close_bootstrap_port_after_success: true
+profile:
+  base_packages: true
+  unattended_upgrades: true
+  system_limits: true
+  swap: false
+  network_tuning: false
+  ufw: true
+  fail2ban: true
+  docker: false
+packages:
+  install:
+    - curl
+    - vim
+    - jq
+    - sudo
+    - ufw
+    - fail2ban
+    - unattended-upgrades
+  remove: []
+firewall:
+  default_incoming: deny
+  default_outgoing: allow
+  allowed_tcp_ports:
+    - "{{ ssh.managed_port }}"
+  allow_http_https: false
+fail2ban:
+  enabled: true
+  sshd:
+    bantime: 3600
+    findtime: 600
+    maxretry: 5
+local:
+  write_ssh_config: true
+  ssh_config_file: ~/.ssh/config.d/ansispire.conf
+  ssh_config_identity_file: ~/.ssh/id_ed25519
+  update_known_hosts: true
+options:
+  dry_run: false

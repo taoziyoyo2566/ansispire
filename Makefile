@@ -18,7 +18,7 @@
         test-eda-relay-unit test-eda-sink-unit test-eda-e2e \
         test-filters test-vps-manager detect-secrets \
         vps-manager-syntax \
-        vps-new vps-submit vps-tasks \
+        vps-new vps-recover vps-submit vps-tasks \
         vps-manager-init vps-manager-process vps-manager-validate \
         hub-deploy hub-deploy-check
 
@@ -42,6 +42,16 @@ export ANSIBLE_LOCAL_TEMP ?= $(PROJECT_PATH)/.ansible/tmp
 export ANSIBLE_REMOTE_TEMP ?= /tmp/ansispire-ansible-tmp
 
 $(shell mkdir -p $(ANSIBLE_LOCAL_TEMP))
+
+# Operator convenience: `make vps-recover hk-d13` and `make vps-submit hk-d13`
+# treat the second goal as the alias/selector. Prefer explicit ALIAS=... or FILE=...
+VPS_EXTRA_GOAL := $(if $(filter vps-recover vps-submit,$(firstword $(MAKECMDGOALS))),$(word 2,$(MAKECMDGOALS)))
+VPS_RECOVER_ALIAS := $(strip $(or $(ALIAS),$(if $(filter vps-recover,$(firstword $(MAKECMDGOALS))),$(VPS_EXTRA_GOAL))))
+VPS_SUBMIT_SELECTOR := $(strip $(or $(FILE),$(ALIAS),$(if $(filter vps-submit,$(firstword $(MAKECMDGOALS))),$(VPS_EXTRA_GOAL))))
+ifneq ($(VPS_EXTRA_GOAL),)
+$(VPS_EXTRA_GOAL):
+	@:
+endif
 
 # Molecule runner wrapper (ensure it finds ansible-config in VENV)
 MOLECULE := PATH=$(PATH) $(BIN)molecule
@@ -145,8 +155,12 @@ detect-secrets: ## Scan tracked + unignored files; fail on findings not present 
 vps-new: ## Interactively create a VPS onboarding task draft
 	$(BIN)python3 -m plugins.vps_manager.cli new
 
-vps-submit: ## Submit a VPS Manager draft to pending: make vps-submit FILE=...
-	$(BIN)python3 -m plugins.vps_manager.cli submit $(FILE)
+vps-recover: ## Interactively create a VPS recovery task draft for an existing alias: make vps-recover ALIAS=...
+	$(BIN)python3 -m plugins.vps_manager.cli recover $(if $(VPS_RECOVER_ALIAS),--alias '$(VPS_RECOVER_ALIAS)')
+
+vps-submit: ## Submit a VPS Manager draft: make vps-submit ALIAS=... or FILE=...
+	@test -n "$(VPS_SUBMIT_SELECTOR)" || { echo "Usage: make vps-submit ALIAS=<alias> | make vps-submit FILE=runtime/inbox/vps/drafts/<draft>.yml" >&2; exit 2; }
+	$(BIN)python3 -m plugins.vps_manager.cli submit '$(VPS_SUBMIT_SELECTOR)'
 
 vps-tasks: ## List VPS Manager task files by state
 	$(BIN)python3 -m plugins.vps_manager.cli tasks
@@ -158,6 +172,7 @@ vps-manager-process: ## Process stable VPS task YAML files from runtime/inbox/vp
 	$(BIN)python3 plugins/vps_manager/vps_manager.py process
 
 vps-manager-validate: ## Validate a VPS Manager task file: make vps-manager-validate FILE=...
+	@test -n "$(FILE)" || { echo "Usage: make vps-manager-validate FILE=<task.yml>" >&2; exit 2; }
 	$(BIN)python3 plugins/vps_manager/vps_manager.py validate $(FILE)
 
 # ── Deploy ───────────────────────────────────────────────────────────────────

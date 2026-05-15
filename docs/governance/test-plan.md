@@ -157,6 +157,7 @@
 详见 `vps-manager-unit.md`（TSVS-VPS-MANAGER-UNIT-001）：
 - local task lifecycle：`pending → done|failed`
 - active alias 重复 onboard 拒绝
+- recover 仅允许已有 alias，并复用 onboard 本地状态更新路径；交互确认默认直接处理当前任务
 - archive secret redaction
 - `runtime/state/vps_inventory.yml` 更新
 - generated SSH config block 更新 / 移除

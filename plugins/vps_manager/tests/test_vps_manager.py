@@ -7,9 +7,10 @@ import os
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
@@ -63,6 +64,7 @@ def onboard_task(root: Path, alias: str = "jp-tokyo-01") -> dict:
 class TestVpsManagerLifecycle(unittest.TestCase):
     def setUp(self) -> None:
         os.environ.pop("VPS_TEST_AUTH", None)
+        os.environ.pop("VPS_JP_TOKYO_01_AUTH", None)
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         self.manager = VpsManager(self.root, stable_seconds=0, no_execute=True)
@@ -70,6 +72,7 @@ class TestVpsManagerLifecycle(unittest.TestCase):
 
     def tearDown(self) -> None:
         os.environ.pop("VPS_TEST_AUTH", None)
+        os.environ.pop("VPS_JP_TOKYO_01_AUTH", None)
         self.tmp.cleanup()
 
     def write_pending(self, name: str, data: dict) -> Path:
@@ -88,6 +91,7 @@ class TestVpsManagerLifecycle(unittest.TestCase):
         self.assertEqual(server["managed_port"], 39222)
         self.assertEqual(server["status"], "active")
         self.assertEqual(server["ansible_identity_file"], str(self.root / "ansispire_ed25519"))
+        self.assertEqual(server["ansible_python_interpreter"], "/usr/bin/python3")
         self.assertEqual(server["ssh_config_identity_file"], str(self.root / "id_ed25519"))
         self.assertEqual(server["personal_keys"][0]["public_key"], str(self.root / "id_ed25519.pub"))
 
@@ -149,6 +153,35 @@ class TestVpsManagerLifecycle(unittest.TestCase):
         task = self.manager.validate_file(pending[0])
         self.assertEqual(task["alias"], "cli-submit-01")
 
+    def test_cli_submit_can_select_unique_draft_by_alias(self) -> None:
+        write_yaml(self.manager.drafts_dir / "alias-submit-01.recover.yml", onboard_task(self.root, alias="alias-submit-01"))
+
+        with redirect_stdout(StringIO()):
+            result = vps_cli.main(["--root", str(self.root), "submit", "alias-submit-01"])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(list(self.manager.drafts_dir.glob("*.yml")), [])
+        pending = list(self.manager.pending_dir.glob("*.yml"))
+        self.assertEqual(len(pending), 1)
+        task = self.manager.validate_file(pending[0])
+        self.assertEqual(task["alias"], "alias-submit-01")
+
+    def test_cli_submit_rejects_ambiguous_alias(self) -> None:
+        first = onboard_task(self.root, alias="ambiguous-submit-01")
+        second = onboard_task(self.root, alias="ambiguous-submit-01")
+        second["description"] = "second draft"
+        write_yaml(self.manager.drafts_dir / "ambiguous-submit-01.first.yml", first)
+        write_yaml(self.manager.drafts_dir / "ambiguous-submit-01.second.yml", second)
+
+        stderr = StringIO()
+        with redirect_stderr(stderr):
+            result = vps_cli.main(["--root", str(self.root), "submit", "ambiguous-submit-01"])
+
+        self.assertEqual(result, 1)
+        self.assertIn("multiple drafts match", stderr.getvalue())
+        self.assertEqual(len(list(self.manager.drafts_dir.glob("*.yml"))), 2)
+        self.assertEqual(list(self.manager.pending_dir.glob("*.yml")), [])
+
     def test_duplicate_active_onboard_is_rejected(self) -> None:
         self.write_pending("first.yml", onboard_task(self.root))
         first_summary = self.manager.process_pending()
@@ -161,6 +194,112 @@ class TestVpsManagerLifecycle(unittest.TestCase):
         self.assertIn("already exists and status is active", summary.issues[0].errors[0])
         self.assertTrue((self.manager.pending_dir / "duplicate.yml").exists())
         self.assertEqual(list(self.manager.failed_dir.glob("*")), [])
+
+    def test_recover_existing_alias_reuses_onboard_flow(self) -> None:
+        self.write_pending("first.yml", onboard_task(self.root))
+        first_summary = self.manager.process_pending()
+        self.assertEqual((first_summary.processed, first_summary.failed, first_summary.blocked), (1, 0, 0))
+        first_inventory = read_yaml(self.manager.inventory_path)
+        first_created_at = first_inventory["servers"]["jp-tokyo-01"]["created_at"]
+
+        task = onboard_task(self.root)
+        task["action"] = "recover"
+        task["bootstrap"]["host"] = "203.0.113.99"
+        task["ssh"]["managed_port"] = 40222
+        self.write_pending("recover.yml", task)
+
+        summary = self.manager.process_pending()
+
+        self.assertEqual((summary.processed, summary.failed, summary.blocked), (1, 0, 0))
+        inventory = read_yaml(self.manager.inventory_path)
+        server = inventory["servers"]["jp-tokyo-01"]
+        self.assertEqual(server["host"], "203.0.113.99")
+        self.assertEqual(server["managed_port"], 40222)
+        self.assertEqual(server["tasks"]["last_action"], "recover")
+        self.assertEqual(server["created_at"], first_created_at)
+
+    def test_recover_requires_existing_alias(self) -> None:
+        task = onboard_task(self.root, alias="missing-recover-01")
+        task["action"] = "recover"
+        self.write_pending("recover-missing.yml", task)
+
+        summary = self.manager.process_pending()
+
+        self.assertEqual((summary.processed, summary.failed, summary.blocked), (0, 0, 1))
+        self.assertIn("is not present in runtime inventory", summary.issues[0].errors[0])
+        self.assertTrue((self.manager.pending_dir / "recover-missing.yml").exists())
+        self.assertEqual(list(self.manager.failed_dir.glob("*")), [])
+
+    def test_cli_recover_reuses_inventory_defaults(self) -> None:
+        self.write_pending("first.yml", onboard_task(self.root))
+        first_summary = self.manager.process_pending()
+        self.assertEqual((first_summary.processed, first_summary.failed, first_summary.blocked), (1, 0, 0))
+        inventory = read_yaml(self.manager.inventory_path)
+        inventory["servers"]["jp-tokyo-01"]["personal_keys"].append(
+            {"name": "backup", "public_key": str(self.root / "backup_ed25519.pub")}
+        )
+        write_yaml(self.manager.inventory_path, inventory)
+
+        with redirect_stdout(StringIO()):
+            result = vps_cli.main(
+                [
+                    "--root",
+                    str(self.root),
+                    "recover",
+                    "--non-interactive",
+                    "--alias",
+                    "jp-tokyo-01",
+                    "--managed-port",
+                    "41222",
+                ]
+            )
+
+        self.assertEqual(result, 0)
+        drafts = list(self.manager.drafts_dir.glob("*.yml"))
+        self.assertEqual(len(drafts), 1)
+        task = self.manager.validate_file(drafts[0])
+        self.assertEqual(task["action"], "recover")
+        self.assertEqual(task["bootstrap"]["host"], "203.0.113.10")
+        self.assertEqual(task["managed"]["user"], "deploy")
+        self.assertEqual(task["ssh"]["managed_port"], 41222)
+        self.assertEqual(len(task["managed"]["personal_keys"]), 2)
+        self.assertEqual(task["managed"]["personal_keys"][1]["public_key"], str(self.root / "backup_ed25519.pub"))
+
+    def test_cli_recover_default_prompt_processes_current_task(self) -> None:
+        for path in (
+            self.root / "ansispire_ed25519",
+            self.root / "ansispire_ed25519.pub",
+            self.root / "id_ed25519.pub",
+        ):
+            path.write_text("ssh-material\n", encoding="utf-8")
+        os.environ["VPS_JP_TOKYO_01_AUTH"] = "typed-root-input"
+
+        self.write_pending("first.yml", onboard_task(self.root))
+        first_summary = self.manager.process_pending()
+        self.assertEqual((first_summary.processed, first_summary.failed, first_summary.blocked), (1, 0, 0))
+        stale_draft = onboard_task(self.root)
+        stale_draft["action"] = "recover"
+        write_yaml(self.manager.drafts_dir / "jp-tokyo-01.stale.recover.yml", stale_draft)
+        modify_draft = {"version": 1, "kind": "vps", "action": "modify", "alias": "jp-tokyo-01", "changes": {}}
+        write_yaml(self.manager.drafts_dir / "jp-tokyo-01.modify.yml", modify_draft)
+
+        with (
+            redirect_stdout(StringIO()),
+            patch("builtins.input", side_effect=[""] * 16),
+            patch.object(VpsManager, "execute_task", return_value=ActionResult(command=[], returncode=0, skipped_remote=True)),
+        ):
+            result = vps_cli.main(["--root", str(self.root), "recover", "--alias", "jp-tokyo-01"])
+
+        self.assertEqual(result, 0)
+        remaining_drafts = list(self.manager.drafts_dir.glob("*.yml"))
+        self.assertEqual(len(remaining_drafts), 1)
+        self.assertEqual(read_yaml(remaining_drafts[0])["action"], "modify")
+        self.assertEqual(list(self.manager.pending_dir.glob("*.yml")), [])
+        archived = list(self.manager.archived_dir.glob("*.yml"))
+        self.assertEqual(len(archived), 1)
+        self.assertEqual(read_yaml(archived[0])["alias"], "jp-tokyo-01")
+        inventory = read_yaml(self.manager.inventory_path)
+        self.assertEqual(inventory["servers"]["jp-tokyo-01"]["tasks"]["last_action"], "recover")
 
     def test_inline_password_is_rejected_and_redacted(self) -> None:
         task = onboard_task(self.root, alias="bad-secret-01")

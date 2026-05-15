@@ -39,7 +39,8 @@ runtime/
 | 命令 | 说明 |
 |---|---|
 | `make vps-new` | **交互式**创建 VPS onboarding 任务草稿 |
-| `make vps-submit FILE=...` | 将草稿提交至 `pending/` 队列 |
+| `make vps-recover ALIAS=...` | **交互式**恢复已有 alias；确认后默认直接提交并处理当前任务 |
+| `make vps-submit ALIAS=...` | 按唯一 alias 将草稿提交至 `pending/` 队列；多个匹配时改用 `FILE=...` |
 | `make vps-tasks` | 列出所有任务及其状态 |
 | `make vps-manager-process` | **处理** `pending/` 中的任务 (核心执行入口) |
 | `make vps-manager-validate FILE=...` | 校验任务 YAML 文件合法性 |
@@ -61,8 +62,9 @@ runtime/
 | 任务停在 `pending/` 不动 | 检查是否运行了 `make vps-manager-process`；检查文件权限。 |
 | 任务进入 `failed/` | 查看 `failed/` 目录下同名的 `.error.json` 文件。 |
 | `Validation failed: ssh.managed_port` | 项目红线：必须使用非 22 端口。修改任务 YAML 的 `ssh.managed_port`。 |
-| `Alias already exists` | `onboard` 动作严禁覆盖。如需修改，请使用 `modify` 动作。 |
+| `Alias already exists` | `onboard` 动作严禁覆盖。已纳管系统改配置用 `modify`；managed SSH 不可用但 bootstrap SSH 可用时用 `recover`。 |
 | `Password environment variable not set` | 在执行 `process` 前 `export` 对应的环境变量，或在交互式模式下按提示输入。 |
+| `Host is using the discovered Python interpreter` | VPS Manager 动态 inventory 会固定 `/usr/bin/python3`；如仍看到该警告，确认任务来自更新后的代码。 |
 
 ---
 

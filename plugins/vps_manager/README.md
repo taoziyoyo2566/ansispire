@@ -19,7 +19,7 @@ matching Ansible playbook, archives a redacted copy of the task, and keeps
   non-interactive runs. The task remains in `pending/` so you can fix it and
   rerun `process`.
 - A second `onboard` for an already active alias is rejected. Use `modify`
-  for changes.
+  for managed-host changes or `recover` when managed SSH is no longer usable.
 - Docker application exposure defaults to `127.0.0.1`; public ports require
   `expose.mode: public`.
 
@@ -59,8 +59,36 @@ If you leave the managed user prompt empty, the generated task uses
 To submit an existing draft:
 
 ```bash
+make vps-submit ALIAS=jp-tokyo-01
+```
+
+If exactly one draft has that alias, it is submitted to `pending/`. If multiple
+drafts match, the command prints the candidates and asks you to choose one
+explicitly:
+
+```bash
 make vps-submit FILE=runtime/inbox/vps/drafts/<draft>.yml
 ```
+
+When managed SSH no longer works, but bootstrap SSH is available again
+(for example after reinstalling the VPS from the provider control panel), keep
+the same alias and create a recovery draft. The generator reuses inventory
+defaults for an existing alias when available, then runs the same bootstrap
+hardening flow as onboarding:
+
+```bash
+make vps-recover ALIAS=jp-tokyo-01
+```
+
+For `recover`, the confirmation prompt defaults to `process`: pressing Enter
+submits the generated task and processes only that task immediately. Choose
+`draft` if you want to review or keep the task without running it. After a
+successful immediate recovery, older `onboard`/`recover` drafts for the same
+alias are moved to `runtime/inbox/vps/archived/` so future alias-based submit
+commands do not match stale bootstrap tasks.
+
+VPS Manager pins generated Ansible inventory to `/usr/bin/python3` to avoid
+interpreter auto-discovery drift on recovered hosts.
 
 To inspect task state:
 
@@ -133,6 +161,7 @@ make vps-manager-syntax
 | Action | Remote | Purpose |
 |---|---:|---|
 | `onboard` | yes | Bootstrap a new VPS through the provider SSH port, create the managed user, handle Ubuntu `ssh.socket` when present, switch to a non-22 SSH port, apply UFW/fail2ban/security baseline, then write local inventory and SSH config. |
+| `recover` | yes | Restore management for an existing alias through bootstrap SSH when managed SSH is broken or after provider OS reinstall. |
 | `modify` | yes | Apply changes to packages, firewall ports, fail2ban, and optional network tuning. |
 | `audit` | yes | Check host health and update inventory health state on success. |
 | `remove` | no by default | Remove the alias from local inventory and generated SSH config. |

@@ -33,13 +33,19 @@ except ImportError as exc:  # pragma: no cover - exercised only on broken envs
 
 ALLOWED_ACTIONS = {
     "onboard",
+    "recover",
     "modify",
     "remove",
     "audit",
     "docker_host",
     "deploy_compose",
 }
-REMOTE_ACTIONS = {"onboard", "modify", "audit", "docker_host", "deploy_compose"}
+ONBOARD_LIKE_ACTIONS = {"onboard", "recover"}
+REMOTE_ACTIONS = {"onboard", "recover", "modify", "audit", "docker_host", "deploy_compose"}
+PLAYBOOK_BY_ACTION = {
+    "recover": "onboard.yml",
+}
+DEFAULT_ANSIBLE_PYTHON_INTERPRETER = "/usr/bin/python3"
 ALIAS_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$")
 ENV_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 SENSITIVE_KEY_RE = re.compile(r"(^|_)(password|passphrase|token|secret|api[_-]?key)($|_)", re.IGNORECASE)
@@ -301,9 +307,9 @@ class VpsManager:
                 task = self.normalize_task(read_yaml(pending_path))
                 self.validate_task(task, inventory, require_secrets=secrets_required)
                 alias = task.get("alias")
-                if task.get("action") == "onboard" and isinstance(alias, str):
+                if task.get("action") in ONBOARD_LIKE_ACTIONS and isinstance(alias, str):
                     if alias in pending_onboard_aliases:
-                        raise ValidationError([f"alias {alias} appears in more than one pending onboard task"])
+                        raise ValidationError([f"alias {alias} appears in more than one pending onboard/recover task"])
                     pending_onboard_aliases.add(alias)
             except Exception as exc:  # noqa: BLE001 - report all preflight blockers together
                 issues.append(PendingIssue(str(pending_path), error_messages(exc)))
@@ -333,7 +339,7 @@ class VpsManager:
 
     @staticmethod
     def password_env_prompts(task: dict[str, Any]) -> dict[str, str]:
-        if task.get("action") != "onboard":
+        if task.get("action") not in ONBOARD_LIKE_ACTIONS:
             return {}
         auth = task.get("bootstrap", {}).get("auth", {})
         if auth.get("method") != "password":
@@ -428,7 +434,7 @@ class VpsManager:
         task.setdefault("options", {})
         action = task.get("action")
 
-        if action == "onboard":
+        if action in ONBOARD_LIKE_ACTIONS:
             task.setdefault("profile", {})
             task["profile"] = {
                 "base_packages": True,
@@ -594,7 +600,7 @@ class VpsManager:
 
         servers = inventory.get("servers", {})
 
-        if action == "onboard":
+        if action in ONBOARD_LIKE_ACTIONS:
             self.validate_onboard(task, servers, errors, require_secrets=require_secrets)
         elif action in {"modify", "docker_host", "deploy_compose", "remove"}:
             if isinstance(alias, str) and alias not in servers:
@@ -640,8 +646,11 @@ class VpsManager:
         require_secrets: bool,
     ) -> None:
         alias = task.get("alias")
-        if isinstance(alias, str) and servers.get(alias, {}).get("status") == "active":
-            errors.append(f"alias {alias} already exists and status is active; use modify or reinstall")
+        action = task.get("action")
+        if action == "onboard" and isinstance(alias, str) and servers.get(alias, {}).get("status") == "active":
+            errors.append(f"alias {alias} already exists and status is active; use modify or recover")
+        if action == "recover" and isinstance(alias, str) and alias not in servers:
+            errors.append(f"alias {alias} is not present in runtime inventory; use onboard for first install")
 
         bootstrap = task.get("bootstrap", {})
         if not isinstance(bootstrap.get("host"), str) or not bootstrap.get("host"):
@@ -713,7 +722,7 @@ class VpsManager:
         if action not in REMOTE_ACTIONS and action != "remove":
             return ActionResult(command=[], returncode=0, skipped_remote=True)
 
-        playbook = self.plugin_dir / "playbooks" / f"{action}.yml"
+        playbook = self.plugin_dir / "playbooks" / PLAYBOOK_BY_ACTION.get(action, f"{action}.yml")
         if not playbook.exists():
             raise VpsManagerError(f"missing playbook for action {action}: {playbook}")
 
@@ -805,12 +814,16 @@ class VpsManager:
         action = task["action"]
         hostvars: dict[str, Any] = {}
 
-        if action == "onboard":
+        if action in ONBOARD_LIKE_ACTIONS:
             bootstrap = task["bootstrap"]
             hostvars = {
                 "ansible_host": bootstrap["host"],
                 "ansible_port": bootstrap["port"],
                 "ansible_user": bootstrap["user"],
+                "ansible_python_interpreter": task.get("ansible", {}).get(
+                    "python_interpreter",
+                    DEFAULT_ANSIBLE_PYTHON_INTERPRETER,
+                ),
             }
             auth = bootstrap.get("auth", {})
             if auth.get("method") == "password":
@@ -827,6 +840,10 @@ class VpsManager:
                     "ansible_host": server["host"],
                     "ansible_port": server["managed_port"],
                     "ansible_user": server["managed_user"],
+                    "ansible_python_interpreter": server.get(
+                        "ansible_python_interpreter",
+                        DEFAULT_ANSIBLE_PYTHON_INTERPRETER,
+                    ),
                     "ansible_ssh_private_key_file": str(Path(os.path.expanduser(server.get("ansible_identity_file", server["identity_file"]))).resolve()),
                 }
             return {"all": {"children": {"vps_targets": {"hosts": hosts}}}}
@@ -867,7 +884,7 @@ class VpsManager:
         now = utc_now()
         touched_ssh_paths: set[str] = set()
 
-        if action == "onboard":
+        if action in ONBOARD_LIKE_ACTIONS:
             alias = task["alias"]
             existing = servers.get(alias, {})
             record = {
@@ -880,6 +897,10 @@ class VpsManager:
                 "identity_file": task["managed"]["ansible_key"]["private_key"],
                 "ansible_identity_file": task["managed"]["ansible_key"]["private_key"],
                 "ansible_public_key": task["managed"]["ansible_key"]["public_key"],
+                "ansible_python_interpreter": task.get("ansible", {}).get(
+                    "python_interpreter",
+                    existing.get("ansible_python_interpreter", DEFAULT_ANSIBLE_PYTHON_INTERPRETER),
+                ),
                 "personal_keys": copy.deepcopy(task["managed"].get("personal_keys", [])),
                 "ssh_config_identity_file": task.get("local", {}).get(
                     "ssh_config_identity_file",

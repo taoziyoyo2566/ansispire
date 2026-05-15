@@ -11,6 +11,9 @@ actions:
   onboard:
     playbook: playbooks/onboard.yml
     remote: true
+  recover:
+    playbook: playbooks/onboard.yml
+    remote: true
   modify:
     playbook: playbooks/modify.yml
     remote: true

@@ -39,7 +39,7 @@
 
 | 剧本 | 插件 | 用途 |
 | :--- | :--- | :--- |
-| `plugins/vps_manager/playbooks/onboard.yml` | `vps_manager` | VPS 纳管：bootstrap SSH → managed user/key/sudo → UFW/fail2ban → 非 22 SSH 管理端口 |
+| `plugins/vps_manager/playbooks/onboard.yml` | `vps_manager` | VPS 纳管/重装后重新纳管：bootstrap SSH → managed user/key/sudo → UFW/fail2ban → 非 22 SSH 管理端口 |
 | `plugins/vps_manager/playbooks/modify.yml` | `vps_manager` | 已纳管 VPS 的包、防火墙、fail2ban、网络参数修改 |
 | `plugins/vps_manager/playbooks/audit.yml` | `vps_manager` | VPS 健康巡检（磁盘 / 内存 / failed services / reboot marker） |
 | `plugins/vps_manager/playbooks/remove.yml` | `vps_manager` | 本地取消纳管为主，远端清理 opt-in |
@@ -74,7 +74,7 @@
   - inbox 生命周期：`pending → processing → done|failed`
   - 长期状态：`runtime/state/vps_inventory.yml`
   - 安全策略：拒绝内联密码、强制 managed SSH 端口非 22、Ansible 专用 key 与个人 key 分离、active alias 重复 onboard 拒绝、归档脱敏
-  - 扩展面：`onboard` / `modify` / `audit` / `remove` / `docker_host` / `deploy_compose`
+  - 扩展面：`onboard` / `recover` / `modify` / `audit` / `remove` / `docker_host` / `deploy_compose`
   - 详见 [`vps-manager.md`](vps-manager.md)
 
 ---

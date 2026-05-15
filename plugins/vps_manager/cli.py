@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .vps_manager import VpsManager, env_name_for_alias, slug, task_timestamp, write_yaml
+from .vps_manager import VpsManager, env_name_for_alias, read_yaml, slug, task_timestamp, write_yaml
 
 
 DEFAULT_PACKAGES = [
@@ -97,6 +97,7 @@ FEATURE_ORDER = [
 ]
 
 ENV_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
+RECOVERY_SUPERSEDED_ACTIONS = {"onboard", "recover"}
 
 
 def prompt_text(label: str, default: str | None = None) -> str:
@@ -109,9 +110,9 @@ def prompt_text(label: str, default: str | None = None) -> str:
     return ""
 
 
-def prompt_required(label: str) -> str:
+def prompt_required(label: str, default: str | None = None) -> str:
     while True:
-        value = prompt_text(label)
+        value = prompt_text(label, default)
         if value:
             return value
         print(f"{label} is required.", file=sys.stderr)
@@ -147,13 +148,14 @@ def prompt_choice(label: str, choices: list[str], default: str) -> str:
         print(f"Choose one of: {choice_text}", file=sys.stderr)
 
 
-def prompt_profile() -> str:
+def prompt_profile(default: str = "minimal-secure") -> str:
     names = list(PROFILE_DEFAULTS)
+    default_choice = str(names.index(default) + 1) if default in PROFILE_DEFAULTS else "1"
     print("Profiles:")
     for index, name in enumerate(names, start=1):
         print(f"  {index}. {name}")
     while True:
-        raw = prompt_text("Profile", "1")
+        raw = prompt_text("Profile", default_choice)
         if raw.isdigit() and 1 <= int(raw) <= len(names):
             return names[int(raw) - 1]
         if raw in PROFILE_DEFAULTS:
@@ -161,8 +163,12 @@ def prompt_profile() -> str:
         print("Choose a profile number or name.", file=sys.stderr)
 
 
-def prompt_features(profile_name: str) -> dict[str, bool]:
+def prompt_features(profile_name: str, initial: dict[str, Any] | None = None) -> dict[str, bool]:
     features = dict(PROFILE_DEFAULTS[profile_name])
+    if initial:
+        for key, value in initial.items():
+            if key in FEATURE_ORDER:
+                features[key] = bool(value)
     while True:
         print("Features:")
         for index, key in enumerate(FEATURE_ORDER, start=1):
@@ -191,6 +197,7 @@ def random_managed_port() -> int:
 
 def build_onboard_task(
     *,
+    action: str = "onboard",
     alias: str,
     host: str,
     bootstrap_user: str,
@@ -201,10 +208,22 @@ def build_onboard_task(
     managed_user: str,
     managed_port: int,
     profile: dict[str, bool],
+    ansible_key_private: str = "~/.ssh/ansispire_ed25519",
+    ansible_key_public: str | None = None,
+    personal_key_public: str = "~/.ssh/id_ed25519.pub",
+    personal_keys: list[dict[str, Any]] | None = None,
+    ssh_config_file: str = "~/.ssh/config.d/ansispire.conf",
+    ssh_config_identity_file: str = "~/.ssh/id_ed25519",
     description: str = "",
 ) -> dict[str, Any]:
+    if action not in {"onboard", "recover"}:
+        raise ValueError("action must be onboard or recover")
     if managed_port == 22:
         raise ValueError("managed SSH port must not be 22")
+    if ansible_key_public is None:
+        ansible_key_public = f"{ansible_key_private}.pub"
+    if personal_keys is None:
+        personal_keys = [{"name": "operator", "public_key": personal_key_public}]
 
     auth: dict[str, Any]
     if auth_method == "password":
@@ -215,7 +234,7 @@ def build_onboard_task(
     return {
         "version": 1,
         "kind": "vps",
-        "action": "onboard",
+        "action": action,
         "alias": alias,
         "description": description,
         "bootstrap": {
@@ -229,10 +248,10 @@ def build_onboard_task(
             "groups": ["sudo", "ssh-users"],
             "shell": "/bin/bash",
             "ansible_key": {
-                "private_key": "~/.ssh/ansispire_ed25519",
-                "public_key": "~/.ssh/ansispire_ed25519.pub",
+                "private_key": ansible_key_private,
+                "public_key": ansible_key_public,
             },
-            "personal_keys": [{"name": "operator", "public_key": "~/.ssh/id_ed25519.pub"}],
+            "personal_keys": [dict(item) for item in personal_keys],
             "sudo": {"nopasswd": True},
         },
         "ssh": {
@@ -264,8 +283,8 @@ def build_onboard_task(
         },
         "local": {
             "write_ssh_config": True,
-            "ssh_config_file": "~/.ssh/config.d/ansispire.conf",
-            "ssh_config_identity_file": "~/.ssh/id_ed25519",
+            "ssh_config_file": ssh_config_file,
+            "ssh_config_identity_file": ssh_config_identity_file,
             "update_known_hosts": True,
         },
         "options": {"force": False, "dry_run": False},
@@ -277,6 +296,7 @@ def summarize_task(task: dict[str, Any]) -> str:
     lines = [
         "",
         "Summary",
+        f"  action:        {task.get('action')}",
         f"  alias:         {task.get('alias')}",
         f"  host:          {task.get('bootstrap', {}).get('host')}",
         f"  bootstrap:     {task.get('bootstrap', {}).get('user')}@{task.get('bootstrap', {}).get('host')}:{task.get('bootstrap', {}).get('port')}",
@@ -314,33 +334,150 @@ def submit_file(manager: VpsManager, source: Path) -> Path:
     return pending_path
 
 
+def print_process_summary(summary: Any) -> None:
+    for issue in summary.issues:
+        print(f"blocked: {issue.path}", file=sys.stderr)
+        for error in issue.errors:
+            print(f"  - {error}", file=sys.stderr)
+    print(f"processed={summary.processed} failed={summary.failed} blocked={summary.blocked}")
+
+
+def process_single_pending(manager: VpsManager, pending_path: Path) -> int:
+    summary = manager.process_paths([pending_path])
+    print_process_summary(summary)
+    return 1 if summary.failed or summary.blocked else 0
+
+
+def draft_files(manager: VpsManager) -> list[Path]:
+    return sorted(manager.drafts_dir.glob("*.yml")) + sorted(manager.drafts_dir.glob("*.yaml"))
+
+
+def archive_draft(manager: VpsManager, path: Path) -> Path:
+    archived_path = manager.archived_dir / path.name
+    if archived_path.exists():
+        archived_path = archived_path.with_name(f"{archived_path.stem}.{task_timestamp()}{archived_path.suffix}")
+    archived_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(path), str(archived_path))
+    return archived_path
+
+
+def archive_superseded_drafts(manager: VpsManager, alias: str) -> list[Path]:
+    archived: list[Path] = []
+    for path in draft_files(manager):
+        try:
+            task = read_yaml(path)
+        except Exception:  # noqa: BLE001 - leave invalid drafts for explicit cleanup
+            continue
+        if (
+            isinstance(task, dict)
+            and task.get("alias") == alias
+            and task.get("action") in RECOVERY_SUPERSEDED_ACTIONS
+        ):
+            archived.append(archive_draft(manager, path))
+    for path in archived:
+        print(f"Archived superseded draft: {path}")
+    return archived
+
+
+def task_label(path: Path) -> str:
+    try:
+        task = read_yaml(path)
+    except Exception:  # noqa: BLE001 - invalid drafts are surfaced by validate when selected directly
+        return f"{path} (unreadable)"
+    if not isinstance(task, dict):
+        return f"{path} (invalid YAML mapping)"
+    return f"{path} (action={task.get('action', '-')})"
+
+
+def resolve_submit_source(manager: VpsManager, selector: str) -> Path:
+    source = Path(selector)
+    if source.is_file():
+        return source
+    if not source.is_absolute():
+        rooted_source = manager.root / source
+        if rooted_source.is_file():
+            return rooted_source
+
+    matches: list[Path] = []
+    for path in draft_files(manager):
+        try:
+            task = read_yaml(path)
+        except Exception:  # noqa: BLE001 - invalid drafts are not alias matches
+            continue
+        if not isinstance(task, dict):
+            continue
+        if task.get("alias") == selector or path.name == selector or path.stem == selector:
+            matches.append(path)
+
+    if not matches:
+        raise ValueError(f"no draft found for alias or file: {selector}; run make vps-tasks")
+    if len(matches) > 1:
+        lines = [f"multiple drafts match {selector!r}; submit one explicit file:"]
+        lines.extend(f"  - {task_label(path)}" for path in matches)
+        lines.append("use: make vps-submit FILE=runtime/inbox/vps/drafts/<draft>.yml")
+        raise ValueError("\n".join(lines))
+    return matches[0]
+
+
 def open_editor(path: Path) -> None:
     editor = os.environ.get("EDITOR", "nano")
     subprocess.run([editor, str(path)], check=True)
 
 
+def personal_keys_from_server(server: dict[str, Any]) -> list[dict[str, Any]]:
+    personal_keys = server.get("personal_keys")
+    if not isinstance(personal_keys, list) or not personal_keys:
+        return []
+    normalized: list[dict[str, Any]] = []
+    for index, item in enumerate(personal_keys, start=1):
+        if isinstance(item, dict) and isinstance(item.get("public_key"), str):
+            entry = dict(item)
+            entry.setdefault("name", f"personal-{index}")
+            normalized.append(entry)
+        elif isinstance(item, str):
+            normalized.append({"name": f"personal-{index}", "public_key": item})
+    return normalized
+
+
 def command_new(args: argparse.Namespace) -> int:
     manager = VpsManager(args.root)
     manager.init_runtime()
+    action = getattr(args, "action", "onboard")
+    inventory = manager.load_inventory()
+
+    def existing_server(alias_value: str | None) -> dict[str, Any]:
+        if action != "recover" or not alias_value:
+            return {}
+        server = inventory.get("servers", {}).get(alias_value)
+        return server if isinstance(server, dict) else {}
 
     if args.non_interactive:
-        if not args.alias or not args.host:
-            print("--alias and --host are required with --non-interactive", file=sys.stderr)
+        if not args.alias:
+            print("--alias is required with --non-interactive", file=sys.stderr)
             return 2
         alias = args.alias
-        host = args.host
+        existing = existing_server(alias)
+        if not args.host and not existing.get("host"):
+            print("--host is required with --non-interactive unless recover can reuse inventory host", file=sys.stderr)
+            return 2
+        host = args.host or existing["host"]
         bootstrap_user = args.bootstrap_user
         bootstrap_port = args.bootstrap_port
         auth_method = args.auth_method
         password_env = args.password_env or env_name_for_alias(alias)
         bootstrap_private_key = args.bootstrap_private_key
-        managed_user = args.managed_user
-        managed_port = args.managed_port or managed_port_for_alias(alias)
-        profile_name = args.profile
-        profile = dict(PROFILE_DEFAULTS[profile_name])
+        managed_user = args.managed_user or existing.get("managed_user") or "ansible"
+        managed_port = args.managed_port or existing.get("managed_port") or managed_port_for_alias(alias)
+        if args.profile:
+            profile = dict(PROFILE_DEFAULTS[args.profile])
+        elif isinstance(existing.get("features"), dict):
+            profile = {key: bool(value) for key, value in existing["features"].items() if key in FEATURE_ORDER}
+        else:
+            profile = dict(PROFILE_DEFAULTS["minimal-secure"])
     else:
-        alias = prompt_required("Alias")
-        host = prompt_required("VPS host/IP")
+        alias = prompt_required("Alias", args.alias)
+        existing = existing_server(alias)
+        host = prompt_required("VPS host/IP", args.host or existing.get("host"))
         bootstrap_user = prompt_text("Bootstrap user", args.bootstrap_user)
         bootstrap_port = prompt_int("Bootstrap port", args.bootstrap_port)
         auth_method = prompt_choice("Bootstrap auth", ["password", "private_key"], args.auth_method)
@@ -350,12 +487,23 @@ def command_new(args: argparse.Namespace) -> int:
             password_env = prompt_env_name(password_env)
         else:
             bootstrap_private_key = prompt_text("Bootstrap private key", "~/.ssh/id_ed25519")
-        managed_user = prompt_text("Managed user", args.managed_user)
-        managed_port = prompt_int("Managed SSH port", args.managed_port or random_managed_port(), low=1024)
-        profile_name = prompt_profile()
-        profile = prompt_features(profile_name)
+        managed_user = prompt_text("Managed user", args.managed_user or existing.get("managed_user") or "ansible")
+        managed_port = prompt_int("Managed SSH port", args.managed_port or existing.get("managed_port") or random_managed_port(), low=1024)
+        existing_features = existing.get("features") if isinstance(existing.get("features"), dict) else None
+        profile_default = args.profile or ("custom" if existing_features else "minimal-secure")
+        profile_name = prompt_profile(profile_default)
+        profile = prompt_features(profile_name, existing_features)
+
+    ansible_key_private = args.ansible_key_private or existing.get("ansible_identity_file") or existing.get("identity_file") or "~/.ssh/ansispire_ed25519"
+    ansible_key_public = args.ansible_key_public or existing.get("ansible_public_key") or f"{ansible_key_private}.pub"
+    existing_personal_keys = personal_keys_from_server(existing)
+    personal_key_public = args.personal_public_key or "~/.ssh/id_ed25519.pub"
+    personal_keys = None if args.personal_public_key or not existing_personal_keys else existing_personal_keys
+    ssh_config_file = args.ssh_config_file or existing.get("ssh_config_file") or "~/.ssh/config.d/ansispire.conf"
+    ssh_config_identity_file = args.ssh_config_identity_file or existing.get("ssh_config_identity_file") or "~/.ssh/id_ed25519"
 
     task = build_onboard_task(
+        action=action,
         alias=alias,
         host=host,
         bootstrap_user=bootstrap_user,
@@ -366,6 +514,12 @@ def command_new(args: argparse.Namespace) -> int:
         managed_user=managed_user,
         managed_port=managed_port,
         profile=profile,
+        ansible_key_private=ansible_key_private,
+        ansible_key_public=ansible_key_public,
+        personal_key_public=personal_key_public,
+        personal_keys=personal_keys,
+        ssh_config_file=ssh_config_file,
+        ssh_config_identity_file=ssh_config_identity_file,
         description=args.description,
     )
 
@@ -376,9 +530,18 @@ def command_new(args: argparse.Namespace) -> int:
     print(summarize_task(task))
 
     submit_now = args.submit
-    if not args.non_interactive and not submit_now:
+    process_now = args.process
+    if not args.non_interactive and not submit_now and not process_now:
+        choices = ["submit", "edit", "draft", "cancel"]
+        default_choice = "draft"
+        if action == "recover":
+            choices = ["process", "submit", "edit", "draft", "cancel"]
+            default_choice = "process"
         while True:
-            choice = prompt_choice("Next", ["submit", "edit", "draft", "cancel"], "draft")
+            choice = prompt_choice("Next", choices, default_choice)
+            if choice == "process":
+                process_now = True
+                break
             if choice == "submit":
                 submit_now = True
                 break
@@ -396,16 +559,22 @@ def command_new(args: argparse.Namespace) -> int:
                 print(f"Cancelled draft: {cancelled_path}")
                 return 0
 
-    if submit_now:
+    if submit_now or process_now:
         pending_path = submit_file(manager, draft_path)
         print(f"Submitted to pending: {pending_path}")
+        if process_now:
+            result = process_single_pending(manager, pending_path)
+            if result == 0 and action == "recover":
+                archive_superseded_drafts(manager, alias)
+            return result
     return 0
 
 
 def command_submit(args: argparse.Namespace) -> int:
     manager = VpsManager(args.root)
     manager.init_runtime()
-    pending_path = submit_file(manager, args.file)
+    source = resolve_submit_source(manager, args.selector)
+    pending_path = submit_file(manager, source)
     print(f"Submitted to pending: {pending_path}")
     return 0
 
@@ -436,28 +605,43 @@ def command_tasks(args: argparse.Namespace) -> int:
     return 0
 
 
+def add_generation_arguments(command: argparse.ArgumentParser, *, profile_default: str | None) -> None:
+    command.add_argument("--non-interactive", action="store_true", help="generate from flags instead of prompts")
+    command.add_argument("--submit", action="store_true", help="submit generated draft to pending")
+    command.add_argument("--process", action="store_true", help="submit generated draft and process only that task immediately")
+    command.add_argument("--alias")
+    command.add_argument("--host")
+    command.add_argument("--description", default="")
+    command.add_argument("--bootstrap-user", default="root")
+    command.add_argument("--bootstrap-port", type=int, default=22)
+    command.add_argument("--auth-method", choices=["password", "private_key"], default="password")
+    command.add_argument("--password-env")
+    command.add_argument("--bootstrap-private-key")
+    command.add_argument("--managed-user")
+    command.add_argument("--managed-port", type=int)
+    command.add_argument("--profile", choices=list(PROFILE_DEFAULTS), default=profile_default)
+    command.add_argument("--ansible-key-private")
+    command.add_argument("--ansible-key-public")
+    command.add_argument("--personal-public-key")
+    command.add_argument("--ssh-config-file")
+    command.add_argument("--ssh-config-identity-file")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Ansispire VPS Manager operator CLI")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2], help="project root")
     sub = parser.add_subparsers(dest="command", required=True)
 
     new = sub.add_parser("new", help="interactively create an onboard VPS task draft")
-    new.add_argument("--non-interactive", action="store_true", help="generate from flags instead of prompts")
-    new.add_argument("--submit", action="store_true", help="submit generated draft to pending")
-    new.add_argument("--alias")
-    new.add_argument("--host")
-    new.add_argument("--description", default="")
-    new.add_argument("--bootstrap-user", default="root")
-    new.add_argument("--bootstrap-port", type=int, default=22)
-    new.add_argument("--auth-method", choices=["password", "private_key"], default="password")
-    new.add_argument("--password-env")
-    new.add_argument("--bootstrap-private-key")
-    new.add_argument("--managed-user", default="ansible")
-    new.add_argument("--managed-port", type=int)
-    new.add_argument("--profile", choices=list(PROFILE_DEFAULTS), default="minimal-secure")
+    add_generation_arguments(new, profile_default="minimal-secure")
+    new.set_defaults(action="onboard")
+
+    recover = sub.add_parser("recover", help="interactively create a recovery task draft for an existing VPS alias")
+    add_generation_arguments(recover, profile_default=None)
+    recover.set_defaults(action="recover")
 
     submit = sub.add_parser("submit", help="move a validated draft task into pending")
-    submit.add_argument("file", type=Path)
+    submit.add_argument("selector", help="draft file path, draft filename, or unique draft alias")
 
     sub.add_parser("tasks", help="list VPS Manager task files by state")
     return parser
@@ -466,7 +650,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        if args.command == "new":
+        if args.command in {"new", "recover"}:
             return command_new(args)
         if args.command == "submit":
             return command_submit(args)

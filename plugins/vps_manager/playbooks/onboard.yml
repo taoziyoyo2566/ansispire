@@ -3,6 +3,8 @@
   hosts: vps_targets
   become: true
   gather_facts: true
+  gather_subset:
+    - min
   vars:
     vps_bootstrap: "{{ vps_task.bootstrap }}"
     vps_managed: "{{ vps_task.managed }}"
@@ -12,6 +14,8 @@
     vps_fail2ban: "{{ vps_task.fail2ban | default({}) }}"
     vps_network_tuning: "{{ vps_task.network_tuning | default({}) }}"
     vps_swap: "{{ vps_task.swap | default({}) }}"
+    vps_package_install_list: "{{ vps_task.packages.install | default([]) }}"
+    vps_base_packages_enabled: "{{ vps_profile.base_packages | default(true) | bool }}"
 
   pre_tasks:
     - name: Assert managed SSH port policy
@@ -71,8 +75,8 @@
         name: "{{ vps_task.packages.install | default([]) }}"
         state: present
       when:
-        - vps_profile.base_packages | default(true) | bool
-        - (vps_task.packages.install | default([])) | length > 0
+        - vps_base_packages_enabled
+        - (vps_package_install_list | default([])) | length > 0
 
     - name: Remove explicitly unwanted packages
       ansible.builtin.package:
@@ -138,6 +142,7 @@
       when:
         - ansible_facts.os_family == 'Debian'
         - vps_profile.unattended_upgrades | default(true) | bool
+        - not (vps_base_packages_enabled and 'unattended-upgrades' in vps_package_install_list)
 
     - name: Configure optional swapfile
       when:
@@ -228,7 +233,9 @@
       ansible.builtin.package:
         name: fail2ban
         state: present
-      when: vps_fail2ban.enabled | default(false) | bool
+      when:
+        - vps_fail2ban.enabled | default(false) | bool
+        - not (vps_base_packages_enabled and 'fail2ban' in vps_package_install_list)
 
     - name: Configure fail2ban sshd jail
       ansible.builtin.template:
@@ -255,6 +262,7 @@
       when:
         - ansible_facts.os_family == 'Debian'
         - vps_profile.ufw | default(true) | bool
+        - not (vps_base_packages_enabled and 'ufw' in vps_package_install_list)
 
     - name: Allow managed SSH port before enabling UFW
       community.general.ufw:
@@ -336,9 +344,23 @@
     - name: Comment direct Ansispire-managed lines in main sshd_config
       ansible.builtin.replace:
         path: /etc/ssh/sshd_config
-        regexp: '^\s*(Port|PubkeyAuthentication|X11Forwarding|ClientAliveInterval|ClientAliveCountMax|LoginGraceTime|PermitRootLogin|PasswordAuthentication|KbdInteractiveAuthentication|ChallengeResponseAuthentication|AllowGroups)\s+.*$'
+        regexp: "{{ vps_sshd_directive_regexp }}"
         replace: '# \1 managed by /etc/ssh/sshd_config.d/00-ansispire.conf'
         backup: true
+      vars:
+        vps_sshd_directives:
+          - Port
+          - PubkeyAuthentication
+          - X11Forwarding
+          - ClientAliveInterval
+          - ClientAliveCountMax
+          - LoginGraceTime
+          - PermitRootLogin
+          - PasswordAuthentication
+          - KbdInteractiveAuthentication
+          - ChallengeResponseAuthentication
+          - AllowGroups
+        vps_sshd_directive_regexp: "^\\s*({{ vps_sshd_directives | join('|') }})\\s+.*$"
 
     - name: Install transitional sshd drop-in with managed port
       ansible.builtin.template:
