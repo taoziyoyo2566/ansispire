@@ -98,12 +98,12 @@
     - name: Install managed user authorized keys
       ansible.posix.authorized_key:
         user: "{{ vps_managed.user }}"
-        key: "{{ lookup('ansible.builtin.file', item.public_key) }}"
+        key: |
+          {% for key_item in vps_managed.authorized_keys -%}
+          {{ lookup('ansible.builtin.file', key_item.public_key) }}
+          {% endfor %}
         state: present
         exclusive: false
-      loop: "{{ vps_managed.authorized_keys }}"
-      loop_control:
-        label: "{{ item.name | default(item.public_key) }}"
       no_log: true
 
     - name: Configure managed sudo policy
@@ -336,21 +336,9 @@
     - name: Comment direct Ansispire-managed lines in main sshd_config
       ansible.builtin.replace:
         path: /etc/ssh/sshd_config
-        regexp: '^\s*{{ item }}\s+.*$'
-        replace: "# {{ item }} managed by /etc/ssh/sshd_config.d/00-ansispire.conf"
+        regexp: '^\s*(Port|PubkeyAuthentication|X11Forwarding|ClientAliveInterval|ClientAliveCountMax|LoginGraceTime|PermitRootLogin|PasswordAuthentication|KbdInteractiveAuthentication|ChallengeResponseAuthentication|AllowGroups)\s+.*$'
+        replace: '# \1 managed by /etc/ssh/sshd_config.d/00-ansispire.conf'
         backup: true
-      loop:
-        - Port
-        - PubkeyAuthentication
-        - X11Forwarding
-        - ClientAliveInterval
-        - ClientAliveCountMax
-        - LoginGraceTime
-        - PermitRootLogin
-        - PasswordAuthentication
-        - KbdInteractiveAuthentication
-        - ChallengeResponseAuthentication
-        - AllowGroups
 
     - name: Install transitional sshd drop-in with managed port
       ansible.builtin.template:
