@@ -713,6 +713,13 @@ class VpsManager:
 
     def execute_task(self, task: dict[str, Any], task_id: str, inventory: dict[str, Any]) -> ActionResult:
         action = task["action"]
+
+        if action in ONBOARD_LIKE_ACTIONS and task.get("local", {}).get("update_known_hosts", True):
+            self.remove_known_hosts(
+                task["bootstrap"]["host"],
+                [task["bootstrap"]["port"], task["ssh"]["managed_port"]],
+            )
+
         if self.no_execute:
             return ActionResult(command=[], returncode=0, skipped_remote=True)
 
@@ -976,6 +983,10 @@ class VpsManager:
             ssh_config_file = existing.get("ssh_config_file")
             if ssh_config_file:
                 touched_ssh_paths.add(ssh_config_file)
+
+            if task.get("options", {}).get("remove_known_hosts", False) and existing.get("host"):
+                self.remove_known_hosts(existing["host"], [existing.get("bootstrap_port", 22), existing.get("managed_port", 22)])
+
             if task.get("options", {}).get("remove_from_inventory", True):
                 servers.pop(alias, None)
             elif alias in servers:
@@ -984,6 +995,23 @@ class VpsManager:
 
         self.save_inventory(inventory)
         return touched_ssh_paths
+
+    @staticmethod
+    def remove_known_hosts(host: str, ports: list[int]) -> None:
+        """Remove old host keys from ~/.ssh/known_hosts to avoid identification errors after reinstall/recover."""
+        targets = [host]
+        for port in set(ports):
+            if port == 22:
+                targets.append(host)
+            else:
+                targets.append(f"[{host}]:{port}")
+
+        for target in sorted(set(targets)):
+            try:
+                # Quietly remove entries. ssh-keygen -R creates a backup file (~/.ssh/known_hosts.old)
+                subprocess.run(["ssh-keygen", "-R", target], capture_output=True, check=False)
+            except Exception:  # noqa: BLE001 - ignore failures to find/remove keys
+                pass
 
     @staticmethod
     def mark_task(server: dict[str, Any], task_id: str, action: str, now: str) -> None:

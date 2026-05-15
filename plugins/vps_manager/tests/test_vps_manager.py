@@ -301,6 +301,36 @@ class TestVpsManagerLifecycle(unittest.TestCase):
         inventory = read_yaml(self.manager.inventory_path)
         self.assertEqual(inventory["servers"]["jp-tokyo-01"]["tasks"]["last_action"], "recover")
 
+    def test_known_hosts_cleanup(self) -> None:
+        task = onboard_task(self.root)
+        task["local"] = {"update_known_hosts": True}
+        task["ssh"]["managed_port"] = 42222
+        self.write_pending("cleanup.yml", task)
+
+        with patch("subprocess.run") as mock_run:
+            self.manager.process_pending()
+
+        # Should remove: IP (port 22) and [IP]:42222
+        # subprocess.run(["ssh-keygen", "-R", "203.0.113.10"], ...)
+        # subprocess.run(["ssh-keygen", "-R", "[203.0.113.10]:42222"], ...)
+        calls = [call[0][0] for call in mock_run.call_args_list if "ssh-keygen" in call[0][0]]
+        self.assertIn(["ssh-keygen", "-R", "203.0.113.10"], calls)
+        self.assertIn(["ssh-keygen", "-R", "[203.0.113.10]:42222"], calls)
+
+    def test_known_hosts_cleanup_on_remove(self) -> None:
+        self.write_pending("first.yml", onboard_task(self.root))
+        self.manager.process_pending()
+
+        task = {"version": 1, "kind": "vps", "action": "remove", "alias": "jp-tokyo-01", "options": {"remove_known_hosts": True}}
+        self.write_pending("remove.yml", task)
+
+        with patch("subprocess.run") as mock_run:
+            self.manager.process_pending()
+
+        calls = [call[0][0] for call in mock_run.call_args_list if "ssh-keygen" in call[0][0]]
+        self.assertIn(["ssh-keygen", "-R", "203.0.113.10"], calls)
+        self.assertIn(["ssh-keygen", "-R", "[203.0.113.10]:39222"], calls)
+
     def test_inline_password_is_rejected_and_redacted(self) -> None:
         task = onboard_task(self.root, alias="bad-secret-01")
         task["bootstrap"]["auth"]["pass" + "word"] = "inline-auth-value"
