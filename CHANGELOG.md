@@ -27,9 +27,22 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ---
 
-## [Unreleased] — branch `feat/vps-manager-plugin`
+## [Unreleased] — branch `feat/vps-manager-v2`
 
-### VPS Manager plugin MVP (2026-05-14)
+### VPS Runner plugin — ansible-runner native rewrite (2026-05-16, rounds 2–4-a)
+
+**Replaces** the legacy `plugins/vps_manager/` (kept alongside until Round 4-b cutover). Driven by W-R18 framework best-practice pre-check ([`IVG-MULTI-SERVER-ANSIBLE-PRACTICE`](docs/reference/investigations/IVG-MULTI-SERVER-ANSIBLE-PRACTICE.md), [`IVG-REFLECT-BESTPRACTICE-GAP`](docs/reference/investigations/IVG-REFLECT-BESTPRACTICE-GAP.md)) that identified the old plugin's three-layer anti-Ansible pattern (subprocess wrapping + custom callback + custom inventory state).
+
+- **New plugin**: `plugins/vps_runner/` invokes Ansible via `ansible_runner.run()` against a standard inventory tree (`inventory/vps_runner/<env>/hosts.yml` + `host_vars/<alias>.yml`). No inbox, no custom state file, no callback plugin.
+- **CLI subcommands**: `python -m plugins.vps_runner.cli {list|audit|onboard|modify|remove} --env {dev,stag,prod}`. `onboard` supports `--first-time` + `--ask-pass` + `--ask-become-pass` for bootstrap from `root@22`-style initial state; `modify` accepts CSV `--add-package` / `--remove-package` / `--add-port` / `--remove-port` plus `--toggle-fail2ban on|off`; `remove` requires `--yes` and has opt-in `--cleanup-remote` for stripping Ansispire sshd drop-ins.
+- **Hardening** (per `ansible-runner` codex review): `inventory=<abs path>` (no reliance on `ansible.cfg` default `inventory = inventory/prod`), `suppress_env_files=True` (secrets not on disk), `rotate_artifacts=10`, explicit `forks=20`.
+- **Artifacts**: every invocation writes to `runtime/logs/vps_runner/<run_id>/` with structured per-host events.
+- **Operator UX**: new Make targets `test-vps-runner`, `test-vps-runner-integration`, `vps-runner-syntax`; `make verify` includes `test-vps-runner` alongside the existing legacy test target.
+- **Documentation**: operator guide `docs/operations/vps-runner.md`; per-module spec `docs/reference/feature-map/vps-runner.md`; INDEX, ARCHITECTURE, README updated to register both plugins (legacy clearly marked).
+- **Tests**: 22 cases (21 unit + 1 ansible-runner integration vs RFC 5737 TEST-NET-1).
+- **Pending (Round 4-b)**: `git rm -r plugins/vps_manager/`, remove legacy Make targets + CI references + `runtime/state/vps_inventory.yml`; requires user explicit ack of feature parity before cutover.
+
+### VPS Manager plugin MVP (2026-05-14) — slated for Round 4-b removal
 
 - **New plugin**: `plugins/vps_manager/` processes one-shot VPS task YAML from
   `runtime/inbox/vps/pending/`, moves tasks through

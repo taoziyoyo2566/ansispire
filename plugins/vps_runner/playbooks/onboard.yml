@@ -1,5 +1,5 @@
 ---
-# vps_runner onboard playbook (migrated from plugins/vps_manager/playbooks/onboard.yml).
+# vps_runner onboard playbook (rewritten from plugins/vps_manager/playbooks/onboard.yml).
 #
 # Reads from standard inventory:
 #   - top-level: ansible_host / ansible_port / ansible_user / security / features /
@@ -7,14 +7,10 @@
 #   - vps_runner.*: bootstrap_port / bootstrap_user / managed_port / managed_user /
 #                   identity_file / ansible_public_key / personal_keys / ...
 #
-# The `vars:` block reconstructs the legacy `vps_task` shape so the playbook body
-# (lifted verbatim from vps_manager) and templates remain stable. Future cleanup
-# can flatten this once we are confident no external caller depends on the shape.
-#
 # Precondition: target VPS already has python3 (plan §6 D8 — no raw bootstrap).
 # Re-onboard is idempotent. For first-time onboard from a different user/port,
-# the CLI passes `cmdline=['--extra-vars', 'ansible_port=... ansible_user=...']`
-# to override the connection for that one run only (host_vars stay canonical).
+# the CLI passes `extravars={'ansible_user': 'root', 'ansible_port': 22}` to
+# override the connection for that one run only (host_vars stay canonical).
 
 - name: Onboard VPS into Ansispire management (vps_runner)
   hosts: vps_targets
@@ -23,66 +19,55 @@
   gather_subset:
     - min
   vars:
-    vps_task:
-      bootstrap:
-        port: "{{ (vps_runner | default({})).bootstrap_port | default(22) }}"
-      managed:
-        user: "{{ (vps_runner | default({})).managed_user | default('ansible') }}"
-        groups: "{{ (vps_runner | default({})).managed_groups | default(['sudo']) }}"
-        shell: "{{ (vps_runner | default({})).managed_shell | default('/bin/bash') }}"
-        authorized_keys: >-
-          {{
-            ([{'name': 'ansispire_runner', 'public_key': (vps_runner | default({})).ansible_public_key}]
-             + ((vps_runner | default({})).personal_keys | default([])))
-            | selectattr('public_key', 'defined')
-            | rejectattr('public_key', 'equalto', None)
-            | list
-          }}
-        sudo:
-          nopasswd: "{{ (vps_runner | default({})).sudo_nopasswd | default(true) }}"
-        ansible_key:
-          private_key: "{{ (vps_runner | default({})).identity_file }}"
-      ssh:
-        managed_port: "{{ (vps_runner | default({})).managed_port | default(ansible_port) }}"
-        disable_root_login: "{{ (security | default({})).root_login_disabled | default(true) }}"
-        disable_password_login: "{{ (security | default({})).password_login_disabled | default(true) }}"
-        disable_kbd_interactive: "{{ (security | default({})).disable_kbd_interactive | default(true) }}"
-        allow_groups: "{{ (security | default({})).allow_groups | default([]) }}"
-        close_bootstrap_port_after_success: "{{ (vps_runner | default({})).close_bootstrap_port_after_success | default(true) }}"
-      profile:
-        base_packages: "{{ (features | default({})).base_packages | default(true) }}"
-        unattended_upgrades: "{{ (features | default({})).unattended_upgrades | default(true) }}"
-        system_limits: "{{ (features | default({})).system_limits | default(true) }}"
-        ufw: "{{ (features | default({})).ufw | default(true) }}"
-      firewall: >-
-        {{ firewall | default({'default_incoming': 'deny',
-                               'default_outgoing': 'allow',
-                               'allowed_tcp_ports': [],
-                               'allow_http_https': false}) }}
-      fail2ban: >-
-        {{ (fail2ban | default({})) | combine({
-             'enabled': (security | default({})).fail2ban_enabled
-                        | default((features | default({})).fail2ban | default(false))
-           }) }}
-      network_tuning: >-
-        {{ (network_tuning | default({})) | combine({
-             'enabled': (features | default({})).network_tuning | default(false)
-           }) }}
-      swap: >-
-        {{ (swap | default({})) | combine({
-             'enabled': (features | default({})).swap | default(false)
-           }) }}
-      packages: "{{ packages | default({'install': [], 'remove': []}) }}"
-
-    vps_bootstrap: "{{ vps_task.bootstrap }}"
-    vps_managed: "{{ vps_task.managed }}"
-    vps_ssh: "{{ vps_task.ssh }}"
-    vps_profile: "{{ vps_task.profile }}"
-    vps_firewall: "{{ vps_task.firewall }}"
-    vps_fail2ban: "{{ vps_task.fail2ban }}"
-    vps_network_tuning: "{{ vps_task.network_tuning }}"
-    vps_swap: "{{ vps_task.swap }}"
-    vps_package_install_list: "{{ vps_task.packages.install | default([]) }}"
+    vps_bootstrap:
+      port: "{{ (vps_runner | default({})).bootstrap_port | default(22) }}"
+    vps_managed:
+      user: "{{ (vps_runner | default({})).managed_user | default('ansible') }}"
+      groups: "{{ (vps_runner | default({})).managed_groups | default(['sudo']) }}"
+      shell: "{{ (vps_runner | default({})).managed_shell | default('/bin/bash') }}"
+      authorized_keys: >-
+        {{
+          ([{'name': 'ansispire_runner', 'public_key': (vps_runner | default({})).ansible_public_key}]
+           + ((vps_runner | default({})).personal_keys | default([])))
+          | selectattr('public_key', 'defined')
+          | rejectattr('public_key', 'equalto', None)
+          | list
+        }}
+      sudo:
+        nopasswd: "{{ (vps_runner | default({})).sudo_nopasswd | default(true) }}"
+      ansible_key:
+        private_key: "{{ (vps_runner | default({})).identity_file }}"
+    vps_ssh:
+      managed_port: "{{ (vps_runner | default({})).managed_port | default(ansible_port) }}"
+      disable_root_login: "{{ (security | default({})).root_login_disabled | default(true) }}"
+      disable_password_login: "{{ (security | default({})).password_login_disabled | default(true) }}"
+      disable_kbd_interactive: "{{ (security | default({})).disable_kbd_interactive | default(true) }}"
+      allow_groups: "{{ (security | default({})).allow_groups | default([]) }}"
+      close_bootstrap_port_after_success: "{{ (vps_runner | default({})).close_bootstrap_port_after_success | default(true) }}"
+    vps_profile:
+      base_packages: "{{ (features | default({})).base_packages | default(true) }}"
+      unattended_upgrades: "{{ (features | default({})).unattended_upgrades | default(true) }}"
+      system_limits: "{{ (features | default({})).system_limits | default(true) }}"
+      ufw: "{{ (features | default({})).ufw | default(true) }}"
+    vps_firewall: >-
+      {{ firewall | default({'default_incoming': 'deny',
+                             'default_outgoing': 'allow',
+                             'allowed_tcp_ports': [],
+                             'allow_http_https': false}) }}
+    vps_fail2ban: >-
+      {{ (fail2ban | default({})) | combine({
+           'enabled': (security | default({})).fail2ban_enabled
+                      | default((features | default({})).fail2ban | default(false))
+         }) }}
+    vps_network_tuning: >-
+      {{ (network_tuning | default({})) | combine({
+           'enabled': (features | default({})).network_tuning | default(false)
+         }) }}
+    vps_swap: >-
+      {{ (swap | default({})) | combine({
+           'enabled': (features | default({})).swap | default(false)
+         }) }}
+    vps_package_install_list: "{{ (packages | default({})).install | default([]) }}"
     vps_base_packages_enabled: "{{ vps_profile.base_packages | default(true) | bool }}"
 
   pre_tasks:
@@ -140,17 +125,17 @@
   tasks:
     - name: Install requested base packages
       ansible.builtin.package:
-        name: "{{ vps_task.packages.install | default([]) }}"
+        name: "{{ vps_package_install_list }}"
         state: present
       when:
         - vps_base_packages_enabled
-        - (vps_package_install_list | default([])) | length > 0
+        - vps_package_install_list | length > 0
 
     - name: Remove explicitly unwanted packages
       ansible.builtin.package:
-        name: "{{ vps_task.packages.remove | default([]) }}"
+        name: "{{ (packages | default({})).remove | default([]) }}"
         state: absent
-      when: (vps_task.packages.remove | default([])) | length > 0
+      when: ((packages | default({})).remove | default([])) | length > 0
 
     - name: Ensure managed groups exist
       ansible.builtin.group:

@@ -16,8 +16,9 @@
         controller-loop-smoke \
         test-eda test-eda-unit test-eda-contract test-eda-component \
         test-eda-relay-unit test-eda-sink-unit test-eda-e2e \
-        test-filters test-vps-manager detect-secrets \
-        vps-manager-syntax \
+        test-filters test-vps-manager test-vps-runner test-vps-runner-integration \
+        detect-secrets \
+        vps-manager-syntax vps-runner-syntax \
         vps-new vps-recover vps-submit vps-tasks \
         vps-manager-init vps-manager-process vps-manager-validate \
         hub-deploy hub-deploy-check
@@ -96,7 +97,7 @@ syntax: ## Syntax check both stag and prod
 	@echo "==> Syntax checking Prod..."
 	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/prod
 
-verify: lint syntax vps-manager-syntax detect-secrets test-eda test-filters test-vps-manager dry-run ## Push gate — lint + syntax + secrets + Python tests + dry-run (~30–60 s)
+verify: lint syntax vps-manager-syntax vps-runner-syntax detect-secrets test-eda test-filters test-vps-manager test-vps-runner dry-run ## Push gate — lint + syntax + secrets + Python tests + dry-run (~30–60 s)
 
 verify-quick: syntax ## Save-point gate — syntax only (~3 s, before commit)
 
@@ -137,16 +138,28 @@ test-eda-e2e: ## L4 — disposable end-to-end (real docker; ~60–90s; NOT in `m
 test-filters: ## L1 — filter_plugins/custom_filters.py (pure functions, no Ansible)
 	$(BIN)python3 controller/audit/test_filters.py
 
-test-vps-manager: ## L1 — plugins/vps_manager local lifecycle tests
+test-vps-manager: ## L1 — plugins/vps_manager local lifecycle tests (legacy plugin)
 	$(BIN)python3 plugins/vps_manager/tests/test_vps_manager.py
 
-vps-manager-syntax: ## Ansible syntax-check for VPS Manager action playbooks
+test-vps-runner: ## L1 — plugins/vps_runner unit tests (no SSH, no docker; ~0.2s)
+	$(BIN)pytest plugins/vps_runner/tests/ -m 'not integration'
+
+test-vps-runner-integration: ## L2 — plugins/vps_runner integration test (real ansible-runner vs TEST-NET-1; ~11s)
+	$(BIN)pytest plugins/vps_runner/tests/ -m integration
+
+vps-manager-syntax: ## Ansible syntax-check for VPS Manager action playbooks (legacy plugin)
 	$(BIN)ansible-playbook plugins/vps_manager/playbooks/onboard.yml --syntax-check -i plugins/vps_manager/tests/syntax_inventory.yml
 	$(BIN)ansible-playbook plugins/vps_manager/playbooks/modify.yml --syntax-check -i plugins/vps_manager/tests/syntax_inventory.yml
 	$(BIN)ansible-playbook plugins/vps_manager/playbooks/audit.yml --syntax-check -i plugins/vps_manager/tests/syntax_inventory.yml
 	$(BIN)ansible-playbook plugins/vps_manager/playbooks/remove.yml --syntax-check -i plugins/vps_manager/tests/syntax_inventory.yml
 	$(BIN)ansible-playbook plugins/vps_manager/playbooks/docker_host.yml --syntax-check -i plugins/vps_manager/tests/syntax_inventory.yml
 	$(BIN)ansible-playbook plugins/vps_manager/playbooks/deploy_compose.yml --syntax-check -i plugins/vps_manager/tests/syntax_inventory.yml
+
+vps-runner-syntax: ## Ansible syntax-check for VPS Runner action playbooks
+	$(BIN)ansible-playbook plugins/vps_runner/playbooks/onboard.yml --syntax-check -i inventory/vps_runner/dev/
+	$(BIN)ansible-playbook plugins/vps_runner/playbooks/modify.yml --syntax-check -i inventory/vps_runner/dev/
+	$(BIN)ansible-playbook plugins/vps_runner/playbooks/audit.yml --syntax-check -i inventory/vps_runner/dev/
+	$(BIN)ansible-playbook plugins/vps_runner/playbooks/remove.yml --syntax-check -i inventory/vps_runner/dev/
 
 detect-secrets: ## Scan tracked + unignored files; fail on findings not present in .secrets.baseline
 	@PATH="$(VENV_BIN):$$PATH" $(BIN)python3 scripts/detect_secrets_gate.py
