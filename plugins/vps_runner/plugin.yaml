@@ -1,0 +1,37 @@
+name: vps_runner
+version: "0.1.0"
+description: |
+  Ansible-native VPS lifecycle plugin built around ansible-runner +
+  standard inventory. Replaces the legacy vps_manager plugin.
+entrypoint: vps_runner.py
+runtime:
+  inventory_root: inventory/vps_runner
+  artifact_root: runtime/logs/vps_runner
+actions:
+  list:
+    description: List managed VPS in the given environment
+    playbook: null
+  audit:
+    description: Probe per-host health (ping + uptime + disk + memory)
+    playbook: playbooks/audit.yml
+    remote: true
+  onboard:
+    description: Onboard a new VPS into management (round 3+)
+    playbook: playbooks/onboard.yml
+    remote: true
+    status: planned
+  modify:
+    description: Modify managed configuration of an existing VPS (round 3+)
+    playbook: playbooks/modify.yml
+    remote: true
+    status: planned
+  remove:
+    description: Remove a VPS from management (round 3+)
+    playbook: playbooks/remove.yml
+    remote: true
+    status: planned
+safety:
+  inventory_must_be_explicit: true
+  suppress_env_files: true
+  rotate_artifacts: 10
+  default_forks: 20

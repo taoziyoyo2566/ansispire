@@ -1,6 +1,7 @@
 # Ansispire Local Toolchain Requirements (SSOT)
 # Core Ansible
 ansible-core>=2.20.5
+ansible-runner>=2.4.0
 ansible-lint>=26.4.0
 yamllint>=1.35
 

@@ -1,0 +1,64 @@
+---
+# vps_runner — audit playbook
+#
+# Lightweight per-host health probe. Reports back to ansible-runner via
+# task results which are then exposed structured via Runner.host_events().
+#
+# Variables consumed (from host_vars):
+#   none required — uses Ansible facts + ansible_host metadata only.
+#
+# Variables produced (registered, available via Runner.host_events()):
+#   vps_runner_audit_summary  dict   per-host audit result
+
+- name: Vps_runner audit — per-host health probe
+  hosts: vps_targets
+  gather_facts: true
+  gather_subset:
+    - min
+    - hardware
+  any_errors_fatal: false
+  tasks:
+
+    - name: Probe SSH reachability
+      ansible.builtin.ping:
+      register: _ping_result
+
+    - name: Collect uptime
+      ansible.builtin.command: uptime -p
+      register: _uptime_result
+      changed_when: false
+
+    - name: Collect disk usage on root filesystem
+      ansible.builtin.shell: |
+        set -o pipefail
+        df -h / | awk 'NR==2 {print $5}' | tr -d '%'
+      register: _disk_usage
+      changed_when: false
+      args:
+        executable: /bin/bash
+
+    - name: Collect memory usage percent
+      ansible.builtin.shell: |
+        set -o pipefail
+        free | awk '/Mem:/ {printf "%.0f", $3/$2 * 100}'
+      register: _mem_usage
+      changed_when: false
+      args:
+        executable: /bin/bash
+
+    - name: Assemble audit summary
+      ansible.builtin.set_fact:
+        vps_runner_audit_summary:
+          alias: "{{ inventory_hostname }}"
+          host: "{{ ansible_host }}"
+          ping_ok: "{{ _ping_result.ping is defined and _ping_result.ping == 'pong' }}"
+          uptime: "{{ _uptime_result.stdout | default('n/a') }}"
+          disk_used_pct: "{{ _disk_usage.stdout | default('n/a') | int }}"
+          mem_used_pct: "{{ _mem_usage.stdout | default('n/a') | int }}"
+          os_family: "{{ ansible_os_family | default('unknown') }}"
+          distribution: "{{ ansible_distribution | default('unknown') }}"
+          distribution_version: "{{ ansible_distribution_version | default('unknown') }}"
+
+    - name: Emit audit summary (visible in stdout + events)
+      ansible.builtin.debug:
+        var: vps_runner_audit_summary

@@ -1,0 +1,52 @@
+---
+# vps_runner managed host — hk-d13 (dev)
+# Migrated from runtime/state/vps_inventory.yml on 2026-05-16.
+
+ansible_host: 89.185.26.211
+ansible_port: 1156
+ansible_user: ansible
+ansible_python_interpreter: /usr/bin/python3
+ansible_ssh_private_key_file: /home/netcup/.ssh/ansispire_ed25519
+
+security:
+  root_login_disabled: true
+  password_login_disabled: true
+  ufw_enabled: true
+  fail2ban_enabled: true
+features:
+  base_packages: true
+  unattended_upgrades: true
+  system_limits: true
+  swap: false
+  network_tuning: false
+  ufw: true
+  fail2ban: true
+  docker: true
+
+vps_runner:
+  bootstrap_port: 22
+  managed_user: ansible
+  identity_file: /home/netcup/.ssh/ansispire_ed25519
+  ansible_public_key: /home/netcup/.ssh/ansispire_ed25519.pub
+  personal_keys:
+    - name: operator
+      public_key: /home/netcup/.ssh/id_ed25519.pub
+  ssh_config:
+    identity_file: /home/netcup/.ssh/id_ed25519
+    file: /home/netcup/.ssh/config.d/ansispire.conf
+  status: active
+  os:
+    family: null
+    distribution: null
+    version: null
+  health:
+    last_seen: '2026-05-15T11:27:48Z'
+    last_audit_status: unknown
+    disk_status: unknown
+    memory_status: unknown
+  last_run:
+    id: vps-20260515-112609-hk-d13-recover
+    action: recover
+    success_at: '2026-05-15T11:27:48Z'
+  created_at: '2026-05-15T03:56:51Z'
+  updated_at: '2026-05-15T11:27:48Z'
