@@ -23,6 +23,29 @@
 
 ## 🟡 进行中 / 下一轮可立刻启动 (Active / Next-up)
 
+### TASK-009 — vps-manager-v2 (ansible-runner native plugin)  🆕 in-progress
+- **目标**：用 `ansible-runner` + 标准 inventory 重写 VPS lifecycle 插件，替代旧 `plugins/vps_manager/`（三层反 Ansible 范式：subprocess 包装 + 自写 callback + 自定义 inventory state）。**首次应用 workspace W-R18 框架最佳实践前置核验**。
+- **入口**：`docs/reviews/feat-vps-manager-v2/plan-2026-05-16.md`（含 §0-D Best-Practice Pre-Check / codex r1 review / Future DB Migration §7.5）
+- **分支**：`feat/vps-manager-v2`（从 dev 拉，local-only 未 push）
+- **当前进度**（截至 2026-05-16，round 2 收工）：
+    - `[✓]` Round 2：依赖 + 标准 inventory + 骨架 + `list` / `audit` 子命令端到端（changelog: `docs/reviews/feat-vps-manager-v2/round2-2026-05-16.changelog.md`）
+    - `[ ]` Round 3：T3.1 `onboard` playbook 重写（545 行迁移 + `vps_task.*` 全量替换）+ `modify` / `remove` 子命令 + `tests/test_vps_runner.py`
+    - `[ ]` Round 4：`docs/operations/vps-runner.md` + feature-map 同步 + Makefile/CI 集成 + **cutover**（git rm `plugins/vps_manager/` + 清理 `runtime/state/vps_inventory.yml`）
+- **依赖 / Blocked**：
+    - VPS SSH 当前 `Permission denied (publickey)` → 阻塞 plan §1.4 的 3-host concurrency 实测（不阻塞 round 3 代码工作）
+- **owner**：Claude（实现） + 用户（决策 + 验证）
+- **优先级**：P0（架构级，阻塞 TASK-010 reality-migration）
+- **关联**：[[bestpractice-precheck-lesson]] / `IVG-MULTI-SERVER-ANSIBLE-PRACTICE` / `IVG-REFLECT-BESTPRACTICE-GAP`
+
+### TASK-010 — Reality 节点管理子系统迁移（PAUSED）  ⏸️
+- **目标**：把 `taoziyoyo2566/reality-ops` 移植到 Ansispire 作为 reality_manager plugin，按 6 阶段路线（数据模型 → ACL → 角色 → 子系统 → Molecule → 文档）。
+- **入口**：`docs/reviews/feat-reality-migration/plan-2026-05-15.md`（含 D1–D6 决策锁定 + Gemini r1/r2 reviews + Future DB Migration §7.6）
+- **状态**：⏸️ **暂停**——等 TASK-009 vps-manager-v2 完成后恢复。原因：reality_deploy 阶段 3 需要 ansible-runner 范式底座，且不应在反范式 vps_manager 之上叠加。
+- **恢复条件**：vps-manager-v2 round 4 cutover 完成；恢复时按 plan §8 暂停标注，在 §3.4 + §5 阶段 3 各加 1 行 Ansible forks 约束。
+- **未决问题**：IVG §6.2 阶段 0 安全清算（上游 29 份明文私钥）需 user 决策是否轮换 + 是否迁移。
+- **优先级**：P1（vps-manager-v2 完成后立即恢复）
+- **关联**：`IVG-REALITY-OPS-VERIFICATION` / `IVG-DEEP-AUDIT-2026-05-15`
+
 ### TASK-007 — Multi-OS Target Fleet  🆕
 - **目标**：把 Alpine / Rocky / Ubuntu / Debian 4 台 VPS 接入 `[targets_*]` 组，实现 `infra_baseline` 的 RHEL / Alpine 分支，让管理 hub 能统一保持全 fleet 的安全基线。
 - **入口**：`inventory/hosts.ini` 的 `[targets_debian]` / `[targets_rhel]` / `[targets_alpine]` 占位组（Round 4 已就位）。
