@@ -25,6 +25,8 @@ features:
 
 vps_runner:
   bootstrap_port: 22
+  bootstrap_user: root
+  managed_port: 1156
   managed_user: ansible
   identity_file: /home/netcup/.ssh/ansispire_ed25519
   ansible_public_key: /home/netcup/.ssh/ansispire_ed25519.pub

@@ -1,0 +1,43 @@
+---
+# vps_runner remove playbook (rewritten from plugins/vps_manager/playbooks/remove.yml).
+#
+# Defaults to a no-op on the remote side — the CLI handles inventory deletion
+# (host_vars/<alias>.yml + entry in hosts.yml) locally after this run succeeds.
+#
+# When the CLI passes `vps_cleanup_remote=true` (e.g. via `--cleanup-remote`),
+# this strips the Ansispire-managed sshd drop-ins so the host returns to the
+# distro-default sshd state. UFW rules and the managed user are intentionally
+# left alone (manual cleanup; safer default for "I am taking this VPS back").
+
+- name: Remote cleanup for VPS removal (vps_runner)
+  hosts: vps_targets
+  become: true
+  gather_facts: false
+  vars:
+    vps_cleanup_remote: "{{ vps_cleanup_remote | default(false) | bool }}"
+
+  tasks:
+    - name: Remove Ansispire managed sshd drop-in (when requested)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/ssh/sshd_config.d/00-ansispire.conf
+        - /etc/ssh/sshd_config.d/99-ansispire.conf
+      when: vps_cleanup_remote
+
+    - name: Validate sshd after optional cleanup
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/sshd
+          - -t
+      changed_when: false
+      check_mode: false
+      when: vps_cleanup_remote
+
+    - name: Report no-op when remote cleanup not requested
+      ansible.builtin.debug:
+        msg: >-
+          Remote cleanup skipped; local inventory entry will still be removed.
+          Pass --cleanup-remote to strip Ansispire sshd drop-ins.
+      when: not vps_cleanup_remote

@@ -57,6 +57,11 @@ all = [
     "ansispire[test,cloud,dev]",
 ]
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that drive ansible-runner end-to-end (slower, real SSH timeout)",
+]
+
 [tool.uv]
 # uv-specific configuration
 dev-dependencies = [

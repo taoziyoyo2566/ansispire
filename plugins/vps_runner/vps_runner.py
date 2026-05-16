@@ -87,6 +87,101 @@ def inventory_path(env: str) -> Path:
     return path
 
 
+def list_aliases(env: str) -> list[str]:
+    """Return sorted alias list from hosts.yml (no host_vars read)."""
+    inv_dir = inventory_path(env)
+    hosts_file = inv_dir / "hosts.yml"
+    if not hosts_file.exists():
+        return []
+    with hosts_file.open("r", encoding="utf-8") as f:
+        hosts_data = yaml.safe_load(f) or {}
+    children = (hosts_data.get("all") or {}).get("children") or {}
+    targets = children.get("vps_targets") or {}
+    return sorted((targets.get("hosts") or {}).keys())
+
+
+def host_vars_path(env: str, alias: str) -> Path:
+    return inventory_path(env) / "host_vars" / f"{alias}.yml"
+
+
+def read_host_vars(env: str, alias: str) -> dict[str, Any]:
+    """Return parsed host_vars/<alias>.yml; raise if missing."""
+    path = host_vars_path(env, alias)
+    if not path.exists():
+        raise VpsRunnerError(f"host_vars not found: {path}")
+    with path.open("r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+def write_host_vars(env: str, alias: str, data: dict[str, Any]) -> None:
+    """Write data to host_vars/<alias>.yml (sorted keys disabled to preserve schema)."""
+    path = host_vars_path(env, alias)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        f.write("---\n")
+        yaml.safe_dump(
+            data,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+
+
+def record_run(
+    env: str, alias: str, summary: "RunSummary", *, set_status: str | None = None
+) -> None:
+    """Update host_vars vps_runner.last_run + updated_at after a run."""
+    data = read_host_vars(env, alias)
+    vr = data.setdefault("vps_runner", {})
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace(
+        "+00:00", "Z"
+    )
+    vr["last_run"] = {
+        "id": summary.run_id,
+        "action": summary.action,
+        "status": summary.status,
+        "rc": summary.rc,
+        "completed_at": now,
+    }
+    vr["updated_at"] = now
+    if set_status is not None:
+        vr["status"] = set_status
+    write_host_vars(env, alias, data)
+
+
+def remove_alias_from_hosts(env: str, alias: str) -> bool:
+    """Drop alias from hosts.yml vps_targets.hosts. Returns True if changed."""
+    inv_dir = inventory_path(env)
+    hosts_file = inv_dir / "hosts.yml"
+    if not hosts_file.exists():
+        return False
+    with hosts_file.open("r", encoding="utf-8") as f:
+        hosts_data = yaml.safe_load(f) or {}
+    children = (hosts_data.get("all") or {}).get("children") or {}
+    targets = children.get("vps_targets") or {}
+    host_map = targets.get("hosts") or {}
+    if alias not in host_map:
+        return False
+    del host_map[alias]
+    targets["hosts"] = host_map
+    with hosts_file.open("w", encoding="utf-8") as f:
+        f.write("---\n")
+        yaml.safe_dump(
+            hosts_data, f, default_flow_style=False, sort_keys=False
+        )
+    return True
+
+
+def delete_host_vars(env: str, alias: str) -> bool:
+    """Delete host_vars/<alias>.yml. Returns True if removed."""
+    path = host_vars_path(env, alias)
+    if not path.exists():
+        return False
+    path.unlink()
+    return True
+
+
 def list_hosts(env: str) -> list[dict[str, Any]]:
     """Return list of host metadata for the given env (no Ansible call).
 
@@ -94,22 +189,11 @@ def list_hosts(env: str) -> list[dict[str, Any]]:
     by `vps-runner list`.
     """
     inv_dir = inventory_path(env)
-    hosts_file = inv_dir / "hosts.yml"
-    if not hosts_file.exists():
-        return []
-
-    with hosts_file.open("r", encoding="utf-8") as f:
-        hosts_data = yaml.safe_load(f) or {}
-
-    aliases: list[str] = []
-    children = (hosts_data.get("all") or {}).get("children") or {}
-    targets = children.get("vps_targets") or {}
-    for alias in (targets.get("hosts") or {}).keys():
-        aliases.append(alias)
+    aliases = list_aliases(env)
 
     results: list[dict[str, Any]] = []
     host_vars_dir = inv_dir / "host_vars"
-    for alias in sorted(aliases):
+    for alias in aliases:
         host_file = host_vars_dir / f"{alias}.yml"
         if host_file.exists():
             with host_file.open("r", encoding="utf-8") as f:
@@ -143,6 +227,7 @@ def run_playbook(
     extravars: dict[str, Any] | None = None,
     forks: int = DEFAULT_FORKS,
     quiet: bool = False,
+    cmdline: str | None = None,
 ) -> RunSummary:
     """Invoke an ansible-runner playbook against the vps_runner inventory.
 
@@ -165,7 +250,7 @@ def run_playbook(
     # path relative to project_dir (PROJECT_ROOT)
     playbook_rel = playbook_path.relative_to(PROJECT_ROOT).as_posix()
 
-    runner = ansible_runner.run(
+    runner_kwargs: dict[str, Any] = dict(
         project_dir=str(PROJECT_ROOT),
         playbook=playbook_rel,
         inventory=str(inv_dir),
@@ -179,6 +264,9 @@ def run_playbook(
         forks=forks,
         quiet=quiet,
     )
+    if cmdline:
+        runner_kwargs["cmdline"] = cmdline
+    runner = ansible_runner.run(**runner_kwargs)
 
     hosts = _collect_host_results(runner)
     return RunSummary(

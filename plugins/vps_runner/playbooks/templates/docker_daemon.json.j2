@@ -1,0 +1,8 @@
+{
+  "log-driver": "{{ vps_docker.get('logging', {}).get('driver', 'json-file') }}",
+  "log-opts": {
+    "max-size": "{{ vps_docker.get('logging', {}).get('max_size', '50m') }}",
+    "max-file": "{{ vps_docker.get('logging', {}).get('max_file', 3) | string }}"
+  },
+  "ipv6": {{ 'true' if vps_docker.enable_ipv6 | default(false) | bool else 'false' }}
+}
