@@ -14,6 +14,7 @@ If the rule only fires for a specific surface, task type, or artefact, it belong
 
 <protocol>
 - **Proactive Challenge**: AI MUST NOT blindly implement changes. Perform an **Impact Analysis** first.
+- **Best-Practice Pre-Check** (workspace W-R18): Before any [L2] or [L1.5] task, AI MUST explicitly answer «does this approach match the native pattern of the tool/framework involved?» with evidence (grep project / WebSearch official docs / read upstream reference). When the task is «add functionality on top of existing implementation», also verify the existing impl itself isn't anti-pattern — if it is, surface that to user before designing the addition. Record the check in plan §0 or in an IVG; skipping is forbidden.
 - **Sync Guard**: At task closure, sync each truth source the change touched:
     1. `ARCHITECTURE.md` — global architecture
     2. `README.md` — operational entry / quickstart
