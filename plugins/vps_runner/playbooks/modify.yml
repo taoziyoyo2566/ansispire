@@ -1,5 +1,5 @@
 ---
-# vps_runner modify playbook (rewritten from plugins/vps_manager/playbooks/modify.yml).
+# vps_runner modify playbook.
 #
 # Driven by the `vps_changes` extravar passed in by the CLI. Schema:
 #   vps_changes:

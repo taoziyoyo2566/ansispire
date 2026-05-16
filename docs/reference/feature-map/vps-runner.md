@@ -1,9 +1,9 @@
 # Feature: VPS Runner Plugin
 
 ## Status
-✅ **Code complete 2026-05-16 (Round 3); operator docs + Makefile sync 2026-05-16 (Round 4-a).** Pending: live 3-host concurrency test (blocked on dev VPS SSH access) + cutover of legacy `vps_manager/` (Round 4-b, awaits user feature-parity ack).
+✅ **Cutover complete 2026-05-16 (Round 4-b).** Pending: live 3-host concurrency verification (blocked on dev VPS SSH access).
 
-Replaces the legacy `plugins/vps_manager/` (the three-layer anti-Ansible pattern: subprocess wrapping + custom callback + custom inventory state). See [`docs/reference/investigations/IVG-MULTI-SERVER-ANSIBLE-PRACTICE.md`](../investigations/IVG-MULTI-SERVER-ANSIBLE-PRACTICE.md) and [`IVG-REFLECT-BESTPRACTICE-GAP.md`](../investigations/IVG-REFLECT-BESTPRACTICE-GAP.md) for the framework best-practice analysis that drove the rewrite.
+The plugin was built to replace a prior anti-Ansible implementation (subprocess wrapping + custom callback + custom inventory state). See [`docs/reference/investigations/IVG-MULTI-SERVER-ANSIBLE-PRACTICE.md`](../investigations/IVG-MULTI-SERVER-ANSIBLE-PRACTICE.md) and [`IVG-REFLECT-BESTPRACTICE-GAP.md`](../investigations/IVG-REFLECT-BESTPRACTICE-GAP.md) for the framework best-practice analysis that drove the rewrite.
 
 ## Overview
 `plugins/vps_runner/` is a thin Python CLI on top of [`ansible-runner`](https://ansible.readthedocs.io/projects/runner/) that drives standard Ansible playbooks against a standard inventory tree. No subprocess wrapping, no inbox state machine, no custom callback. Per-host structured results come from `Runner.stats` + `Runner.host_events()`; concurrency is the Ansible-native `forks` mechanism.
@@ -118,13 +118,12 @@ CLI subcommand
 ## Cross-references
 
 - Plan + decision lock: [`docs/reviews/feat-vps-manager-v2/plan-2026-05-16.md`](../../reviews/feat-vps-manager-v2/plan-2026-05-16.md)
-- Round changelogs: [`round2-2026-05-16.changelog.md`](../../reviews/feat-vps-manager-v2/round2-2026-05-16.changelog.md), [`round3-2026-05-16.changelog.md`](../../reviews/feat-vps-manager-v2/round3-2026-05-16.changelog.md), `round4-a-2026-05-16.changelog.md` (this round)
+- Round changelogs: [`round2`](../../reviews/feat-vps-manager-v2/round2-2026-05-16.changelog.md), [`round3`](../../reviews/feat-vps-manager-v2/round3-2026-05-16.changelog.md), [`round4-a`](../../reviews/feat-vps-manager-v2/round4-a-2026-05-16.changelog.md), [`round4-b`](../../reviews/feat-vps-manager-v2/round4-b-2026-05-16.changelog.md) (cutover)
 - Framework best-practice investigation: [`IVG-MULTI-SERVER-ANSIBLE-PRACTICE.md`](../investigations/IVG-MULTI-SERVER-ANSIBLE-PRACTICE.md)
 - Governance gap analysis (drove workspace W-R18): [`IVG-REFLECT-BESTPRACTICE-GAP.md`](../investigations/IVG-REFLECT-BESTPRACTICE-GAP.md)
-- Legacy plugin it replaces: [`vps-manager.md`](./vps-manager.md) (slated for removal in Round 4-b cutover)
 
 ## Open / Pending
 
-- **Round 4-b cutover** (awaits user ack of feature parity): `git rm -r plugins/vps_manager/`; remove its Makefile / CI / docs entries; delete `runtime/state/vps_inventory.yml`.
 - **3-host concurrency real test** (blocked on dev VPS SSH `Permission denied (publickey)`): once SSH access is restored, validate plan §1.4 — `audit` against 3 reachable nodes in < 2× single-node latency to confirm `forks=20` works as native parallelism.
-- **`docker_host` / `deploy_compose` parity**: legacy `vps_manager` had these two actions; not yet ported. If still needed (vs. running a stand-alone docker compose role from another play), open new task.
+- **`docker_host` / `deploy_compose` parity**: the predecessor plugin had these two actions; not yet ported. If still needed (vs. running a stand-alone docker compose role from another play), open new task.
+- **`runtime/state/vps_inventory.yml`** (legacy artifact): not git-tracked, no longer read or written, retained on disk for operator inspection. Remove locally when ready.

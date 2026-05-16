@@ -14,7 +14,7 @@ It is intended for teams managing a fleet of Linux servers who want one operatio
 - **Tiered environment model**: `dev` (local loopback), `stag` (pre-prod parity), `prod` (live management + apps). One playbook, three inventories.
 - **Two deployment paths**: Path A (Ansible role-based hub deploy onto a remote VPS) and Path B (docker-compose dev stack on your workstation). Same control plane image, same audit plane, different bootstrap.
 - **Bearer-token machine identity**: the reactor talks to the control plane API with a scoped token minted by IaC bootstrap. The admin password never enters the reaction loop.
-- **VPS lifecycle plugin**: `plugins/vps_runner/` (ansible-runner native — list / audit / onboard / modify / remove against `inventory/vps_runner/<env>/`). Replaces the legacy inbox-driven `plugins/vps_manager/`, which remains alongside until the Round 4-b cutover.
+- **VPS lifecycle plugin**: `plugins/vps_runner/` (ansible-runner native — list / audit / onboard / modify / remove against `inventory/vps_runner/<env>/`).
 
 For the architecture-level picture, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
@@ -87,11 +87,10 @@ Full spec: [`docs/governance/loopback-runner.md`](./docs/governance/loopback-run
 | You want to... | Read |
 |---|---|
 | Understand the architecture in 5 minutes | [ARCHITECTURE.md](./ARCHITECTURE.md) |
-| Onboard or manage VPS hosts (current — ansible-runner native) | [docs/operations/vps-runner.md](./docs/operations/vps-runner.md) |
-| Onboard or manage VPS hosts (legacy inbox-driven, slated for removal) | [plugins/vps_manager/README.md](./plugins/vps_manager/README.md) |
+| Onboard or manage VPS hosts (ansible-runner native CLI) | [docs/operations/vps-runner.md](./docs/operations/vps-runner.md) |
 | Install Ansispire on a clean machine | [docs/user-guide/01-installation.md](./docs/user-guide/01-installation.md) |
 | Understand EDA self-healing end-to-end (rationale + failure modes) | [docs/user-guide/02-quickstart-eda.md](./docs/user-guide/02-quickstart-eda.md) |
-| Look up a specific operational command (maintainer view) | [docs/operations/eda-core.md](./docs/operations/eda-core.md) · [docs/operations/hub-deployment.md](./docs/operations/hub-deployment.md) · [docs/operations/vps-runner.md](./docs/operations/vps-runner.md) · [docs/operations/vps-manager.md](./docs/operations/vps-manager.md) (legacy) |
+| Look up a specific operational command (maintainer view) | [docs/operations/eda-core.md](./docs/operations/eda-core.md) · [docs/operations/hub-deployment.md](./docs/operations/hub-deployment.md) · [docs/operations/vps-runner.md](./docs/operations/vps-runner.md) |
 | Choose which inventory / Make target for dev / stag / prod | [docs/operations/environments.md](./docs/operations/environments.md) |
 | Know what's planned next | [TODO.md](./TODO.md) |
 | Contribute code or docs | [docs/governance/contributing.md](./docs/governance/contributing.md) |

@@ -1,1 +1,0 @@
-"""Ansispire VPS manager plugin."""

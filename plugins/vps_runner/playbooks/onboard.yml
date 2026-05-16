@@ -1,5 +1,5 @@
 ---
-# vps_runner onboard playbook (rewritten from plugins/vps_manager/playbooks/onboard.yml).
+# vps_runner onboard playbook.
 #
 # Reads from standard inventory:
 #   - top-level: ansible_host / ansible_port / ansible_user / security / features /

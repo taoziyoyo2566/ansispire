@@ -59,7 +59,7 @@
 | `controller/rbac/**` | `make controller-rbac-smoke` | `make verify` | — |
 | `extensions/eda/rulebooks/**` | `make test-eda-contract` | `make controller-loop-smoke` | `make test-eda-e2e` |
 | `filter_plugins/**` | `make test-filters` | `make verify` | （由 molecule 间接覆盖渲染产物） |
-| `plugins/vps_manager/**` | `make test-vps-manager` + `make vps-manager-syntax` | `make verify` | 真实远端 onboarding 仍需人工 smoke 或后续 L4/L5 |
+| `plugins/vps_runner/**` | `make test-vps-runner` + `make vps-runner-syntax` | `make verify` | `make test-vps-runner-integration`（真调 ansible-runner，~11s）；真实远端 onboarding / 3 节点 forks 并发仍待 dev VPS SSH 恢复后实机 smoke |
 | `playbooks/site.yml` | `make verify` | `make verify-full` | — |
 | `inventory/{stag,prod}/**` | `make syntax` | `make verify` | — |
 | `Makefile` / `.github/workflows/**` | `make verify` | `make verify-full` (本地)；CI 自验 | — |
@@ -78,12 +78,13 @@
 | 目标 | 包含 | 耗时 | 用途 |
 |---|---|---|---|
 | `make verify-quick` | syntax-check (stag + prod) | ~3 s | commit 前最低门槛、保存点检查 |
-| `make verify` | **yamllint** + **ansible-lint** + syntax + `vps-manager-syntax` + **detect-secrets** + `test-eda` (L1+L2+L3, 5 个文件) + `test-filters` + `test-vps-manager` + dry-run | ~30–60 s | push / PR 前默认、一般改动闸口 |
+| `make verify` | **yamllint** + **ansible-lint** + syntax + `vps-runner-syntax` + **detect-secrets** + `test-eda` (L1+L2+L3, 5 个文件) + `test-filters` + `test-vps-runner` + dry-run | ~30–60 s | push / PR 前默认、一般改动闸口 |
 | `make verify-full` | `verify` + `molecule-all` (4 场景串行) | ~10–20 min | release 前 / 涉及 role 改动 / 涉及 Make 改动 |
 | `make test-eda-e2e` | 真实 docker e2e（约 60–90 s） | ~90 s | 涉及 reactor / 审计链路改动 |
 | `make test-filters` | `filter_plugins/custom_filters.py` 单测 | < 1 s | 改了 custom filter 行为 |
-| `make test-vps-manager` | `plugins/vps_manager/` 本地 lifecycle 单测 | < 1 s | 改了 VPS Manager 调度器、schema、示例或本地状态逻辑 |
-| `make vps-manager-syntax` | `plugins/vps_manager/playbooks/*.yml` 原生 Ansible syntax-check | < 5 s | 改了 VPS Manager action playbook |
+| `make test-vps-runner` | `plugins/vps_runner/tests/` pytest（21 unit；mock ansible-runner） | < 1 s | 改了 VPS Runner CLI / core / playbook 任一 |
+| `make test-vps-runner-integration` | 真调 ansible-runner 打 TEST-NET-1（marker `integration`） | ~11 s | 改了 `vps_runner.run_playbook` 或 ansible-runner 参数；W-R18 直跑前的兜底 |
+| `make vps-runner-syntax` | `plugins/vps_runner/playbooks/*.yml` 原生 Ansible syntax-check | < 5 s | 改了 VPS Runner action playbook |
 | `make detect-secrets` | 扫 tracked + unignored 文件 vs `.secrets.baseline`，新增 → fail | < 5 s | 内置于 `verify`；单独触发用于排错 |
 | `make controller-rbac-smoke` | RBAC 三角色权限 smoke | < 30 s | 涉及 rbac 改动 |
 | `make controller-loop-smoke` | Semaphore action → relay → sink 回环 | ≤ 20 s | 涉及 audit 链路改动 |
@@ -99,8 +100,8 @@
 ```
 yamllint ──┬─→ ansible-lint ──┬─→ dry-run
            ├─→ syntax-check ──┤
-           ├─→ vps-manager-syntax ─────────────────────────────────────────┤
-           └─→ python tests (test-eda + test-filters + test-vps-manager) ──┴─→ molecule [matrix: common, webserver, database, full-stack 并行]
+           ├─→ vps-runner-syntax ──────────────────────────────────────────┤
+           └─→ python tests (test-eda + test-filters + test-vps-runner) ───┴─→ molecule [matrix: common, webserver, database, full-stack 并行]
 
 detect-secrets (独立 job；同样是合并门禁)
 ```

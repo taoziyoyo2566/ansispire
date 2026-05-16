@@ -25,7 +25,8 @@
 | `TSVS-EDA-RELAY-UNIT-001` | 2026-05-13 | `controller/audit/relay.py`（cursor/fetch/tick, urllib mocked） | L1 | `make test-eda-relay-unit` | Active | [eda-relay-unit.md](eda-relay-unit.md) |
 | `TSVS-EDA-SINK-UNIT-001` | 2026-05-13 | `controller/audit/sink.py`（HTTP handler, socket mocked） | L1 | `make test-eda-sink-unit` | Active | [eda-sink-unit.md](eda-sink-unit.md) |
 | `TSVS-FILTERS-UNIT-001` | 2026-05-13 | `filter_plugins/custom_filters.py`（7 个过滤器纯函数） | L1 | `make test-filters` | Active | [filters-unit.md](filters-unit.md) |
-| `TSVS-VPS-MANAGER-UNIT-001` | 2026-05-14 | `plugins/vps_manager/`（本地 task lifecycle） | L1 | `make test-vps-manager` | Active | [vps-manager-unit.md](vps-manager-unit.md) |
+| ~~`TSVS-VPS-MANAGER-UNIT-001`~~ | 2026-05-14 | ~~`plugins/vps_manager/`（本地 task lifecycle）~~ | L1 | — | **Retired 2026-05-16**（plugin removed, Round 4-b cutover） | — |
+| `TSVS-VPS-RUNNER-UNIT-001` | 2026-05-16 | `plugins/vps_runner/`（CLI + core 单元 + ansible-runner integration） | L1+L2 | `make test-vps-runner` + `make test-vps-runner-integration` | Active | [feature-map §Tests](../feature-map/vps-runner.md#tests) |
 | `TSVS-AUDIT-LOOP-001` | 2026-04-27 | Semaphore API → reactor → relay → sink | L5 | `make controller-loop-smoke` | Active | [audit-loopback-functional.md](audit-loopback-functional.md) |
 | `TSVS-RBAC-SMOKE-001` | 2026-04-27 | `controller/rbac/`（三角色权限边界） | L5 | `make controller-rbac-smoke` | Active | [rbac-functional-smoke.md](rbac-functional-smoke.md) |
 
@@ -57,7 +58,7 @@
 | `extensions/eda/rules.json` | `TEST-EDA-002` | ✅ |
 | `controller/rbac/` | `TSVS-RBAC-SMOKE-001` | ✅ smoke 级别 |
 | `filter_plugins/custom_filters.py` | `TSVS-FILTERS-UNIT-001` | ✅ 100% 行覆盖 |
-| `plugins/vps_manager/` | `TSVS-VPS-MANAGER-UNIT-001` | ⚠ L1 本地生命周期覆盖；实机远端 onboarding 待后续 L4/L5 |
+| `plugins/vps_runner/` | `TSVS-VPS-RUNNER-UNIT-001` | ⚠ L1 unit + L2 ansible-runner integration（TEST-NET-1）；3 节点实机并发待 dev VPS SSH 恢复 |
 | `playbooks/site.yml`、`inventory/{stag,prod}/` | （无独立 TSVS） | ⚠ lint + syntax + dry-run 覆盖（暂无 TSVS 必要） |
 | 多 role 共存 | `TSVS-MOL-FULLSTACK-001` | ⚠ co-existence 子集；未覆盖跨服务交互 |
 
@@ -88,6 +89,7 @@
 | 2026-05-12 | webserver / database / full-stack TSVS 更新：G3 Debian 12 平台 + T-C1 my.cnf 硬断言 + T-C2 root pw 去重 + T-C3 testuser 实测授权 | feat-testing-tier-c round 2（[plan](../../reviews/feat-testing-tier-c/plan-2026-05-12.md)）|
 | 2026-05-13 | 新增 3 份 L1 TSVS：`TSVS-EDA-RELAY-UNIT-001` / `TSVS-EDA-SINK-UNIT-001` / `TSVS-FILTERS-UNIT-001`（来自 loopback runner v2 round1 中规范化的 orphan tests）；§3 表面覆盖映射相应更新 | feat-loopback-runner round 2（[plan](../../reviews/feat-loopback-runner/plan-2026-05-13.md)）|
 | 2026-05-14 | 新增 `TSVS-VPS-MANAGER-UNIT-001`，覆盖 VPS Manager 本地 task lifecycle MVP | vps-manager MVP |
+| 2026-05-16 | Retired `TSVS-VPS-MANAGER-UNIT-001`（plugin removed）+ 新增 `TSVS-VPS-RUNNER-UNIT-001`（ansible-runner native，21 unit + 1 integration） | feat-vps-manager-v2 round 4-b cutover |
 
 ---
 

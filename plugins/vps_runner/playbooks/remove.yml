@@ -1,5 +1,5 @@
 ---
-# vps_runner remove playbook (rewritten from plugins/vps_manager/playbooks/remove.yml).
+# vps_runner remove playbook.
 #
 # Defaults to a no-op on the remote side — the CLI handles inventory deletion
 # (host_vars/<alias>.yml + entry in hosts.yml) locally after this run succeeds.

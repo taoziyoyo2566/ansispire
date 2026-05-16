@@ -3,14 +3,12 @@
 > **本文档定位**：操作员手册——面向需要在没有 AI 辅助情况下独立操作的人员。命令完整、含 rationale 与 recovery 路径。
 >
 > **如果你只想速查命令**：见 §6 速查表。
->
-> 与 `docs/operations/vps-manager.md`（旧插件，将在 Round 4 cutover 删除）并存。新工作请使用 `vps_runner`。
 
 ---
 
 ## 1. 概览
 
-`vps_runner` 是 Ansispire 的 VPS 生命周期管理插件，基于 [`ansible-runner`](https://ansible.readthedocs.io/projects/runner/) 与标准 Ansible inventory，**取代**了 `plugins/vps_manager/`（后者的三层反范式：subprocess 包装 + 自写 callback + 自定义 inventory state）。
+`vps_runner` 是 Ansispire 的 VPS 生命周期管理插件，基于 [`ansible-runner`](https://ansible.readthedocs.io/projects/runner/) 与标准 Ansible inventory。
 
 **核心设计**：
 - 执行模型：`ansible_runner.run()` 直接驱动 playbook；无 subprocess 包装。
@@ -298,7 +296,9 @@ pytest plugins/vps_runner/tests/ -m integration
 
 ---
 
-## 7. 与旧 vps_manager 的关系
+## 7. 设计沿革
+
+历史上 ansispire 曾有一个 `plugins/vps_manager/` 插件（YAML inbox + subprocess wrapper + 自写 callback + `runtime/state/vps_inventory.yml`），已于 2026-05-16 (Round 4-b cutover) 整体移除。新旧对照仅供理解既有 `runtime/state/` 目录残留 + git 历史：
 
 | 维度 | 旧 `vps_manager` | 新 `vps_runner` |
 |---|---|---|
@@ -308,7 +308,7 @@ pytest plugins/vps_runner/tests/ -m integration
 | 结果 | 自写 callback plugin | `Runner.host_events()` / `Runner.stats` |
 | Lint | 通过但有 path-based 反 idiom | `ansible-lint --profile production` 通过 |
 
-**当前期**：两者并存（Round 4 cutover 前）。所有**新**节点用 vps_runner；旧的 `runtime/state/vps_inventory.yml` 不再读写，cutover 时清理。
+**runtime/state/vps_inventory.yml 处理**：未被 git 追踪，cutover 后不再读写。本地可由操作员直接 `rm` 清理（保留也无害——新插件不读它）。
 
 **为什么换**：详见 [`docs/reference/investigations/IVG-MULTI-SERVER-ANSIBLE-PRACTICE.md`](../reference/investigations/IVG-MULTI-SERVER-ANSIBLE-PRACTICE.md) 与 [`IVG-REFLECT-BESTPRACTICE-GAP.md`](../reference/investigations/IVG-REFLECT-BESTPRACTICE-GAP.md)——简短说：旧实现是「在 Ansible 之上手工加层」的反范式，不可扩展，不能复用社区工具。
 

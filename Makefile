@@ -16,11 +16,9 @@
         controller-loop-smoke \
         test-eda test-eda-unit test-eda-contract test-eda-component \
         test-eda-relay-unit test-eda-sink-unit test-eda-e2e \
-        test-filters test-vps-manager test-vps-runner test-vps-runner-integration \
+        test-filters test-vps-runner test-vps-runner-integration \
         detect-secrets \
-        vps-manager-syntax vps-runner-syntax \
-        vps-new vps-recover vps-submit vps-tasks \
-        vps-manager-init vps-manager-process vps-manager-validate \
+        vps-runner-syntax \
         hub-deploy hub-deploy-check
 
 # Control-plane compose command wrapper
@@ -43,16 +41,6 @@ export ANSIBLE_LOCAL_TEMP ?= $(PROJECT_PATH)/.ansible/tmp
 export ANSIBLE_REMOTE_TEMP ?= /tmp/ansispire-ansible-tmp
 
 $(shell mkdir -p $(ANSIBLE_LOCAL_TEMP))
-
-# Operator convenience: `make vps-recover hk-d13` and `make vps-submit hk-d13`
-# treat the second goal as the alias/selector. Prefer explicit ALIAS=... or FILE=...
-VPS_EXTRA_GOAL := $(if $(filter vps-recover vps-submit,$(firstword $(MAKECMDGOALS))),$(word 2,$(MAKECMDGOALS)))
-VPS_RECOVER_ALIAS := $(strip $(or $(ALIAS),$(if $(filter vps-recover,$(firstword $(MAKECMDGOALS))),$(VPS_EXTRA_GOAL))))
-VPS_SUBMIT_SELECTOR := $(strip $(or $(FILE),$(ALIAS),$(if $(filter vps-submit,$(firstword $(MAKECMDGOALS))),$(VPS_EXTRA_GOAL))))
-ifneq ($(VPS_EXTRA_GOAL),)
-$(VPS_EXTRA_GOAL):
-	@:
-endif
 
 # Molecule runner wrapper (ensure it finds ansible-config in VENV)
 MOLECULE := PATH=$(PATH) $(BIN)molecule
@@ -97,7 +85,7 @@ syntax: ## Syntax check both stag and prod
 	@echo "==> Syntax checking Prod..."
 	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/prod
 
-verify: lint syntax vps-manager-syntax vps-runner-syntax detect-secrets test-eda test-filters test-vps-manager test-vps-runner dry-run ## Push gate — lint + syntax + secrets + Python tests + dry-run (~30–60 s)
+verify: lint syntax vps-runner-syntax detect-secrets test-eda test-filters test-vps-runner dry-run ## Push gate — lint + syntax + secrets + Python tests + dry-run (~30–60 s)
 
 verify-quick: syntax ## Save-point gate — syntax only (~3 s, before commit)
 
@@ -138,22 +126,11 @@ test-eda-e2e: ## L4 — disposable end-to-end (real docker; ~60–90s; NOT in `m
 test-filters: ## L1 — filter_plugins/custom_filters.py (pure functions, no Ansible)
 	$(BIN)python3 controller/audit/test_filters.py
 
-test-vps-manager: ## L1 — plugins/vps_manager local lifecycle tests (legacy plugin)
-	$(BIN)python3 plugins/vps_manager/tests/test_vps_manager.py
-
 test-vps-runner: ## L1 — plugins/vps_runner unit tests (no SSH, no docker; ~0.2s)
 	$(BIN)pytest plugins/vps_runner/tests/ -m 'not integration'
 
 test-vps-runner-integration: ## L2 — plugins/vps_runner integration test (real ansible-runner vs TEST-NET-1; ~11s)
 	$(BIN)pytest plugins/vps_runner/tests/ -m integration
-
-vps-manager-syntax: ## Ansible syntax-check for VPS Manager action playbooks (legacy plugin)
-	$(BIN)ansible-playbook plugins/vps_manager/playbooks/onboard.yml --syntax-check -i plugins/vps_manager/tests/syntax_inventory.yml
-	$(BIN)ansible-playbook plugins/vps_manager/playbooks/modify.yml --syntax-check -i plugins/vps_manager/tests/syntax_inventory.yml
-	$(BIN)ansible-playbook plugins/vps_manager/playbooks/audit.yml --syntax-check -i plugins/vps_manager/tests/syntax_inventory.yml
-	$(BIN)ansible-playbook plugins/vps_manager/playbooks/remove.yml --syntax-check -i plugins/vps_manager/tests/syntax_inventory.yml
-	$(BIN)ansible-playbook plugins/vps_manager/playbooks/docker_host.yml --syntax-check -i plugins/vps_manager/tests/syntax_inventory.yml
-	$(BIN)ansible-playbook plugins/vps_manager/playbooks/deploy_compose.yml --syntax-check -i plugins/vps_manager/tests/syntax_inventory.yml
 
 vps-runner-syntax: ## Ansible syntax-check for VPS Runner action playbooks
 	$(BIN)ansible-playbook plugins/vps_runner/playbooks/onboard.yml --syntax-check -i inventory/vps_runner/dev/
@@ -163,30 +140,6 @@ vps-runner-syntax: ## Ansible syntax-check for VPS Runner action playbooks
 
 detect-secrets: ## Scan tracked + unignored files; fail on findings not present in .secrets.baseline
 	@PATH="$(VENV_BIN):$$PATH" $(BIN)python3 scripts/detect_secrets_gate.py
-
-# ── VPS Manager plugin ──────────────────────────────────────────────────────
-vps-new: ## Interactively create a VPS onboarding task draft
-	$(BIN)python3 -m plugins.vps_manager.cli new
-
-vps-recover: ## Interactively create a VPS recovery task draft for an existing alias: make vps-recover ALIAS=...
-	$(BIN)python3 -m plugins.vps_manager.cli recover $(if $(VPS_RECOVER_ALIAS),--alias '$(VPS_RECOVER_ALIAS)')
-
-vps-submit: ## Submit a VPS Manager draft: make vps-submit ALIAS=... or FILE=...
-	@test -n "$(VPS_SUBMIT_SELECTOR)" || { echo "Usage: make vps-submit ALIAS=<alias> | make vps-submit FILE=runtime/inbox/vps/drafts/<draft>.yml" >&2; exit 2; }
-	$(BIN)python3 -m plugins.vps_manager.cli submit '$(VPS_SUBMIT_SELECTOR)'
-
-vps-tasks: ## List VPS Manager task files by state
-	$(BIN)python3 -m plugins.vps_manager.cli tasks
-
-vps-manager-init: ## Create VPS Manager runtime directories
-	$(BIN)python3 plugins/vps_manager/vps_manager.py init
-
-vps-manager-process: ## Process stable VPS task YAML files from runtime/inbox/vps/pending
-	$(BIN)python3 plugins/vps_manager/vps_manager.py process
-
-vps-manager-validate: ## Validate a VPS Manager task file: make vps-manager-validate FILE=...
-	@test -n "$(FILE)" || { echo "Usage: make vps-manager-validate FILE=<task.yml>" >&2; exit 2; }
-	$(BIN)python3 plugins/vps_manager/vps_manager.py validate $(FILE)
 
 # ── Deploy ───────────────────────────────────────────────────────────────────
 dry-run: ## Dry-run (--check; common baseline against hub_local — layered hosts.ini + dev vars)

@@ -1,12 +1,12 @@
 """vps_runner — Ansible-native VPS lifecycle plugin core.
 
-Design (see docs/reviews/feat-vps-manager-v2/plan-2026-05-16.md):
 - Uses ansible_runner.run() instead of subprocess + ansible-playbook
 - Reads from standard inventory (inventory/vps_runner/<env>/) — no custom state
 - per-host structured results via Runner.host_events() / Runner.stats
 - suppress_env_files=True + rotate_artifacts=10 + forks=20 (W-R18 hardening)
 
 This module is the library layer; cli.py provides the user-facing entry.
+Full spec: docs/reference/feature-map/vps-runner.md.
 """
 
 from __future__ import annotations

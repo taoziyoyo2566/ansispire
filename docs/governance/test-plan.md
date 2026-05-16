@@ -34,7 +34,7 @@
 | rules contract | `extensions/eda/rules.json` ↔ `bootstrap.yml` | Config 契约 | EDA L2 | `eda-rules-contract.md` |
 | rbac controller | `controller/rbac/` | Bash + Semaphore API | RBAC smoke | `rbac-functional-smoke.md` |
 | audit relay/sink | `controller/audit/e2e/`、`controller/audit/{relay,sink}.py` | Docker stack | loop-smoke + e2e | `audit-loopback-functional.md` |
-| vps_manager plugin | `plugins/vps_manager/` | Python + Ansible playbooks | L1 local lifecycle + native Ansible syntax | `vps-manager-unit.md`（TSVS-VPS-MANAGER-UNIT-001） |
+| vps_runner plugin | `plugins/vps_runner/` | Python + Ansible playbooks | L1 unit (21) + L2 ansible-runner integration (1) + native Ansible syntax | docs/reference/feature-map/vps-runner.md §Tests |
 | Cross-role integration | `roles/{common,webserver,database}/*` 共存 | combo | `molecule -s full-stack` | `molecule-full-stack.md`（TSVS-MOL-FULLSTACK-001） |
 | playbooks/inventory | `playbooks/site.yml`、`inventory/{stag,prod}/` | 编排 | lint + syntax + dry-run | **无**（dry-run 即覆盖） |
 
@@ -47,7 +47,7 @@
 | 质量属性 | L0 静态 | L1 单元 | L2 契约 | L3 组件 | L4 集成 | L5 E2E |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | 语法 / 风格 | ✅ lint+yamllint | — | — | — | — | — |
-| Python 纯函数逻辑 | — | ✅ EDA L1 (14) + VPS Manager lifecycle (5) | — | — | — | — |
+| Python 纯函数逻辑 | — | ✅ EDA L1 (14) + VPS Runner unit (21) | — | — | — | — |
 | 跨配置文件契约 | — | — | ✅ EDA L2 (9) | — | — | — |
 | 组件 + mock 外部 | — | — | — | ✅ EDA L3 (5) | — | — |
 | Role 部署正确性 | ⚠ syntax (有限) | ✗ | ✗ | ✗ | ✅ Molecule (3 个 role) | ✗ |
@@ -152,20 +152,14 @@
 - `/etc/mysql/mysql.conf.d/mysqld.cnf` 含 `Ansible managed`（**soft check**：`failed_when: false`，不实际中断 verify）
 - nginx **AND** mysql 同时 running（co-existence assertion）
 
-### 4.12 vps_manager plugin
+### 4.12 vps_runner plugin
 
-详见 `vps-manager-unit.md`（TSVS-VPS-MANAGER-UNIT-001）：
-- local task lifecycle：`pending → done|failed`
-- active alias 重复 onboard 拒绝
-- recover 仅允许已有 alias，并复用 onboard 本地状态更新路径；交互确认默认直接处理当前任务
-- archive secret redaction
-- `runtime/state/vps_inventory.yml` 更新
-- generated SSH config block 更新 / 移除
-- Ansible automation key 与 operator SSH identity 分离
-- non-public compose exposure 必须绑定 `127.0.0.1`
-- action playbooks 只做原生 Ansible syntax-check；不在 Python 单测中模拟 UFW/fail2ban/Docker 远端效果
+详见 [`docs/reference/feature-map/vps-runner.md`](../reference/feature-map/vps-runner.md) §Tests：
+- 12 个 pure-helper 单元测试：`generate_run_id` / `inventory_path` / `list_aliases` / `list_hosts` / host_vars read/write/delete roundtrip / `record_run` / `remove_alias_from_hosts` / `_collect_host_results` 状态分类 / `_first_event_msg` 提取
+- 9 个 CLI dispatch 测试：`list` table/json / `modify` 空改 + 未知 alias guard / `remove --yes` guard / `remove` local-only happy path / `onboard` missing-alias / `modify` 真调 extravar 组装（mocked Runner）/ `onboard --first-time` 连接覆盖
+- 1 个 integration 测试（marker `integration`）：真调 `core.run_playbook` 打 RFC 5737 TEST-NET-1（192.0.2.99）—— 保证不可达，验证 `Runner.stats` 分类 + artifact 目录就绪
 
-**未断言**：真实远端 SSH 切端口、UFW/fail2ban 实际效果、Docker 安装、Compose 健康检查。
+**未断言**：真实远端 SSH 切端口（22 → 1156 高位）的端到端正确性、UFW/fail2ban 实际效果、Docker 安装、live 3 节点 forks=20 并发性能（plan §1.4，被 dev VPS SSH 阻塞）。
 
 ---
 
@@ -182,7 +176,7 @@
 | G7 | 本地 `molecule-all` 串行 | 低 | release 前耗时 10–20 min；CI 已并行不影响 | xargs -P 或并行 Make target | Tier C |
 | G8 | 模板渲染产物只有 Molecule 验证 | 低 | 现状勉强可接受，毕竟有 L4 兜底 | 维持现状 + round 2 在 `webserver`/`database` TSVS 显式登记 | round 2 |
 | G9 | `roles/common/verify.yml` 不验证 UFW 规则具体内容 | 低 | round 5 已知问题（UFW lo），加规则后仅靠功能测试间接验证 | round 2 在 common TSVS 列入 known limitation | round 2 |
-| G10 | `vps_manager` 缺真实远端 onboarding 测试 | 中 | SSH 端口切换 / UFW / 回滚路径只有静态与 L1 覆盖 | 增加实机 smoke 或 Molecule-style SSH target 场景 | VPS Manager follow-up |
+| G10 | `vps_runner` 缺真实远端 onboarding + 3 节点并发实测 | 中 | SSH 端口切换 / UFW / 回滚路径 + `forks=20` 并发性能只有静态与 L1+L2 mock 覆盖 | 等 dev VPS SSH 恢复 → 实机 `audit --limit <2-3 hosts>` 验证 plan §1.4；后续可加 Molecule-style SSH target 场景 | feat/vps-manager-v2 follow-up |
 
 **风险评级原则**：
 - **高**：缺口可直接导致生产事故，无人工兜底
