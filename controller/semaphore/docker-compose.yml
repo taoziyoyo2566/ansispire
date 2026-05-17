@@ -22,9 +22,13 @@ services:
     ports:
       - "${SEMAPHORE_PORT:-3300}:3000"
     environment:
-      # Database: SQLite (Recommended for v2.18+, BoltDB is deprecated)
+      # Database: SQLite (Recommended for v2.18+, BoltDB is deprecated).
+      # SEMAPHORE_DB_PATH is a DIRECTORY in the upstream server-wrapper
+      # (it appends database.sqlite). We leave it unset so the upstream
+      # default /var/lib/semaphore is used, which matches the volume mount
+      # below. Setting it to a file path like .../semaphore.db caused that
+      # leaf to be created as a directory instead.
       SEMAPHORE_DB_DIALECT: sqlite
-      SEMAPHORE_DB_PATH: /var/lib/semaphore/semaphore.db
 
       # Admin account (created on first boot)
       SEMAPHORE_ADMIN: "${SEMAPHORE_ADMIN:-admin}"

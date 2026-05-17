@@ -156,6 +156,28 @@ def trigger_semaphore_task(action: dict) -> None:
     except Exception as e:
         log(f"remediation failed (Template {template_id}): {e}")
 
+def trigger_webhook(action: dict, event_payload: dict) -> None:
+    url = (action.get("url") or "").strip()
+    name = action.get("name", "unnamed-webhook")
+    if not url:
+        log(f"webhook skipped: {name} has no url configured")
+        return
+    body = json.dumps({
+        "rule_action": name,
+        "event": event_payload.get("payload", {}).get("event", {}),
+    }).encode()
+    try:
+        req = urllib.request.Request(
+            url,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            log(f"webhook fired: {name} → {url} status={resp.status}")
+    except Exception as e:
+        log(f"webhook failed: {name} → {url}: {e}")
+
 def process_event(event_line: str, rules: list) -> None:
     line = event_line.strip()
     if not line: return
@@ -180,8 +202,7 @@ def process_event(event_line: str, rules: list) -> None:
                 if action.get("type") == "semaphore_api":
                     trigger_semaphore_task(action)
                 elif action.get("type") == "webhook":
-                    # Webhook logic skipped for brevity in log, implement as needed
-                    pass
+                    trigger_webhook(action, payload)
 
 def main() -> None:
     log(f"starting advanced reactor v2.3, monitoring {JSONL_PATH}")

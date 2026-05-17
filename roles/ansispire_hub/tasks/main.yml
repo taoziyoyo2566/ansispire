@@ -48,6 +48,9 @@
           - "--exclude=*.swp"
           - "--exclude=*~"
           - "--exclude=*.retry"
+          # vps_manager inbox/logs/state — workstation-local only, must
+          # never leak to the hub side
+          - "--exclude=runtime/"
           # ── Secrets — must never leave the workstation ──
           - "--exclude=.vault_pass"
           - "--exclude=*.vault_pass"
@@ -128,13 +131,21 @@
         dest: "{{ ansispire_hub_state_dir }}/.eda_token"
         mode: '0600'
 
+    # First-deploy path: set the fact directly from the mint response,
+    # because the stat at the top of the file ran before the token file
+    # existed, so the slurp below skips (its `when:` still sees stat=false).
+    - name: API | Set Token Fact (first-deploy path)
+      ansible.builtin.set_fact:
+        ansispire_hub_eda_token: "{{ ansispire_hub_token_out.json.id }}"
+      no_log: true
+
 - name: Hub | Load Token from State Dir
   ansible.builtin.slurp:
     src: "{{ ansispire_hub_state_dir }}/.eda_token"
   register: ansispire_hub_token_raw
   when: ansispire_hub_token_file.stat.exists
 
-- name: Hub | Set Token Fact
+- name: Hub | Set Token Fact (re-deploy path)
   ansible.builtin.set_fact:
     ansispire_hub_eda_token: "{{ ansispire_hub_token_raw.content | b64decode | trim }}"
   no_log: true
