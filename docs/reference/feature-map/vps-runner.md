@@ -22,7 +22,7 @@ The plugin was built to replace a prior anti-Ansible implementation (subprocess 
 |---|---:|---|
 | `list` | no | Display managed hosts in the given env (alias / connection / status / last_action / updated_at). Pure local YAML read. |
 | `audit` | yes | Per-host probe: ping, uptime, disk usage, memory, OS facts. Read-only and idempotent. |
-| `onboard` | yes | Apply `onboard.yml` to one alias. With `--first-time --ask-pass --ask-become-pass`, bootstraps from `root@22`-style state into managed user + non-22 SSH port + UFW + fail2ban + (optionally) Docker. Idempotent re-onboard supported. |
+| `onboard` | yes | Apply `onboard.yml` to one alias. With `--first-time --ask-pass --ask-become-pass`, bootstraps from `root@22`-style state into managed user + non-22 SSH port + UFW + fail2ban. Idempotent re-onboard supported. **Docker install/config is deferred — see Open / Pending.** |
 | `modify` | yes | Apply `modify.yml` with a `vps_changes` extravar: packages (install/remove), UFW TCP allows/removes, fail2ban toggle, network_tuning. Each section optional. |
 | `remove` | optional | Drop alias from inventory; remote `remove.yml` (strip Ansispire sshd drop-ins + `sshd -t`) is opt-in via `--cleanup-remote`. UFW rules and the managed user are intentionally **left** for manual cleanup. |
 
@@ -45,7 +45,6 @@ plugins/vps_runner/
       ssh_socket_ansispire.conf.j2 # systemd ssh.socket drop-in
       sudoers_ansispire.j2         # NOPASSWD sudoers fragment
       fail2ban_sshd.local.j2       # fail2ban sshd jail
-      docker_daemon.json.j2        # docker daemon.json
       ssh_config_entry.j2          # operator-side ~/.ssh/config.d/ entry
   tests/
     __init__.py
@@ -65,7 +64,7 @@ inventory/vps_runner/<env>/
 |---|---|---|
 | top-level Ansible | playbooks read directly | `ansible_host`, `ansible_port`, `ansible_user`, `ansible_python_interpreter`, `ansible_ssh_private_key_file` |
 | `security:` | playbooks read directly | `root_login_disabled`, `password_login_disabled`, `ufw_enabled`, `fail2ban_enabled` |
-| `features:` | playbooks read directly | `base_packages`, `unattended_upgrades`, `system_limits`, `swap`, `network_tuning`, `ufw`, `fail2ban`, `docker` |
+| `features:` | playbooks read directly | `base_packages`, `unattended_upgrades`, `system_limits`, `swap`, `network_tuning`, `ufw`, `fail2ban` |
 | `vps_runner:` | **CLI reads/writes; playbooks read connection-related sub-keys** | `bootstrap_port`, `bootstrap_user`, `managed_port`, `managed_user`, `identity_file`, `ansible_public_key`, `personal_keys[]`, `status`, `last_run`, `updated_at` |
 
 ### Execution flow
@@ -125,5 +124,5 @@ CLI subcommand
 ## Open / Pending
 
 - **3-host concurrency real test** (blocked on dev VPS SSH `Permission denied (publickey)`): once SSH access is restored, validate plan §1.4 — `audit` against 3 reachable nodes in < 2× single-node latency to confirm `forks=20` works as native parallelism.
-- **`docker_host` / `deploy_compose` parity**: the predecessor plugin had these two actions; not yet ported. If still needed (vs. running a stand-alone docker compose role from another play), open new task.
+- **Docker install / config / deploy_compose parity**: the predecessor plugin had `docker_host` + `deploy_compose` actions; **not ported** in the cutover. If still needed, open a new task to add a `playbooks/docker.yml` (or invoke a stand-alone `community.docker` role). Until then, `features.docker` is intentionally absent from the schema; the `docker_daemon.json.j2` template was removed in Round 5 to match.
 - **`runtime/state/vps_inventory.yml`** (legacy artifact): not git-tracked, no longer read or written, retained on disk for operator inspection. Remove locally when ready.

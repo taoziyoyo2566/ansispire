@@ -1,0 +1,46 @@
+---
+# Shared defaults for all vps_targets in the dev environment.
+# Per-host overrides go in host_vars/<alias>.yml.
+#
+# Schema split (Ansible default hash_behaviour=replace means dict keys do NOT
+# merge between group_vars and host_vars):
+#   vps_runner_defaults  → group-wide immutable config (this file)
+#   vps_runner           → per-host mutable state (host_vars/<alias>.yml)
+# onboard.yml combines them into a single `vr` var at play start.
+
+# Connection defaults (control-plane consumed)
+ansible_python_interpreter: /usr/bin/python3
+ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') }}/.ssh/ansispire_ed25519"
+
+# Security policy (group default; override per host if needed)
+security:
+  root_login_disabled: true
+  password_login_disabled: true
+  ufw_enabled: true
+  fail2ban_enabled: true
+
+# Feature toggles (group default)
+features:
+  base_packages: true
+  unattended_upgrades: true
+  system_limits: true
+  swap: false
+  network_tuning: false
+  ufw: true
+  fail2ban: true
+
+# Group-wide vps_runner defaults — combined with per-host `vps_runner` in
+# onboard.yml. Add per-host overrides by setting the same key in host_vars.
+vps_runner_defaults:
+  bootstrap_port: 22
+  bootstrap_user: root
+  identity_file: "{{ lookup('env', 'HOME') }}/.ssh/ansispire_ed25519"
+  ansible_public_key: "{{ lookup('env', 'HOME') }}/.ssh/ansispire_ed25519.pub"
+  personal_keys:
+    - name: operator
+      public_key: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519.pub"
+  ssh_config:
+    identity_file: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519"
+    file: "{{ lookup('env', 'HOME') }}/.ssh/config.d/ansispire.conf"
+  sudo_nopasswd: true
+  close_bootstrap_port_after_success: true

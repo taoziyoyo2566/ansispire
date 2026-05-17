@@ -363,3 +363,86 @@ def test_integration_run_playbook_against_unreachable(tmp_path, monkeypatch):
     artifact_dir = Path(summary.artifact_dir)
     assert artifact_dir.exists()
     assert (artifact_dir / "status").exists() or (artifact_dir / "stdout").exists()
+
+
+@pytest.mark.integration
+def test_integration_run_playbook_without_path(tmp_path, monkeypatch):
+    """Reproduces codex review P1.4: caller PATH lacks the venv bin dir, yet
+    run_playbook() must still resolve `ansible-playbook` because we inject the
+    venv bin into the runner's envvars. Without the fix this returns rc=127
+    with stdout 'The command was not found or was not executable: ansible-playbook.'"""
+    env_dir = tmp_path / "inventory" / "vps_runner" / "dev"
+    (env_dir / "host_vars").mkdir(parents=True)
+    (env_dir / "hosts.yml").write_text(
+        "---\nall:\n  children:\n    vps_targets:\n      hosts:\n        unreachable-1:\n",
+        encoding="utf-8",
+    )
+    (env_dir / "host_vars" / "unreachable-1.yml").write_text(
+        "---\n"
+        "ansible_host: 192.0.2.99\n"
+        "ansible_port: 22\n"
+        "ansible_user: nobody\n"
+        "ansible_python_interpreter: /usr/bin/python3\n"
+        "ansible_ssh_common_args: '-o ConnectTimeout=3 -o StrictHostKeyChecking=no"
+        " -o UserKnownHostsFile=/dev/null -o BatchMode=yes'\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(core, "INVENTORY_ROOT", tmp_path / "inventory" / "vps_runner")
+    monkeypatch.setattr(core, "ARTIFACT_ROOT", tmp_path / "artifacts")
+    # Strip the venv bin from the caller's PATH — simulates a bare CLI invocation.
+    monkeypatch.setenv("PATH", "/usr/local/bin:/usr/bin:/bin")
+
+    summary = core.run_playbook(
+        action="audit",
+        env="dev",
+        playbook="audit.yml",
+        limit="unreachable-1",
+        quiet=True,
+    )
+    assert summary.rc != 127, (
+        f"expected ansible-playbook to be resolvable; got rc=127 → "
+        f"venv bin not injected into envvars PATH"
+    )
+    aliases = {h.alias for h in summary.hosts}
+    assert "unreachable-1" in aliases, (
+        f"expected at least one host in stats; got empty set → "
+        f"ansible-runner likely failed before reaching the SSH attempt"
+    )
+
+
+@pytest.mark.integration
+def test_integration_envvars_artifact_excludes_unwhitelisted(tmp_path, monkeypatch):
+    """Reproduces codex review P1.3: the runner's `command` artifact records
+    the envvars dict; without an allowlist, ambient secrets (e.g. fake token
+    we inject below) would land in the artifact. With the allowlist, only
+    PATH / ANSIBLE_* / locale vars are recorded."""
+    env_dir = tmp_path / "inventory" / "vps_runner" / "dev"
+    (env_dir / "host_vars").mkdir(parents=True)
+    (env_dir / "hosts.yml").write_text(
+        "---\nall:\n  children:\n    vps_targets:\n      hosts:\n        unreachable-1:\n",
+        encoding="utf-8",
+    )
+    (env_dir / "host_vars" / "unreachable-1.yml").write_text(
+        "---\nansible_host: 192.0.2.99\nansible_port: 22\nansible_user: nobody\n"
+        "ansible_python_interpreter: /usr/bin/python3\n"
+        "ansible_ssh_common_args: '-o ConnectTimeout=3 -o BatchMode=yes'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(core, "INVENTORY_ROOT", tmp_path / "inventory" / "vps_runner")
+    monkeypatch.setattr(core, "ARTIFACT_ROOT", tmp_path / "artifacts")
+    monkeypatch.setenv("FAKE_LEAKED_TOKEN_DO_NOT_USE", "sk_leak_canary_value_12345")
+
+    summary = core.run_playbook(
+        action="audit", env="dev", playbook="audit.yml",
+        limit="unreachable-1", quiet=True,
+    )
+    command_file = Path(summary.artifact_dir) / "command"
+    assert command_file.exists()
+    command_text = command_file.read_text(encoding="utf-8")
+    assert "FAKE_LEAKED_TOKEN_DO_NOT_USE" not in command_text, (
+        "unwhitelisted env var leaked into artifact command file"
+    )
+    assert "sk_leak_canary_value_12345" not in command_text, (
+        "leaked value found in artifact — envvars whitelist is broken"
+    )

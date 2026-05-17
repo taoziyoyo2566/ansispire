@@ -16,6 +16,17 @@
   vars:
     vps_cleanup_remote: "{{ vps_cleanup_remote | default(false) | bool }}"
 
+  pre_tasks:
+    - name: Collect service facts (for SSH service name resolution)
+      ansible.builtin.service_facts:
+      check_mode: false
+      when: vps_cleanup_remote
+
+    - name: Resolve SSH service name
+      ansible.builtin.set_fact:
+        vps_ssh_service_name: "{{ 'ssh' if 'ssh.service' in ansible_facts.services else 'sshd' }}"
+      when: vps_cleanup_remote
+
   tasks:
     - name: Remove Ansispire managed sshd drop-in (when requested)
       ansible.builtin.file:
@@ -25,6 +36,21 @@
         - /etc/ssh/sshd_config.d/00-ansispire.conf
         - /etc/ssh/sshd_config.d/99-ansispire.conf
       when: vps_cleanup_remote
+      notify: Reload sshd
+
+    - name: Restore Ansispire-commented directives in main sshd_config
+      # Reverses the sentinel `# ANSISPIRE-COMMENTED: <directive> <value>` lines
+      # written by onboard.yml back to plain `<directive> <value>` so the host
+      # returns to its pre-onboard sshd state. Caveat: hosts onboarded BEFORE
+      # Round 5 used a different marker (`# <dir> managed by ...`) and require
+      # manual restoration.
+      ansible.builtin.replace:
+        path: /etc/ssh/sshd_config
+        regexp: '^#\s*ANSISPIRE-COMMENTED:\s*(.*)$'
+        replace: '\1'
+        backup: true
+      when: vps_cleanup_remote
+      notify: Reload sshd
 
     - name: Validate sshd after optional cleanup
       ansible.builtin.command:
@@ -35,9 +61,20 @@
       check_mode: false
       when: vps_cleanup_remote
 
+    - name: Flush handlers — apply sshd cleanup now
+      ansible.builtin.meta: flush_handlers
+      when: vps_cleanup_remote
+
     - name: Report no-op when remote cleanup not requested
       ansible.builtin.debug:
         msg: >-
           Remote cleanup skipped; local inventory entry will still be removed.
           Pass --cleanup-remote to strip Ansispire sshd drop-ins.
       when: not vps_cleanup_remote
+
+  handlers:
+    - name: Reload sshd
+      ansible.builtin.systemd:
+        name: "{{ vps_ssh_service_name }}"
+        state: reloaded
+      when: not ansible_check_mode

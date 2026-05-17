@@ -3,7 +3,10 @@
 - Uses ansible_runner.run() instead of subprocess + ansible-playbook
 - Reads from standard inventory (inventory/vps_runner/<env>/) — no custom state
 - per-host structured results via Runner.host_events() / Runner.stats
-- suppress_env_files=True + rotate_artifacts=10 + forks=20 (W-R18 hardening)
+- Explicit envvars whitelist + suppress_env_files=True + rotate_artifacts=10
+  + forks=20 (W-R18 hardening). suppress_env_files avoids the env/ file
+  but does NOT scrub the `command` artifact, so we must not pass any
+  variable that could carry secrets through `envvars`.
 
 This module is the library layer; cli.py provides the user-facing entry.
 Full spec: docs/reference/feature-map/vps-runner.md.
@@ -11,11 +14,13 @@ Full spec: docs/reference/feature-map/vps-runner.md.
 
 from __future__ import annotations
 
+import contextlib
 import os
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import yaml
 
@@ -36,6 +41,11 @@ PLAYBOOK_DIR = Path(__file__).resolve().parent / "playbooks"
 DEFAULT_FORKS = 20
 DEFAULT_ROTATE_ARTIFACTS = 10
 SUPPORTED_ENVS = ("dev", "stag", "prod")
+
+# envvars whitelist: only these are forwarded to ansible-runner. Anything not
+# strictly required to invoke ansible-playbook from the active venv is dropped
+# so secrets in the caller's process env never reach `runtime/logs/.../command`.
+_ENVVAR_WHITELIST = ("HOME", "LANG", "LC_ALL", "LC_CTYPE", "TERM")
 
 
 class VpsRunnerError(Exception):
@@ -218,6 +228,57 @@ def list_hosts(env: str) -> list[dict[str, Any]]:
     return results
 
 
+def _build_runner_envvars() -> dict[str, str]:
+    """Build the minimal envvars passed to ansible-runner.
+
+    Goals:
+    - Always include the active venv's bin dir in PATH so `python -m
+      plugins.vps_runner.cli` works without relying on the operator's PATH
+      (Makefile-independent — see codex review P1.4).
+    - Carry ANSIBLE_CONFIG + the project's collections/roles paths so
+      ansible-playbook resolves to the correct config and content.
+    - Forward only a small allowlist of innocuous locale/HOME vars (see
+      _ENVVAR_WHITELIST); do NOT pass arbitrary caller env (P1.3).
+
+    Note: sys.prefix is the venv root (set by venv activation); avoid
+    .resolve() on sys.executable, which follows the symlink to /usr/bin.
+    """
+    venv_bin = Path(sys.prefix) / "bin"
+    path = os.pathsep.join(
+        [str(venv_bin), "/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/bin"]
+    )
+    env: dict[str, str] = {
+        "PATH": path,
+        "ANSIBLE_CONFIG": str(PROJECT_ROOT / "ansible.cfg"),
+        "ANSIBLE_COLLECTIONS_PATH": str(PROJECT_ROOT / "collections"),
+        "ANSIBLE_ROLES_PATH": str(PROJECT_ROOT / "roles"),
+    }
+    for key in _ENVVAR_WHITELIST:
+        if key in os.environ:
+            env[key] = os.environ[key]
+    return env
+
+
+@contextlib.contextmanager
+def _scrubbed_environ(allowed: dict[str, str]) -> Iterator[None]:
+    """Temporarily replace os.environ with `allowed` so the ansible-runner
+    subprocess inherits a clean env (the artifact's `command` file records
+    the full env dict — see codex review P1.3). Restores prior state on exit.
+
+    NOT thread-safe; safe for the single-threaded CLI dispatch. ansible-runner
+    treats `envvars` as overlay on top of os.environ, so the actual scrub has
+    to happen here, not by passing `envvars` alone.
+    """
+    snapshot = dict(os.environ)
+    try:
+        os.environ.clear()
+        os.environ.update(allowed)
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(snapshot)
+
+
 def run_playbook(
     *,
     action: str,
@@ -231,13 +292,16 @@ def run_playbook(
 ) -> RunSummary:
     """Invoke an ansible-runner playbook against the vps_runner inventory.
 
-    Follows plan §3.3 hardening:
+    Hardening:
     - project_dir=PROJECT_ROOT       (playbook path relative to repo root)
     - inventory=absolute path        (no reliance on ansible.cfg default)
     - artifact_dir=runtime/logs/...  (predictable artifact location)
     - ident=run_id                   (per-run artifact subdir)
-    - suppress_env_files=True        (W-R18 — secrets not written to disk)
-    - rotate_artifacts=10            (W-R18 — bounded retention)
+    - envvars=whitelist              (P1.3 — bounded; ambient env never leaks)
+    - PATH includes venv bin         (P1.4 — works without Makefile wrapping)
+    - suppress_env_files=True        (avoid env/ file — but ARTIFACT command
+                                      still records `envvars`, hence whitelist)
+    - rotate_artifacts=10            (bounded retention)
     - forks=20                       (Ansible default is 5; override here)
     """
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
@@ -250,6 +314,7 @@ def run_playbook(
     # path relative to project_dir (PROJECT_ROOT)
     playbook_rel = playbook_path.relative_to(PROJECT_ROOT).as_posix()
 
+    envvars = _build_runner_envvars()
     runner_kwargs: dict[str, Any] = dict(
         project_dir=str(PROJECT_ROOT),
         playbook=playbook_rel,
@@ -258,7 +323,7 @@ def run_playbook(
         ident=run_id,
         limit=limit,
         extravars=extravars or {},
-        envvars={"ANSIBLE_CONFIG": str(PROJECT_ROOT / "ansible.cfg")},
+        envvars=envvars,
         suppress_env_files=True,
         rotate_artifacts=DEFAULT_ROTATE_ARTIFACTS,
         forks=forks,
@@ -266,7 +331,8 @@ def run_playbook(
     )
     if cmdline:
         runner_kwargs["cmdline"] = cmdline
-    runner = ansible_runner.run(**runner_kwargs)
+    with _scrubbed_environ(envvars):
+        runner = ansible_runner.run(**runner_kwargs)
 
     hosts = _collect_host_results(runner)
     return RunSummary(

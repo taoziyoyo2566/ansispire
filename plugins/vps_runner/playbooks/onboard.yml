@@ -19,31 +19,34 @@
   gather_subset:
     - min
   vars:
+    # Combine group-wide vps_runner_defaults with per-host vps_runner.
+    # See group_vars/vps_targets.yml for the split rationale.
+    vr: "{{ (vps_runner_defaults | default({})) | combine(vps_runner | default({})) }}"
     vps_bootstrap:
-      port: "{{ (vps_runner | default({})).bootstrap_port | default(22) }}"
+      port: "{{ vr.bootstrap_port | default(22) }}"
     vps_managed:
-      user: "{{ (vps_runner | default({})).managed_user | default('ansible') }}"
-      groups: "{{ (vps_runner | default({})).managed_groups | default(['sudo']) }}"
-      shell: "{{ (vps_runner | default({})).managed_shell | default('/bin/bash') }}"
+      user: "{{ vr.managed_user | default('ansible') }}"
+      groups: "{{ vr.managed_groups | default(['sudo']) }}"
+      shell: "{{ vr.managed_shell | default('/bin/bash') }}"
       authorized_keys: >-
         {{
-          ([{'name': 'ansispire_runner', 'public_key': (vps_runner | default({})).ansible_public_key}]
-           + ((vps_runner | default({})).personal_keys | default([])))
+          ([{'name': 'ansispire_runner', 'public_key': vr.ansible_public_key}]
+           + (vr.personal_keys | default([])))
           | selectattr('public_key', 'defined')
           | rejectattr('public_key', 'equalto', None)
           | list
         }}
       sudo:
-        nopasswd: "{{ (vps_runner | default({})).sudo_nopasswd | default(true) }}"
+        nopasswd: "{{ vr.sudo_nopasswd | default(true) }}"
       ansible_key:
-        private_key: "{{ (vps_runner | default({})).identity_file }}"
+        private_key: "{{ vr.identity_file }}"
     vps_ssh:
-      managed_port: "{{ (vps_runner | default({})).managed_port | default(ansible_port) }}"
+      managed_port: "{{ vr.managed_port | default(ansible_port) }}"
       disable_root_login: "{{ (security | default({})).root_login_disabled | default(true) }}"
       disable_password_login: "{{ (security | default({})).password_login_disabled | default(true) }}"
       disable_kbd_interactive: "{{ (security | default({})).disable_kbd_interactive | default(true) }}"
       allow_groups: "{{ (security | default({})).allow_groups | default([]) }}"
-      close_bootstrap_port_after_success: "{{ (vps_runner | default({})).close_bootstrap_port_after_success | default(true) }}"
+      close_bootstrap_port_after_success: "{{ vr.close_bootstrap_port_after_success | default(true) }}"
     vps_profile:
       base_packages: "{{ (features | default({})).base_packages | default(true) }}"
       unattended_upgrades: "{{ (features | default({})).unattended_upgrades | default(true) }}"
@@ -395,10 +398,12 @@
         mode: "0755"
 
     - name: Comment direct Ansispire-managed lines in main sshd_config
+      # Sentinel `ANSISPIRE-COMMENTED:` is the marker remove.yml reverses to
+      # restore distro-default state when --cleanup-remote is passed.
       ansible.builtin.replace:
         path: /etc/ssh/sshd_config
         regexp: "{{ vps_sshd_directive_regexp }}"
-        replace: '# \1 managed by /etc/ssh/sshd_config.d/00-ansispire.conf'
+        replace: '# ANSISPIRE-COMMENTED: \1'
         backup: true
       vars:
         vps_sshd_directives:
@@ -413,7 +418,8 @@
           - KbdInteractiveAuthentication
           - ChallengeResponseAuthentication
           - AllowGroups
-        vps_sshd_directive_regexp: "^\\s*({{ vps_sshd_directives | join('|') }})\\s+.*$"
+        vps_sshd_directive_regexp: "^\\s*({{ vps_sshd_directives | join('|') }}\\s+.*)$"
+      notify: Reload sshd
 
     - name: Install transitional sshd drop-in with managed port
       ansible.builtin.template:
@@ -424,11 +430,13 @@
         mode: "0644"
       vars:
         vps_ssh_lockdown_enabled: false
+      notify: Reload sshd
 
     - name: Remove legacy late sshd drop-in
       ansible.builtin.file:
         path: /etc/ssh/sshd_config.d/99-ansispire.conf
         state: absent
+      notify: Reload sshd
 
     - name: Ensure SSH socket drop-in directory exists
       ansible.builtin.file:
@@ -449,6 +457,9 @@
       vars:
         vps_ssh_lockdown_enabled: false
       when: vps_ssh_socket_activation_enabled | bool
+      notify:
+        - Reload systemd manager
+        - Restart sshd.socket
 
     - name: Validate sshd configuration
       ansible.builtin.command:
@@ -458,26 +469,11 @@
       changed_when: false
       check_mode: false
 
-    - name: Reload systemd manager for transitional SSH socket override
-      ansible.builtin.systemd:
-        daemon_reload: true
-      when:
-        - vps_ssh_socket_activation_enabled | bool
-        - not ansible_check_mode
-
-    - name: Restart SSH socket for managed port
-      ansible.builtin.systemd:
-        name: "{{ vps_ssh_socket_unit_name }}"
-        state: restarted
-      when:
-        - vps_ssh_socket_activation_enabled | bool
-        - not ansible_check_mode
-
-    - name: Reload SSH service for managed port
-      ansible.builtin.systemd:
-        name: "{{ vps_ssh_service_name }}"
-        state: reloaded
-      when: not ansible_check_mode
+    # Flush handlers here so any failure above blocks sshd reload (we must NOT
+    # reload sshd with broken config). The `restart sshd.socket` handler is
+    # guarded by check-mode/socket-activation conditions inside the handler.
+    - name: Flush handlers — apply transitional SSH config now
+      ansible.builtin.meta: flush_handlers
 
     - name: Wait for managed SSH port to answer
       ansible.builtin.wait_for:
@@ -488,28 +484,31 @@
       become: false
       when: not ansible_check_mode
 
-    - name: Validate managed user sudo on new SSH port
-      ansible.builtin.command:
-        argv:
-          - ssh
-          - -i
-          - "{{ vps_managed.ansible_key.private_key }}"
-          - -p
-          - "{{ vps_ssh.managed_port | string }}"
-          - -o
-          - BatchMode=yes
-          - -o
-          - StrictHostKeyChecking=no
-          - -o
-          - UserKnownHostsFile=/dev/null
-          - "{{ vps_managed.user }}@{{ ansible_host }}"
-          - sudo
-          - -n
-          - "true"
-      delegate_to: localhost
-      become: false
+    # Native Ansible validation (replaces prior raw-`ssh` from localhost):
+    # reset the persistent control connection so Ansible re-dials using the
+    # managed user + new port + managed key, then prove the managed user can
+    # connect AND escalate. Respects inventory's ansible_ssh_common_args /
+    # ProxyJump etc., and does not blanket-disable StrictHostKeyChecking.
+    - name: Reset Ansible connection to pick up new SSH port/user
+      ansible.builtin.meta: reset_connection
+
+    - name: Wait for connection as managed user on new port
+      ansible.builtin.wait_for_connection:
+        timeout: 30
+      vars:
+        ansible_port: "{{ vps_ssh.managed_port | int }}"
+        ansible_user: "{{ vps_managed.user }}"
+        ansible_ssh_private_key_file: "{{ vps_managed.ansible_key.private_key }}"
+      when: not ansible_check_mode
+
+    - name: Validate managed user sudo (native)
+      ansible.builtin.command: id -u
+      become: true
       changed_when: false
-      check_mode: false
+      vars:
+        ansible_port: "{{ vps_ssh.managed_port | int }}"
+        ansible_user: "{{ vps_managed.user }}"
+        ansible_ssh_private_key_file: "{{ vps_managed.ansible_key.private_key }}"
       when: not ansible_check_mode
 
     - name: Install final locked-down sshd drop-in
@@ -521,6 +520,7 @@
         mode: "0644"
       vars:
         vps_ssh_lockdown_enabled: true
+      notify: Reload sshd
 
     - name: Install final locked-down SSH socket override
       ansible.builtin.template:
@@ -532,6 +532,9 @@
       vars:
         vps_ssh_lockdown_enabled: true
       when: vps_ssh_socket_activation_enabled | bool
+      notify:
+        - Reload systemd manager
+        - Restart sshd.socket
 
     - name: Validate final sshd configuration
       ansible.builtin.command:
@@ -541,26 +544,8 @@
       changed_when: false
       check_mode: false
 
-    - name: Reload systemd manager for final SSH socket override
-      ansible.builtin.systemd:
-        daemon_reload: true
-      when:
-        - vps_ssh_socket_activation_enabled | bool
-        - not ansible_check_mode
-
-    - name: Restart SSH socket after lockdown
-      ansible.builtin.systemd:
-        name: "{{ vps_ssh_socket_unit_name }}"
-        state: restarted
-      when:
-        - vps_ssh_socket_activation_enabled | bool
-        - not ansible_check_mode
-
-    - name: Reload SSH service after lockdown
-      ansible.builtin.systemd:
-        name: "{{ vps_ssh_service_name }}"
-        state: reloaded
-      when: not ansible_check_mode
+    - name: Flush handlers — apply lockdown SSH config now
+      ansible.builtin.meta: flush_handlers
 
     - name: Close bootstrap SSH port after final validation
       community.general.ufw:
@@ -575,24 +560,48 @@
         - vps_bootstrap.port | int != vps_ssh.managed_port | int
         - not ansible_check_mode
 
-    - name: Validate final managed login
-      ansible.builtin.command:
-        argv:
-          - ssh
-          - -i
-          - "{{ vps_managed.ansible_key.private_key }}"
-          - -p
-          - "{{ vps_ssh.managed_port | string }}"
-          - -o
-          - BatchMode=yes
-          - -o
-          - StrictHostKeyChecking=no
-          - -o
-          - UserKnownHostsFile=/dev/null
-          - "{{ vps_managed.user }}@{{ ansible_host }}"
-          - "true"
-      delegate_to: localhost
-      become: false
-      changed_when: false
-      check_mode: false
+    # Native Ansible validation (replaces prior raw-`ssh` from localhost):
+    # after lockdown sshd reload, reset the connection and reconnect as the
+    # managed user to confirm post-lockdown connectivity. If this fails, the
+    # operator still has the (still-running) original control connection via
+    # bootstrap user/port until the play exits — guarded recovery path.
+    - name: Reset Ansible connection after final lockdown
+      ansible.builtin.meta: reset_connection
+
+    - name: Wait for managed-user connection after lockdown
+      ansible.builtin.wait_for_connection:
+        timeout: 30
+      vars:
+        ansible_port: "{{ vps_ssh.managed_port | int }}"
+        ansible_user: "{{ vps_managed.user }}"
+        ansible_ssh_private_key_file: "{{ vps_managed.ansible_key.private_key }}"
       when: not ansible_check_mode
+
+    - name: Validate final managed login (native)
+      ansible.builtin.command: "true"
+      changed_when: false
+      vars:
+        ansible_port: "{{ vps_ssh.managed_port | int }}"
+        ansible_user: "{{ vps_managed.user }}"
+        ansible_ssh_private_key_file: "{{ vps_managed.ansible_key.private_key }}"
+      when: not ansible_check_mode
+
+  handlers:
+    - name: Reload sshd
+      ansible.builtin.systemd:
+        name: "{{ vps_ssh_service_name }}"
+        state: reloaded
+      when: not ansible_check_mode
+
+    - name: Reload systemd manager
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: not ansible_check_mode
+
+    - name: Restart sshd.socket
+      ansible.builtin.systemd:
+        name: "{{ vps_ssh_socket_unit_name }}"
+        state: restarted
+      when:
+        - not ansible_check_mode
+        - vps_ssh_socket_activation_enabled | bool

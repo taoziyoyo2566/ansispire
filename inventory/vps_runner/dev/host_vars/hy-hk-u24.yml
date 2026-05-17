@@ -1,44 +1,14 @@
 ---
 # vps_runner managed host — hy-hk-u24 (dev)
-# Migrated from runtime/state/vps_inventory.yml on 2026-05-16.
+# Shared defaults live in ../group_vars/vps_targets.yml.
 
-# Connection (Ansible standard)
 ansible_host: 82.152.164.147
 ansible_port: 1156
 ansible_user: deploy
-ansible_python_interpreter: /usr/bin/python3
-ansible_ssh_private_key_file: /home/netcup/.ssh/ansispire_ed25519
 
-# Role variables (consumed by playbooks/onboard.yml / audit.yml / etc.)
-security:
-  root_login_disabled: true
-  password_login_disabled: true
-  ufw_enabled: true
-  fail2ban_enabled: true
-features:
-  base_packages: true
-  unattended_upgrades: true
-  system_limits: true
-  swap: false
-  network_tuning: false
-  ufw: true
-  fail2ban: true
-  docker: true
-
-# vps_runner managed metadata (single SSOT; CLI reads/writes here)
 vps_runner:
-  bootstrap_port: 22
-  bootstrap_user: root
   managed_port: 1156
   managed_user: deploy
-  identity_file: /home/netcup/.ssh/ansispire_ed25519
-  ansible_public_key: /home/netcup/.ssh/ansispire_ed25519.pub
-  personal_keys:
-    - name: operator
-      public_key: /home/netcup/.ssh/id_ed25519.pub
-  ssh_config:
-    identity_file: /home/netcup/.ssh/id_ed25519
-    file: /home/netcup/.ssh/config.d/ansispire.conf
   status: active
   os:
     family: null

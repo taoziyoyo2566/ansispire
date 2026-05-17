@@ -55,7 +55,6 @@ features:
   unattended_upgrades: true
   ufw: true
   fail2ban: true
-  docker: true
 
 # vps_runner 元数据（CLI 读写）
 vps_runner:
@@ -210,7 +209,7 @@ python -m plugins.vps_runner.cli onboard <new-alias> --env dev \
 3. 写 sshd drop-in（迁端口、禁 root、禁密码、禁 kbd-interactive）
 4. 重载 sshd 并验证新端口连通
 5. 关闭 bootstrap port（若 `vps_runner.close_bootstrap_port_after_success: true`）
-6. 配置 UFW / fail2ban / docker（按 `features.*`）
+6. 配置 UFW / fail2ban（按 `features.*`）。**docker 当前不在 onboard 范围内**——见 §7 设计沿革。
 7. 写本地 `~/.ssh/config.d/ansispire.conf` 条目供后续直连
 
 成功后再跑一次 audit 验收：
