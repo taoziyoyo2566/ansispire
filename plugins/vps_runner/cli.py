@@ -133,6 +133,27 @@ def _build_parser() -> argparse.ArgumentParser:
         help="enable or disable fail2ban",
     )
 
+    # add-host
+    p_add = subparsers.add_parser(
+        "add-host",
+        help="create a new managed-VPS inventory entry (host_vars + hosts.yml)",
+    )
+    _add_env_arg(p_add)
+    p_add.add_argument("alias", help="short alias for the new host (e.g. de-d12-1)")
+    p_add.add_argument("--ip", required=True, help="ansible_host (IP or DNS name)")
+    p_add.add_argument(
+        "--port", type=int, default=1156,
+        help="managed SSH port (default: 1156; must be 1024-65535, not 22)",
+    )
+    p_add.add_argument(
+        "--user", default="ansible",
+        help="managed SSH user (default: ansible)",
+    )
+    p_add.add_argument(
+        "--status", default="pending",
+        help="initial vps_runner.status (default: pending; onboard flips to active)",
+    )
+
     # remove
     p_remove = subparsers.add_parser(
         "remove", help="remove alias from inventory (optionally strip sshd drop-ins)"
@@ -288,6 +309,25 @@ def _cmd_modify(args: argparse.Namespace) -> int:
     return 0 if summary.status == "successful" else 1
 
 
+def _cmd_add_host(args: argparse.Namespace) -> int:
+    try:
+        path = core.add_host(
+            args.env, args.alias,
+            ip=args.ip, port=args.port, user=args.user, status=args.status,
+        )
+    except core.VpsRunnerError as exc:
+        sys.stderr.write(f"vps-runner: {exc}\n")
+        return 2
+    print(f"==> created {path}")
+    print(f"==> added '{args.alias}' to inventory/vps_runner/{args.env}/hosts.yml")
+    print(
+        f"\nNext: vps-runner onboard {args.alias} --env {args.env} "
+        f"--first-time --ask-pass\n"
+        f"  (add --ask-become-pass if the bootstrap user's sudo requires a password)"
+    )
+    return 0
+
+
 def _cmd_remove(args: argparse.Namespace) -> int:
     alias = args.alias
     if not args.yes:
@@ -353,6 +393,7 @@ _DISPATCH = {
     "onboard": _cmd_onboard,
     "modify": _cmd_modify,
     "remove": _cmd_remove,
+    "add-host": _cmd_add_host,
 }
 
 

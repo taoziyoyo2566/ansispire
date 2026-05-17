@@ -29,6 +29,17 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branch `feat/vps-manager-v2`
 
+### VPS Runner — `add-host` cutover-regression fix + daily-ops Makefile wrappers (2026-05-17, round 6)
+
+Closes the lifecycle UX gap that plan-2026-05-16 §1.2 omitted (only ported 5 of legacy vps-manager's 8 subcommands; round 4-b removed the 3 lifecycle Make wrappers without porting). Plan: [`plan-2026-05-17b.md`](docs/reviews/feat-vps-manager-v2/plan-2026-05-17b.md). Closeout: [`round6-2026-05-17.changelog.md`](docs/reviews/feat-vps-manager-v2/round6-2026-05-17.changelog.md).
+
+- **New CLI subcommand `add-host`**: `vps-runner add-host <alias> --ip <ip> [--port 1156 --user ansible --status pending --env dev]`. Creates `host_vars/<alias>.yml` (slim format; shared defaults inherited from group_vars) AND adds the alias to `hosts.yml` under `vps_targets:`. Validates alias uniqueness (against both hosts.yml AND host_vars file existence — covers orphan edge), port in [1024, 65535] excluding 22 (mirrors onboard.yml `pre_tasks` assert exactly), non-empty alias/ip. Pure local YAML write; no Ansible call.
+- **Core helpers**: `add_alias_to_hosts(env, alias)` mirrors existing `remove_alias_from_hosts`; `add_host(env, alias, **kw)` is the public façade. Both consistent with the file's read-modify-write-via-PyYAML pattern (PyYAML lossiness on `hosts.yml` already present in `remove_alias_from_hosts`; deferred to a future `ruamel.yaml` cleanup TASK).
+- **6 new Makefile daily-ops wrappers**: `vps-list`, `vps-audit` (ALIAS optional), `vps-add-host`, `vps-onboard`, `vps-modify` (ARGS slot for raw flags), `vps-remove`. All accept `ENV=dev` default. **Critical knob naming**: `MANAGED_PORT` / `MANAGED_USER` (not `PORT` / `USER`) to avoid collision with Make-inherited shell `$USER` — caught at Gate 3 of iteration 1 when canary `make vps-add-host` produced spurious `--user netcup`.
+- **Tests**: +12 unit cases for `add_host` (creates file, hosts.yml update, duplicate alias refusal, orphan-alias refusal, port=22 refusal, parameterized out-of-range port refusal, empty input refusal, CLI dispatch end-to-end, CLI rc=2 on duplicate). Total now 33 unit + 3 integration.
+- **Docs**: `docs/operations/vps-runner.md` §3 入口 callout now lists all 6 Make wrappers; new §3.1b `add-host` subsection with typical 3-step flow (`vps-add-host` → `vps-onboard` → `vps-audit`). `docs/reference/feature-map/vps-runner.md` Actions table adds `add-host` row. `inventory/vps_runner/dev/hosts.yml` comment header line updated to point at the correct entry command.
+- **Operator UX delta**: adding a new managed VPS now takes 3 short commands instead of "manually write YAML + edit hosts.yml + onboard". Surfaces the typical workflow as `make vps-add-host ALIAS=<new> IP=<ip>` → `make vps-onboard ALIAS=<new>` → `make vps-audit ALIAS=<new>`.
+
 ### VPS Runner — best-practice review hardening (2026-05-17, round 5)
 
 Driven by the post-cutover [`ansible-best-practices-review-2026-05-16.md`](docs/reviews/feat-vps-manager-v2/ansible-best-practices-review-2026-05-16.md) (4 P1 + 2 P2 actionable findings). Plan: [`plan-2026-05-17.md`](docs/reviews/feat-vps-manager-v2/plan-2026-05-17.md). Closeout: [`round5-2026-05-17.changelog.md`](docs/reviews/feat-vps-manager-v2/round5-2026-05-17.changelog.md).

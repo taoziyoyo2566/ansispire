@@ -160,6 +160,90 @@ def test_delete_host_vars_idempotent(fake_inventory):
     assert core.delete_host_vars("dev", "alpha") is False
 
 
+# ---------------------------------------------------------------------------
+# add_host — cutover-regression fix (Round 6)
+# ---------------------------------------------------------------------------
+
+
+def test_add_host_creates_host_vars_and_updates_hosts_yml(fake_inventory):
+    path = core.add_host(
+        "dev", "gamma",
+        ip="192.0.2.42", port=1156, user="ansible",
+    )
+    assert path.exists()
+    data = yaml.safe_load(path.read_text())
+    assert data["ansible_host"] == "192.0.2.42"
+    assert data["ansible_port"] == 1156
+    assert data["ansible_user"] == "ansible"
+    assert data["vps_runner"]["managed_port"] == 1156
+    assert data["vps_runner"]["managed_user"] == "ansible"
+    assert data["vps_runner"]["status"] == "pending"
+    assert data["vps_runner"]["os"]["family"] is None
+    assert "gamma" in core.list_aliases("dev")
+
+
+def test_add_host_refuses_duplicate_alias(fake_inventory):
+    # alpha already exists in fake_inventory
+    with pytest.raises(core.VpsRunnerError, match="host_vars already exists"):
+        core.add_host("dev", "alpha", ip="192.0.2.99")
+
+
+def test_add_host_refuses_orphan_alias_in_hosts_yml(fake_inventory):
+    # beta is in hosts.yml but has no host_vars file (orphan case).
+    # add_host must refuse rather than silently overwrite.
+    with pytest.raises(core.VpsRunnerError, match="already in hosts.yml"):
+        core.add_host("dev", "beta", ip="192.0.2.99")
+
+
+def test_add_host_refuses_port_22(fake_inventory):
+    with pytest.raises(core.VpsRunnerError, match="port=22 not allowed"):
+        core.add_host("dev", "gamma", ip="192.0.2.42", port=22)
+
+
+@pytest.mark.parametrize("bad_port", [0, 1, 1023, 65536, 99999])
+def test_add_host_refuses_out_of_range_port(fake_inventory, bad_port):
+    with pytest.raises(core.VpsRunnerError, match="out of range"):
+        core.add_host("dev", "gamma", ip="192.0.2.42", port=bad_port)
+
+
+def test_add_host_refuses_empty_alias_or_ip(fake_inventory):
+    with pytest.raises(core.VpsRunnerError, match="alias must be non-empty"):
+        core.add_host("dev", "", ip="192.0.2.42")
+    with pytest.raises(core.VpsRunnerError, match="ip must be non-empty"):
+        core.add_host("dev", "gamma", ip="")
+
+
+def test_add_host_cli_dispatch(fake_inventory, capsys):
+    rc = cli.main([
+        "add-host", "delta",
+        "--ip", "192.0.2.50",
+        "--env", "dev",
+        "--port", "2222",
+        "--user", "deploy",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "created" in out
+    assert "delta" in out
+    assert "Next: vps-runner onboard delta" in out
+    data = yaml.safe_load(core.host_vars_path("dev", "delta").read_text())
+    assert data["ansible_port"] == 2222
+    assert data["ansible_user"] == "deploy"
+    assert data["vps_runner"]["managed_port"] == 2222
+
+
+def test_add_host_cli_returns_error_on_duplicate(fake_inventory, capsys):
+    # alpha already exists; CLI should return rc=2 with stderr message
+    rc = cli.main([
+        "add-host", "alpha",
+        "--ip", "192.0.2.99",
+        "--env", "dev",
+    ])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "host_vars already exists" in err
+
+
 def test_collect_host_results_classifies_status():
     """Drive _collect_host_results with a fake Runner.stats payload."""
     fake_runner = SimpleNamespace(

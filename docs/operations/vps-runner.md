@@ -82,6 +82,27 @@ vps_runner:
 
 入口：`python -m plugins.vps_runner.cli <subcommand>` —— 或 Round 4 后通过 Makefile target。
 
+**前置（必须先做一项）**：本仓库的 Python 依赖装在 `.venv/` 里，本机系统 `python` 通常不存在（Debian/Ubuntu 只有 `python3`）。下面任选其一：
+
+```bash
+# 方式 A（推荐，shell session 内全局生效）
+source .venv/bin/activate
+python -m plugins.vps_runner.cli list --env dev
+
+# 方式 B（每次显式 venv 路径，无 shell 状态依赖；适合脚本 / CI）
+.venv/bin/python -m plugins.vps_runner.cli list --env dev
+
+# 方式 C（最省事，Round 6 起所有日常子命令都有 Make wrapper）
+make vps-list                                      # 等价 list
+make vps-audit ALIAS=hk-d12                        # 等价 audit --limit
+make vps-add-host ALIAS=de-d12-1 IP=203.0.113.42  # 等价 add-host
+make vps-onboard ALIAS=de-d12-1                    # 等价 onboard --first-time --ask-pass --ask-become-pass
+make vps-modify ALIAS=hk-d12 ARGS='--add-package=htop'  # 等价 modify
+make vps-remove ALIAS=hk-d12                       # 等价 remove --yes --cleanup-remote
+```
+
+下文示例统一写作 `python -m ...`（假设方式 A）。要 bare shell 直接跑，把 `python` 换成 `.venv/bin/python` 即可，或用方式 C 的 Make wrapper。
+
 所有子命令都接受 `--env {dev,stag,prod}`（默认 `dev`）。
 
 ### 3.1 `list` — 查看清单（不调 Ansible）
@@ -92,6 +113,40 @@ python -m plugins.vps_runner.cli list --env dev --format json
 ```
 
 **输出**：alias / host / port / user / status / last_action / updated_at 表格或 JSON。**完全本地读 host_vars 文件，无网络调用**。
+
+### 3.1b `add-host` — 创建新管理节点的 inventory 条目（Round 6 起）
+
+```bash
+python -m plugins.vps_runner.cli add-host <alias> --ip <IP> \
+  [--port 1156] [--user ansible] [--status pending] [--env dev]
+
+# 或 Make wrapper（注意：用 MANAGED_PORT / MANAGED_USER 避免和 shell env 的 USER 撞）
+make vps-add-host ALIAS=<alias> IP=<IP> [MANAGED_PORT=1156] [MANAGED_USER=ansible] [ENV=dev]
+```
+
+**做什么**：根据传入字段在 `inventory/vps_runner/<env>/host_vars/<alias>.yml` 生成 slim 格式文件（只放每机特有覆盖，共享默认从 `group_vars/vps_targets.yml` 继承），同时把 alias 追加到 `hosts.yml` 的 `vps_targets.hosts` 块。**不调 Ansible，无网络操作**。
+
+**字段默认**：`port=1156`、`user=ansible`、`status=pending`（onboard 成功后自动改 `active`）。
+
+**校验**：
+- alias 必须未在 `hosts.yml` 出现，且 `host_vars/<alias>.yml` 不存在（防止覆盖）
+- port 必须在 `[1024, 65535]` 且不能是 `22`（与 onboard.yml `pre_tasks` assert 对齐）
+
+**输出**：成功时给下一步提示：
+```
+==> created inventory/vps_runner/dev/host_vars/de-d12-1.yml
+==> added 'de-d12-1' to inventory/vps_runner/dev/hosts.yml
+
+Next: vps-runner onboard de-d12-1 --env dev --first-time --ask-pass
+  (add --ask-become-pass if the bootstrap user's sudo requires a password)
+```
+
+**典型新机三步流程**：
+```bash
+make vps-add-host ALIAS=de-d12-1 IP=203.0.113.42
+make vps-onboard ALIAS=de-d12-1               # terminal 输 root 密码
+make vps-audit ALIAS=de-d12-1                 # 验证可达
+```
 
 ### 3.2 `audit` — 健康探测
 

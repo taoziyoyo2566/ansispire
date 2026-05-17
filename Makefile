@@ -19,6 +19,7 @@
         test-filters test-vps-runner test-vps-runner-integration \
         detect-secrets \
         vps-runner-syntax \
+        vps-list vps-audit vps-onboard vps-modify vps-remove vps-add-host \
         hub-deploy hub-deploy-check
 
 # Control-plane compose command wrapper
@@ -137,6 +138,36 @@ vps-runner-syntax: ## Ansible syntax-check for VPS Runner action playbooks
 	$(BIN)ansible-playbook plugins/vps_runner/playbooks/modify.yml --syntax-check -i inventory/vps_runner/dev/
 	$(BIN)ansible-playbook plugins/vps_runner/playbooks/audit.yml --syntax-check -i inventory/vps_runner/dev/
 	$(BIN)ansible-playbook plugins/vps_runner/playbooks/remove.yml --syntax-check -i inventory/vps_runner/dev/
+
+# ── VPS Runner daily ops (wrappers around `python -m plugins.vps_runner.cli`) ──
+# All take ENV=<dev|stag|prod> (default dev). ALIAS required for per-host targets.
+# IP required only for vps-add-host. ARGS slot on vps-modify for raw modify flags.
+
+vps-list: ## list managed VPS in env (ENV=dev default)
+	$(BIN)python3 -m plugins.vps_runner.cli list --env $(or $(ENV),dev)
+
+vps-audit: ## health-probe; ALIAS optional (omit = whole fleet); ENV=dev default
+	$(BIN)python3 -m plugins.vps_runner.cli audit --env $(or $(ENV),dev) $(if $(ALIAS),--limit $(ALIAS))
+
+vps-add-host: ## create new inventory entry; ALIAS=<name> IP=<ip> [MANAGED_PORT=1156] [MANAGED_USER=ansible] [ENV=dev]
+	@test -n "$(ALIAS)" -a -n "$(IP)" || { echo "Usage: make vps-add-host ALIAS=<alias> IP=<ip> [MANAGED_PORT=1156] [MANAGED_USER=ansible] [ENV=dev]"; exit 2; }
+	$(BIN)python3 -m plugins.vps_runner.cli add-host $(ALIAS) --ip $(IP) \
+	  --env $(or $(ENV),dev) \
+	  $(if $(MANAGED_PORT),--port $(MANAGED_PORT)) \
+	  $(if $(MANAGED_USER),--user $(MANAGED_USER))
+
+vps-onboard: ## first-time onboard; ALIAS=<name> [ENV=dev]; prompts for SSH + sudo password
+	@test -n "$(ALIAS)" || { echo "Usage: make vps-onboard ALIAS=<alias> [ENV=dev]"; exit 2; }
+	$(BIN)python3 -m plugins.vps_runner.cli onboard $(ALIAS) --env $(or $(ENV),dev) \
+	  --first-time --ask-pass --ask-become-pass
+
+vps-modify: ## ad-hoc change; ALIAS=<name> ARGS='--add-package=htop --add-port=8080' [ENV=dev]
+	@test -n "$(ALIAS)" -a -n "$(ARGS)" || { echo "Usage: make vps-modify ALIAS=<alias> ARGS='<modify flags>' [ENV=dev]"; exit 2; }
+	$(BIN)python3 -m plugins.vps_runner.cli modify $(ALIAS) --env $(or $(ENV),dev) $(ARGS)
+
+vps-remove: ## remove from inventory + strip sshd drop-ins; ALIAS=<name> [ENV=dev]
+	@test -n "$(ALIAS)" || { echo "Usage: make vps-remove ALIAS=<alias> [ENV=dev]"; exit 2; }
+	$(BIN)python3 -m plugins.vps_runner.cli remove $(ALIAS) --env $(or $(ENV),dev) --yes --cleanup-remote
 
 detect-secrets: ## Scan tracked + unignored files; fail on findings not present in .secrets.baseline
 	@PATH="$(VENV_BIN):$$PATH" $(BIN)python3 scripts/detect_secrets_gate.py

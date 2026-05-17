@@ -129,7 +129,7 @@
   - 断言规格：[`docs/reference/test-specs/molecule-{common,webserver,database,full-stack}.md`](../test-specs/)
 - **CI**（`.github/workflows/ci.yml`）：6 job —— `yamllint` → `{ansible-lint, syntax-check}` → `{dry-run, molecule matrix}`，外加独立 `detect-secrets`；触发 push `dev|master|hotfix/*` + PR `dev|stg|master`；Dependabot 周维度提依赖升级 PR
 - **测试卫生**：失败的 L4/L5 必须先清 ephemeral state（`~/.ansible/tmp/molecule.*`）+ leave-running stack 才能复测——见 testing-governance.md §9
-- **VPS Runner**：`make test-vps-runner` 跑 21 个 unit 测试（pure helpers + CLI dispatch，mock ansible-runner）；`make test-vps-runner-integration` 跑 3 个 integration 测试（真调 ansible-runner 打 TEST-NET-1 + P1.3 envvars allowlist canary + P1.4 PATH 自足 regression guard，~33 s）；`make vps-runner-syntax` 覆盖 onboard/modify/remove/audit 四个 playbook。
+- **VPS Runner**：`make test-vps-runner` 跑 33 个 unit 测试（pure helpers + CLI dispatch，mock ansible-runner；含 Round 6 的 12 个 `add_host` 覆盖）；`make test-vps-runner-integration` 跑 3 个 integration 测试（真调 ansible-runner 打 TEST-NET-1 + P1.3 envvars allowlist canary + P1.4 PATH 自足 regression guard，~33 s）；`make vps-runner-syntax` 覆盖 onboard/modify/remove/audit 四个 playbook。Round 6 起 6 个日常 ops Make wrapper（`vps-list / vps-audit / vps-add-host / vps-onboard / vps-modify / vps-remove`）取代裸 `python -m plugins.vps_runner.cli ...`。
 
 ---
 
@@ -143,7 +143,8 @@
 | **Controller 生命周期** | `controller-{up,down,logs,reset,bootstrap}` | Path B 入口 |
 | **审计链路** | `controller-audit-{up,down,tail,stats}` | sink + relay 容器管理 |
 | **测试** | `test-eda*` 三 L 拆分 / `test-eda-e2e` / `molecule-all` / `vps-manager-syntax` / smoke 系列 | 见 §7 |
-| **VPS Runner** | `test-vps-runner` / `test-vps-runner-integration` / `vps-runner-syntax` | ansible-runner 原生的 VPS 生命周期插件（CLI: `python -m plugins.vps_runner.cli list\|audit\|onboard\|modify\|remove`） |
+| **VPS Runner — 测试 / 语法** | `test-vps-runner` / `test-vps-runner-integration` / `vps-runner-syntax` | 33 unit + 3 integration + 4 playbook syntax-check |
+| **VPS Runner — 日常 ops** | `vps-list` / `vps-audit` / `vps-add-host` / `vps-onboard` / `vps-modify` / `vps-remove` | Round 6 起 6 个 daily wrapper；都接 `ENV=dev` 默认；`add-host` / `onboard` / `modify` / `remove` 要 `ALIAS=`；`add-host` 额外要 `IP=`；`modify` 要 `ARGS='--add-package=...'` |
 | **Vault** | `vault-edit FILE=...` / `vault-encrypt` | Vault 操作包装 |
 | **EE** | `ee-build` / `navigator` / `navigator-local` | Execution Environment 模式 |
 | **SSOT** | `manifest-sync` / `ports-sync` (deprecated alias) | 见 §6 |

@@ -14,13 +14,14 @@ The plugin was built to replace a prior anti-Ansible implementation (subprocess 
 - Run unit tests (no SSH): `make test-vps-runner`
 - Run integration test (real ansible-runner vs TEST-NET-1, ~11s): `make test-vps-runner-integration`
 - Ansible syntax check on playbooks: `make vps-runner-syntax`
-- CLI usage: `python -m plugins.vps_runner.cli {list|audit|onboard|modify|remove} --env {dev,stag,prod}`
+- CLI usage: `python -m plugins.vps_runner.cli {list|audit|onboard|modify|remove} --env {dev,stag,prod}` (假设 `.venv/bin/activate` 已 source；否则用 `.venv/bin/python -m plugins.vps_runner.cli ...`。完整说明见 [`operations/vps-runner.md §3`](../../operations/vps-runner.md#3-cli-子命令))
 
 ## Supported Actions
 
 | Action | Remote | Scope |
 |---|---:|---|
 | `list` | no | Display managed hosts in the given env (alias / connection / status / last_action / updated_at). Pure local YAML read. |
+| `add-host` | no | Create `host_vars/<alias>.yml` (slim format) + add alias to `hosts.yml` under `vps_targets:`. Validates uniqueness + port range. **Pure local YAML write; no Ansible.** Restored in Round 6 (was a regression vs legacy vps-manager's `new` command). |
 | `audit` | yes | Per-host probe: ping, uptime, disk usage, memory, OS facts. Read-only and idempotent. |
 | `onboard` | yes | Apply `onboard.yml` to one alias. With `--first-time --ask-pass --ask-become-pass`, bootstraps from `root@22`-style state into managed user + non-22 SSH port + UFW + fail2ban. Idempotent re-onboard supported. **Docker install/config is deferred — see Open / Pending.** |
 | `modify` | yes | Apply `modify.yml` with a `vps_changes` extravar: packages (install/remove), UFW TCP allows/removes, fail2ban toggle, network_tuning. Each section optional. |

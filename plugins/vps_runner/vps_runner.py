@@ -183,6 +183,101 @@ def remove_alias_from_hosts(env: str, alias: str) -> bool:
     return True
 
 
+def add_alias_to_hosts(env: str, alias: str) -> bool:
+    """Add alias to hosts.yml vps_targets.hosts. Returns True if changed.
+
+    Raises VpsRunnerError if alias already present (caller decides whether
+    that's an error vs. no-op). Creates the all/children/vps_targets/hosts
+    tree if missing (fresh-env case).
+    """
+    inv_dir = inventory_path(env)
+    hosts_file = inv_dir / "hosts.yml"
+    if hosts_file.exists():
+        with hosts_file.open("r", encoding="utf-8") as f:
+            hosts_data = yaml.safe_load(f) or {}
+    else:
+        hosts_data = {}
+    all_block = hosts_data.setdefault("all", {})
+    children = all_block.setdefault("children", {})
+    targets = children.setdefault("vps_targets", {})
+    host_map = targets.setdefault("hosts", {}) or {}
+    if alias in host_map:
+        raise VpsRunnerError(
+            f"alias '{alias}' already in {hosts_file}"
+        )
+    host_map[alias] = None
+    targets["hosts"] = host_map
+    with hosts_file.open("w", encoding="utf-8") as f:
+        f.write("---\n")
+        yaml.safe_dump(
+            hosts_data, f, default_flow_style=False, sort_keys=False
+        )
+    return True
+
+
+def add_host(
+    env: str,
+    alias: str,
+    *,
+    ip: str,
+    port: int = 1156,
+    user: str = "ansible",
+    status: str = "pending",
+) -> Path:
+    """Create a new managed-VPS inventory entry.
+
+    Writes host_vars/<alias>.yml (slim per-host overrides only; shared defaults
+    come from group_vars/vps_targets.yml at play time) AND adds the alias to
+    hosts.yml under vps_targets.hosts.
+
+    Validates: alias must not already exist in either hosts.yml or
+    host_vars/<alias>.yml; port must be in [1024, 65535] and != 22 (mirrors
+    onboard.yml `pre_tasks` assertion to fail at CLI time, not mid-onboard).
+
+    Returns the path to the created host_vars file.
+    """
+    if not alias or not alias.strip():
+        raise VpsRunnerError("alias must be non-empty")
+    if not ip or not ip.strip():
+        raise VpsRunnerError("ip must be non-empty")
+    if port == 22:
+        raise VpsRunnerError(
+            f"port=22 not allowed for managed_port (use a non-22 high port)"
+        )
+    if not (1024 <= port <= 65535):
+        raise VpsRunnerError(
+            f"port={port} out of range; must be 1024..65535"
+        )
+
+    hv_path = host_vars_path(env, alias)
+    if hv_path.exists():
+        raise VpsRunnerError(f"host_vars already exists: {hv_path}")
+    if alias in list_aliases(env):
+        raise VpsRunnerError(
+            f"alias '{alias}' already in hosts.yml (orphaned entry; "
+            f"clean it first or pick a different alias)"
+        )
+
+    data: dict[str, Any] = {
+        "ansible_host": ip,
+        "ansible_port": int(port),
+        "ansible_user": user,
+        "vps_runner": {
+            "managed_port": int(port),
+            "managed_user": user,
+            "status": status,
+            "os": {
+                "family": None,
+                "distribution": None,
+                "version": None,
+            },
+        },
+    }
+    write_host_vars(env, alias, data)
+    add_alias_to_hosts(env, alias)
+    return hv_path
+
+
 def delete_host_vars(env: str, alias: str) -> bool:
     """Delete host_vars/<alias>.yml. Returns True if removed."""
     path = host_vars_path(env, alias)
