@@ -42,7 +42,7 @@
 | `plugins/vps_runner/playbooks/onboard.yml` | `vps_runner` | host_vars 驱动的 VPS 纳管：bootstrap SSH → managed user/key/sudo → UFW/fail2ban → 非 22 SSH 管理端口 |
 | `plugins/vps_runner/playbooks/modify.yml` | `vps_runner` | `vps_changes` extravar 驱动的修改：包 / UFW / fail2ban / network_tuning |
 | `plugins/vps_runner/playbooks/audit.yml` | `vps_runner` | per-host 健康探测：ping / uptime / disk / memory / OS facts |
-| `plugins/vps_runner/playbooks/remove.yml` | `vps_runner` | 默认仅删本地 inventory；`--cleanup-remote` 才剥离远端 sshd drop-ins |
+| `plugins/vps_runner/playbooks/remove.yml` | `vps_runner` | 默认仅删本地 inventory；`--cleanup-remote` 才剥离远端 sshd drop-ins **并反向还原 `# ANSISPIRE-COMMENTED:` 注释的 sshd_config 指令（Round 5）** |
 
 ---
 
@@ -129,7 +129,7 @@
   - 断言规格：[`docs/reference/test-specs/molecule-{common,webserver,database,full-stack}.md`](../test-specs/)
 - **CI**（`.github/workflows/ci.yml`）：6 job —— `yamllint` → `{ansible-lint, syntax-check}` → `{dry-run, molecule matrix}`，外加独立 `detect-secrets`；触发 push `dev|master|hotfix/*` + PR `dev|stg|master`；Dependabot 周维度提依赖升级 PR
 - **测试卫生**：失败的 L4/L5 必须先清 ephemeral state（`~/.ansible/tmp/molecule.*`）+ leave-running stack 才能复测——见 testing-governance.md §9
-- **VPS Runner**：`make test-vps-runner` 跑 21 个 unit 测试（pure helpers + CLI dispatch，mock ansible-runner）；`make test-vps-runner-integration` 跑 1 个 integration 测试真调 ansible-runner 打 TEST-NET-1 doc-only IP（~11 s）；`make vps-runner-syntax` 覆盖 onboard/modify/remove/audit 四个 playbook。
+- **VPS Runner**：`make test-vps-runner` 跑 21 个 unit 测试（pure helpers + CLI dispatch，mock ansible-runner）；`make test-vps-runner-integration` 跑 3 个 integration 测试（真调 ansible-runner 打 TEST-NET-1 + P1.3 envvars allowlist canary + P1.4 PATH 自足 regression guard，~33 s）；`make vps-runner-syntax` 覆盖 onboard/modify/remove/audit 四个 playbook。
 
 ---
 

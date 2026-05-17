@@ -13,7 +13,7 @@
 | TASK-001 | Advanced Self-Healing Scenarios (v2.3 API-driven reactor & IaC) | 2026-05-10 | [`docs/reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md`](docs/reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md) |
 | TASK-004 | Robust Bootstrap 2.1 (venv isolation & path consistency) | — | — |
 | TASK-006 | 升级至 Ansible-Core 2.20.5 (2026 LTS) | — | — |
-| TASK-009 | vps-manager-v2: ansible-runner native plugin (rounds 2–4-b, cutover landed) | 2026-05-16 | [`docs/reviews/feat-vps-manager-v2/round4-b-2026-05-16.changelog.md`](docs/reviews/feat-vps-manager-v2/round4-b-2026-05-16.changelog.md) |
+| TASK-009 | vps-manager-v2: ansible-runner native plugin (rounds 2–5, cutover + best-practice review hardening) | 2026-05-17 | [`docs/reviews/feat-vps-manager-v2/round5-2026-05-17.changelog.md`](docs/reviews/feat-vps-manager-v2/round5-2026-05-17.changelog.md) (closes cycle; r4-b was destructive cutover) |
 | — | establish AI-native governance (GEMINI.md / CLAUDE.md hierarchy) | — | — |
 | — | mass quality refactoring (lint clean) | — | — |
 | — | zero-data-loss audit relay with pagination | — | — |

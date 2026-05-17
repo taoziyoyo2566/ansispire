@@ -29,6 +29,19 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branch `feat/vps-manager-v2`
 
+### VPS Runner — best-practice review hardening (2026-05-17, round 5)
+
+Driven by the post-cutover [`ansible-best-practices-review-2026-05-16.md`](docs/reviews/feat-vps-manager-v2/ansible-best-practices-review-2026-05-16.md) (4 P1 + 2 P2 actionable findings). Plan: [`plan-2026-05-17.md`](docs/reviews/feat-vps-manager-v2/plan-2026-05-17.md). Closeout: [`round5-2026-05-17.changelog.md`](docs/reviews/feat-vps-manager-v2/round5-2026-05-17.changelog.md).
+
+- **P1.1 SSH reversibility + handler model**: 8x inline `systemd state=reloaded/restarted` in `plugins/vps_runner/playbooks/onboard.yml` replaced with `notify:` → 3 named handlers (`Reload sshd` / `Reload systemd manager` / `Restart sshd.socket`) + `meta: flush_handlers` after each `sshd -t` validation. Comment marker for `/etc/ssh/sshd_config` directives changed from `# <dir> managed by ...` (value-loss; non-reversible) to `# ANSISPIRE-COMMENTED: <dir> <value>` (value-preserving, reversible). `plugins/vps_runner/playbooks/remove.yml` now (a) notifies sshd reload on drop-in removal — closes a parallel silent bug, (b) runs the reverse `replace` to restore commented directives when `--cleanup-remote` is passed, (c) has its own `handlers:` block.
+- **P1.2 Docker scope clarified**: `features.docker: true` removed from 4 host_vars + `docs/operations/vps-runner.md` + `docs/reference/feature-map/vps-runner.md`; unused `plugins/vps_runner/playbooks/templates/docker_daemon.json.j2` deleted. Future Docker integration tracked as a follow-up TASK (changelog §6).
+- **P1.3 Artifact env scrubbing**: `plugins/vps_runner/vps_runner.py` adds `_build_runner_envvars()` allowlist (PATH/ANSIBLE_CONFIG/ANSIBLE_COLLECTIONS_PATH/ANSIBLE_ROLES_PATH + 5-key locale allowlist) + `_scrubbed_environ()` ctx mgr replacing `os.environ` for the `ansible_runner.run()` call. The artifact `command` file no longer leaks ambient process env (e.g. caller-side API keys).
+- **P1.4 Direct CLI self-sufficient**: PATH built from `Path(sys.prefix) / "bin"` so `python -m plugins.vps_runner.cli` works without Makefile wrapping. Documented invocations now match reality.
+- **P2 inventory dedup**: new `inventory/vps_runner/dev/group_vars/vps_targets.yml` holds `security:` / `features:` / `vps_runner_defaults:` shared blocks; 4 host_vars slimmed to per-host overrides only (`ansible_host`, `ansible_port`, `ansible_user`, `vps_runner.{managed_port,managed_user,status,os}`). onboard.yml's `vr = vps_runner_defaults | combine(vps_runner)` pattern documented.
+- **P2 native SSH validation**: 2x `delegate_to: localhost ssh -o StrictHostKeyChecking=no` validation tasks replaced with `meta: reset_connection` + `wait_for_connection` + `command` using per-task `vars:` for new connection params. Respects inventory `ansible_ssh_common_args`/ProxyJump; doesn't require local OpenSSH CLI.
+- **Tests**: +2 regression-guard integration tests (`test_integration_run_playbook_without_path` for P1.4, `test_integration_envvars_artifact_excludes_unwhitelisted` for P1.3); total now 21 unit + 3 integration.
+- **Deferred** (follow-up TASKs, not this round): onboard.yml role decomposition (P2 explicit suggestion), `docker_host`/`deploy_compose` parity, 3-host concurrency live test (still SSH-blocked).
+
 ### VPS Manager → VPS Runner cutover (2026-05-16, round 4-b) ⚠ BREAKING
 
 **Removed**: `plugins/vps_manager/` (33 files), `docs/operations/vps-manager.md`, `docs/reference/feature-map/vps-manager.md`, and all related Makefile targets (`test-vps-manager`, `vps-manager-syntax`, `vps-new`, `vps-recover`, `vps-submit`, `vps-tasks`, `vps-manager-init`, `vps-manager-process`, `vps-manager-validate`).
