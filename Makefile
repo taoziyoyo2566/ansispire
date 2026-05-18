@@ -16,7 +16,7 @@
         controller-loop-smoke \
         test-eda test-eda-unit test-eda-contract test-eda-component \
         test-eda-relay-unit test-eda-sink-unit test-eda-e2e \
-        test-rules-schema \
+        test-rules-schema test-api-contract \
         test-filters test-vps-manager detect-secrets \
         vps-manager-syntax \
         vps-new vps-recover vps-submit vps-tasks \
@@ -134,6 +134,9 @@ test-eda: test-eda-unit test-eda-contract test-eda-component test-eda-relay-unit
 
 test-eda-e2e: ## L4 — disposable end-to-end (real docker; ~60–90s; NOT in `make verify`)
 	@bash controller/audit/e2e/run.sh
+
+test-api-contract: ## L4 — Semaphore API contract preflight (real docker; ~30–60s; tag override: SEMAPHORE_IMAGE_TAG=...)
+	@bash controller/semaphore/preflight/run.sh
 
 test-rules-schema: ## L1 — extensions/eda/rules.json structural validation against rules.schema.json
 	@$(BIN)python3 -c "import json, sys; from jsonschema import validate, Draft7Validator; \

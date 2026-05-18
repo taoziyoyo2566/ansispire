@@ -1,0 +1,265 @@
+---
+# Semaphore API contract preflight
+#
+# Purpose:
+#   Fail FAST with a meaningful diagnostic when the Semaphore API shape has
+#   drifted from what bootstrap.yml's downstream tasks expect — before
+#   bootstrap.yml starts mutating state. Targets cross-compare WU-4: surface
+#   upstream API breakage at the manifest tag bump, not deep inside a
+#   half-applied bootstrap run.
+#
+# Modes:
+#   schema (default) — login + GET /api/projects + GET /api/users only,
+#                      ~2 s. Imported by bootstrap.yml so every bootstrap
+#                      runs this gate first. Read-only on Semaphore state.
+#   full             — also creates a throwaway `__preflight__` project,
+#                      walks all project-scoped GETs (keys/repos/inventory/
+#                      environment/templates), mints a throwaway token, and
+#                      deletes the project on exit. Used by
+#                      `make test-api-contract` in CI to detect breaking
+#                      upstream changes when bumping the Semaphore image tag.
+#
+# Skipping:
+#   `-e skip_preflight=true` ends the play early — used by tests that
+#   intentionally probe an unbootstrapped Semaphore.
+#
+# Contract (what shape-drift this gate would catch):
+#   - POST /api/auth/login returns Set-Cookie (bootstrap uses cookies_string)
+#   - GET  /api/projects returns top-level array; items expose id + name
+#   - GET  /api/users    returns top-level array; items expose id + username
+#   - (full) POST /api/projects returns object with .id
+#   - (full) GET  /api/project/{id}/{keys,repositories,inventory,environment,templates}
+#           each return top-level array
+#   - (full) POST /api/user/tokens returns object with .id (the token value)
+- name: Preflight Semaphore API contract
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  become: false
+
+  vars_files:
+    - "{{ playbook_dir }}/../../config/manifest.yml"
+
+  vars:
+    semaphore_url: "http://localhost:{{ ansispire_ports.semaphore_host }}"
+    semaphore_user: "admin"
+    preflight_mode: "schema"
+    preflight_project_name: "__preflight__"
+    preflight_drift_hint: >-
+      Upstream Semaphore API shape has drifted from what bootstrap.yml
+      expects. If you just bumped the Semaphore image tag in
+      config/manifest.yml, revert the bump until bootstrap.yml is updated
+      to match the new schema. Re-run with `make test-api-contract` to
+      see which endpoint diverges.
+
+  tasks:
+    - name: Preflight | Skip when caller passes skip_preflight=true
+      ansible.builtin.meta: end_play
+      when: skip_preflight | default(false) | bool
+
+    - name: Preflight | Assert credentials provided
+      ansible.builtin.assert:
+        that:
+          - semaphore_password is defined
+          - semaphore_password | length > 0
+        fail_msg: >-
+          Preflight needs `-e semaphore_password=<admin>`. The credential is
+          consumed by /api/auth/login and is required to probe authenticated
+          routes; without it the preflight cannot distinguish "API broken"
+          from "wrong password".
+
+    - name: Preflight | POST /api/auth/login
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/auth/login"
+        method: POST
+        body_format: json
+        body:
+          auth: "{{ semaphore_user }}"
+          password: "{{ semaphore_password }}"
+        status_code: [200, 204]
+      register: pre_login
+      no_log: true
+
+    - name: Preflight | Assert auth response carries session cookie
+      ansible.builtin.assert:
+        that:
+          - pre_login.cookies_string is defined
+          - pre_login.cookies_string | length > 0
+        fail_msg: >-
+          /api/auth/login no longer sets a session cookie. bootstrap.yml's
+          cookie-based mutation flow would break.
+          {{ preflight_drift_hint }}
+
+    - name: Preflight | Cache session cookie
+      ansible.builtin.set_fact:
+        pre_cookie: "{{ pre_login.cookies_string }}"
+      no_log: true
+
+    # ── Top-level schema probes (schema mode) ────────────────────────────
+    - name: Preflight | GET /api/projects
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/projects"
+        method: GET
+        headers:
+          Cookie: "{{ pre_cookie }}"
+        return_content: true
+      register: pre_projects
+
+    - name: Preflight | Assert /api/projects returns array
+      ansible.builtin.assert:
+        that:
+          - pre_projects.json is sequence
+          - pre_projects.json is not string
+          - pre_projects.json is not mapping
+        fail_msg: >-
+          /api/projects no longer returns a top-level array (got
+          {{ pre_projects.json | type_debug }}).
+          {{ preflight_drift_hint }}
+
+    - name: Preflight | Assert projects[0] has id + name when present
+      ansible.builtin.assert:
+        that:
+          - pre_projects.json[0].id is defined
+          - pre_projects.json[0].name is defined
+        fail_msg: >-
+          /api/projects[0] missing 'id' or 'name'. bootstrap.yml's project-
+          name → id resolution would break.
+          {{ preflight_drift_hint }}
+      when: pre_projects.json | length > 0
+
+    - name: Preflight | GET /api/users
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/users"
+        method: GET
+        headers:
+          Cookie: "{{ pre_cookie }}"
+        return_content: true
+      register: pre_users
+
+    - name: Preflight | Assert /api/users returns array
+      ansible.builtin.assert:
+        that:
+          - pre_users.json is sequence
+          - pre_users.json is not string
+          - pre_users.json is not mapping
+        fail_msg: >-
+          /api/users no longer returns a top-level array (got
+          {{ pre_users.json | type_debug }}).
+          {{ preflight_drift_hint }}
+
+    - name: Preflight | Assert users[0] has id + username when present
+      ansible.builtin.assert:
+        that:
+          - pre_users.json[0].id is defined
+          - pre_users.json[0].username is defined
+        fail_msg: >-
+          /api/users[0] missing 'id' or 'username'. bootstrap.yml's
+          username → id map would break.
+          {{ preflight_drift_hint }}
+      when: pre_users.json | length > 0
+
+    # ── Full-mode walk: throwaway project + scoped GETs + token ──────────
+    - name: Preflight | Full-mode block
+      when: preflight_mode == "full"
+      block:
+        - name: Full | POST /api/projects (create throwaway)
+          ansible.builtin.uri:
+            url: "{{ semaphore_url }}/api/projects"
+            method: POST
+            headers:
+              Cookie: "{{ pre_cookie }}"
+            body_format: json
+            body:
+              name: "{{ preflight_project_name }}"
+              alert: false
+              max_parallel_tasks: 0
+            status_code: [201]
+            return_content: true
+          register: pre_created_project
+
+        - name: Full | Assert POST /api/projects returns id
+          ansible.builtin.assert:
+            that:
+              - pre_created_project.json.id is defined
+              - (pre_created_project.json.id | int) > 0
+            fail_msg: >-
+              POST /api/projects no longer returns object with numeric 'id'.
+              bootstrap.yml's project-create path would break.
+              {{ preflight_drift_hint }}
+
+        - name: Full | Cache throwaway project id
+          ansible.builtin.set_fact:
+            pre_pid: "{{ pre_created_project.json.id | int }}"
+
+        - name: Full | Walk project-scoped GETs
+          ansible.builtin.uri:
+            url: "{{ semaphore_url }}/api/project/{{ pre_pid }}/{{ item }}"
+            method: GET
+            headers:
+              Cookie: "{{ pre_cookie }}"
+            return_content: true
+          loop:
+            - keys
+            - repositories
+            - inventory
+            - environment
+            - templates
+          register: pre_scoped_gets
+
+        - name: Full | Assert each scoped GET returns array
+          ansible.builtin.assert:
+            that:
+              - item.json is sequence
+              - item.json is not string
+              - item.json is not mapping
+            fail_msg: >-
+              /api/project/{id}/{{ item.item }} no longer returns array (got
+              {{ item.json | type_debug }}).
+              {{ preflight_drift_hint }}
+          loop: "{{ pre_scoped_gets.results }}"
+          loop_control:
+            label: "{{ item.item }}"
+
+        - name: Full | POST /api/user/tokens (mint throwaway)
+          ansible.builtin.uri:
+            url: "{{ semaphore_url }}/api/user/tokens"
+            method: POST
+            headers:
+              Cookie: "{{ pre_cookie }}"
+            body_format: json
+            body: {}
+            status_code: [201]
+            return_content: true
+          register: pre_token
+          no_log: true
+
+        - name: Full | Assert token response carries id (the secret)
+          ansible.builtin.assert:
+            that:
+              - pre_token.json.id is defined
+              - pre_token.json.id | length > 0
+            fail_msg: >-
+              POST /api/user/tokens no longer returns object with 'id'.
+              relay.py / reactor.py Bearer-token auth would break.
+              {{ preflight_drift_hint }}
+
+      always:
+        - name: Full | DELETE throwaway project (best-effort cleanup)
+          ansible.builtin.uri:
+            url: "{{ semaphore_url }}/api/project/{{ pre_pid }}"
+            method: DELETE
+            headers:
+              Cookie: "{{ pre_cookie }}"
+            status_code: [200, 204, 404, 405]
+          when: pre_pid is defined
+          failed_when: false
+
+    - name: Preflight | Summary
+      ansible.builtin.debug:
+        msg:
+          - "API contract preflight passed (mode={{ preflight_mode }})."
+          - "Schema probes: /api/projects + /api/users shape OK."
+          - >-
+            {{ 'Full walk: keys/repos/inventory/environment/templates + tokens OK.'
+               if preflight_mode == 'full'
+               else 'For full walk run `make test-api-contract`.' }}

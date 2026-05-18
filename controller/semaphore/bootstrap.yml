@@ -23,6 +23,13 @@
 #
 # API docs: https://docs.semaphoreui.com/administration-guide/api/
 
+# Run the API contract preflight first — fail fast with a meaningful
+# diagnostic if upstream Semaphore renamed fields / changed status codes.
+# Skippable via `-e skip_preflight=true` (used by tests that intentionally
+# probe an unbootstrapped API).
+- name: Import API contract preflight (WU-4 gate)
+  ansible.builtin.import_playbook: bootstrap_preflight.yml
+
 - name: Bootstrap Semaphore with a minimal ansispire project
   hosts: localhost
   gather_facts: false

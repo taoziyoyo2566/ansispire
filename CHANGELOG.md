@@ -29,6 +29,18 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branch `feat/vps-manager-plugin`
 
+### Semaphore API contract preflight (2026-05-19)
+
+Branch `fix/codex-cross-compare-hygiene`. WU-4 from `docs/reviews/feat-semaphore-cross-compare/plan-2026-05-17.md`.
+
+- **New playbook `controller/semaphore/bootstrap_preflight.yml`** — schema-mode (default) + full-mode API contract probe. Imported at the top of `bootstrap.yml` so every bootstrap run fails fast on upstream Semaphore schema drift before mutating state. Skip per-run with `-e skip_preflight=true`.
+  - Schema mode (~2 s): verifies `POST /api/auth/login` sets a session cookie; `GET /api/projects` and `GET /api/users` return arrays with `id` + `name` / `username` fields.
+  - Full mode (~30–60 s): also creates a throwaway `__preflight__` project, walks all 5 project-scoped GETs (`keys` / `repositories` / `inventory` / `environment` / `templates`), mints a throwaway API token via `POST /api/user/tokens`, deletes the throwaway project on exit.
+- **New harness `controller/semaphore/preflight/`** — disposable `compose.yml` (bare Semaphore, isolated host port `3301`) + `run.sh` (clean → up → wait healthy → preflight `mode=full` → teardown).
+- **Make target `test-api-contract`** — wraps `controller/semaphore/preflight/run.sh`. Override the image tag via `SEMAPHORE_IMAGE_TAG=...`. Not part of `make verify` (needs Docker daemon).
+- **CI matrix `api-contract`** — runs full preflight against both the manifest-pinned tag (gating) and `latest` (`continue-on-error: true` — surfaces upstream drift as a warning, not a merge block).
+- **Governance**: `docs/governance/testing-governance.md` §3 decision tree gains rows for `bootstrap.yml` / `bootstrap_preflight.yml` / `config/manifest.yml` Semaphore tag bumps. §4.1 catalogues `make test-api-contract`. §4.2 documents the new CI dependency.
+
 ### Audit-plane engineering robustness (2026-05-18)
 
 Branch `fix/codex-cross-compare-hygiene`. WU-2 from `docs/reviews/feat-semaphore-cross-compare/plan-2026-05-17.md`.

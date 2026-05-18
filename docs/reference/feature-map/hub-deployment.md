@@ -37,6 +37,7 @@ Path A is the production deployment path; Path B is the developer's iteration lo
 - **Inventory integrity**: every group referenced by `[<env>:children]` must be defined in the same inventory source — Ansible 2.20+ rejects forward references silently.
 - **No UI provisioning**: every Semaphore resource (project / template / inventory / user) must come from `bootstrap.yml`. The UI is for inspection and one-off vault key entry only. Full ownership map per resource type: [`docs/governance/iac-vs-ui-boundary.md`](../../governance/iac-vs-ui-boundary.md).
 - **Admin password enforcement on every deploy (post-WU-2)**: the role runs `semaphore user change-by-login` on every `make hub-deploy`, so rotating `vault_semaphore_admin_password` and re-deploying is enough to refresh the admin credential. The previous structure gated user-add inside the first-deploy token-mint block and silently dropped re-deploy rotations.
+- **API contract preflight (post-WU-4)**: [`bootstrap_preflight.yml`](../../../controller/semaphore/bootstrap_preflight.yml) is imported at the top of `bootstrap.yml`. Schema mode (default, ~2 s) verifies auth + top-level GETs return arrays with id/name fields; full mode (`make test-api-contract`, ~30–60 s) walks all 5 project-scoped GETs + token mint on a throwaway project. CI runs the full mode in matrix `[pinned, latest]` (latest is `continue-on-error` — early warning of upstream drift). Skippable per-run with `-e skip_preflight=true`.
 
 ## Deployment paths summary
 
