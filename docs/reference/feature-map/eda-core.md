@@ -28,6 +28,7 @@ A lightweight Event-Driven Ansible (EDA) reaction engine that transforms audit e
 - **Ports + image versions**: `config/manifest.yml` → rendered into `controller/semaphore/.env` by `make manifest-sync`; consumed by both Ansible vars_files and docker compose `${VAR}` interpolation
 - **Hub topology**: `inventory/hosts.ini` `[hub_local]` / `[hub_remote]` / `[hub:children]`
 - **Rules**: `extensions/eda/rules.json`
+- **Rules schema**: `extensions/eda/rules.schema.json` (Draft-07; validated by `make test-rules-schema` — part of `make test-eda` chain)
 - **Event contract**: `extensions/eda/events.schema.json` (Draft-07; reactor logs `event schema: <$id>@<version>` at startup)
 
 ## Test pyramid (TSVS-tracked)

@@ -29,6 +29,27 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branch `feat/vps-manager-plugin`
 
+### Semaphore cross-compare hygiene + OSS key absorption (2026-05-17 → 2026-05-18)
+
+Branch `fix/codex-cross-compare-hygiene`. Bundles WU-1 (hygiene fixes) + WU-3 (OSS key absorption + schema gate + governance doc) from `docs/reviews/feat-semaphore-cross-compare/plan-2026-05-17.md`.
+
+- **Configuration defaults**:
+  - `SEMAPHORE_DB_PATH` removed from `controller/semaphore/docker-compose.yml` — the upstream wrapper treats it as a *directory* and appends `database.sqlite`; pinning it to a file path silently turned the leaf into a directory.
+  - `SEMAPHORE_ACCESS_KEY_ENCRYPTION` / `SEMAPHORE_COOKIE_HASH` / `SEMAPHORE_COOKIE_ENCRYPTION` added to compose `environment:` with empty `${VAR:-}` defaults; `.env.example` documents how to generate (`head -c32 /dev/urandom | base64`). Empty = ephemeral keys at restart (safe for first-run discovery; production needs them persisted).
+- **Security policy (Path A)**: `roles/ansispire_hub` now mints `state/.security_keys` once on first deploy, persists across redeploys, and renders the three envs into `.env`. Deleting `.security_keys` invalidates every stored Semaphore AccessKey and every active session — restore from backup, do not re-mint.
+- **Public interface — EDA rule contract**: new `extensions/eda/rules.schema.json` (JSON Schema Draft-07) covers rule structure (name / cooldown / enabled / condition / actions); validation gated by `make test-rules-schema`, wired into `make test-eda`.
+- **CLI behavior**: `make test-rules-schema` added (inline `jsonschema.validate`; no new script files); included by default in `make test-eda` chain.
+- **Hygiene fixes (WU-1)**:
+  - `controller/audit/reactor.py` `webhook` action implemented (was `pass` no-op); POSTs `{rule_action, event}` JSON to `action.url`.
+  - `roles/ansispire_hub/tasks/main.yml` first-deploy token path now sets `ansispire_hub_eda_token` fact directly from the mint response (previously fell through to a stat-gated slurp that ran before the file existed).
+  - `roles/ansispire_hub/tasks/main.yml` rsync excludes extended with `runtime/` (vps_manager workstation-local artefacts must never leak to the hub).
+- **Documentation**:
+  - `docs/governance/iac-vs-ui-boundary.md` (new) — authoritative ownership map for every Semaphore resource type (project / user / inventory / repo / env / key / template / token / future runner) plus hybrid resource patterns and a decision flowchart.
+  - `docs/reference/feature-map/{eda-core,hub-deployment,INDEX}.md` updated to reflect rules schema + security keys lifecycle + IaC/UI boundary link.
+  - `docs/reference/investigations/IVG-EDA-RULEBOOK-MIGRATION.md` (new, WU-5a) — recommend deferring `ansible-rulebook` adoption; 4 trigger conditions recorded.
+  - `docs/reference/investigations/IVG-EXECUTION-PLANE-RUNNER.md` (new, WU-5b) — recommend deferring OSS Runner abstraction; 5 trigger conditions + 6-Gate landing path drafted; strong coupling to ACCESS_KEY_ENCRYPTION called out.
+- **Dependency**: `jsonschema>=4.0` pinned in `requirements.txt` (was transitively present via molecule plugins; now explicit because the EDA schema gate consumes it directly).
+
 ### VPS Manager plugin MVP (2026-05-14)
 
 - **New plugin**: `plugins/vps_manager/` processes one-shot VPS task YAML from

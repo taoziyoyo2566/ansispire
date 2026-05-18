@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ansispire.local/extensions/eda/rules.schema.json",
+  "version": "1.0.0",
+  "title": "Ansispire EDA Rules (reactor.py rules.json contract)",
+  "description": "Contract for extensions/eda/rules.json — the rule set reactor.py matches against events read from events.jsonl. Sibling: events.schema.json (event payload). Validation entry: make test-rules-schema.",
+  "type": "object",
+  "required": ["rules"],
+  "additionalProperties": false,
+  "properties": {
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/rule" }
+    }
+  },
+  "definitions": {
+    "rule": {
+      "type": "object",
+      "required": ["name", "condition", "actions"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable rule label; also the cooldown bucket key."
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Soft-disable without removing the rule. Defaults to true when omitted."
+        },
+        "_disabled_reason": {
+          "type": "string",
+          "description": "Optional free-text rationale documenting why enabled=false. Conventional but unused by reactor."
+        },
+        "cooldown": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 60,
+          "description": "Suppress duplicate firings within this many seconds. Defaults to 60 in reactor.py."
+        },
+        "condition": { "$ref": "#/definitions/condition" },
+        "actions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/action" }
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          { "type": "number" },
+          { "type": "boolean" }
+        ]
+      },
+      "description": "Matched against payload.event.<key>. A key suffixed '_contains' is matched via substring; bare keys are matched via equality. See controller/audit/reactor.py:match_rule."
+    },
+    "action": {
+      "type": "object",
+      "required": ["type"],
+      "oneOf": [
+        { "$ref": "#/definitions/action_semaphore_api" },
+        { "$ref": "#/definitions/action_webhook" }
+      ]
+    },
+    "action_semaphore_api": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "semaphore_api" },
+        "name": { "type": "string" },
+        "project_id": { "type": "integer" },
+        "project_name": { "type": "string" },
+        "template_id": { "type": "integer" },
+        "template_name": { "type": "string" }
+      },
+      "anyOf": [
+        { "required": ["project_id"] },
+        { "required": ["project_name"] }
+      ],
+      "description": "Trigger a Semaphore template via /api/project/{id}/tasks. Either project_id or project_name must be provided; same for template_id or template_name. Name resolution is cached per (project, template) pair."
+    },
+    "action_webhook": {
+      "type": "object",
+      "required": ["type", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "webhook" },
+        "name": { "type": "string" },
+        "url": {
+          "type": "string",
+          "description": "POST target. Empty string is tolerated by reactor (logs and skips) but the schema flags it as suspect by requiring the field — set explicitly to '' to acknowledge disabled state."
+        }
+      },
+      "description": "POST a JSON body {rule_action, event} to url. See controller/audit/reactor.py:trigger_webhook."
+    }
+  }
+}

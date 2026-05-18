@@ -119,9 +119,10 @@
 
 完整治理见 [`docs/governance/testing-governance.md`](../../governance/testing-governance.md)（含 §9 测试卫生）+ [`docs/governance/test-plan.md`](../../governance/test-plan.md)（surface × quality 矩阵 + 9 G 缺口）。
 
-- **L1–L3（pytest，`controller/audit/test_*.py`）**：28 cases
+- **L1–L3（pytest，`controller/audit/test_*.py`）**：28 cases + 1 schema gate
   - L1 reactor unit 14 / L2 rules contract 9 / L3 reactor component 5
-  - 入口：`make test-eda`（< 1 s）
+  - L1 schema gate `test-rules-schema`：`extensions/eda/rules.json` ↔ `extensions/eda/rules.schema.json`（Draft-07，inline `jsonschema.validate`）
+  - 入口：`make test-eda`（< 1 s）— 已含 schema gate
 - **L4（disposable e2e）**：`controller/audit/e2e/run.sh` 真 docker 栈
   - 入口：`make test-eda-e2e`（~60 s）
 - **L5（Molecule）**：4 场景跨 Ubuntu 22.04 + Debian 12

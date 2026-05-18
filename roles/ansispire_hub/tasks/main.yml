@@ -9,13 +9,18 @@
 # Lifecycle:
 #   1. Ensure /opt/ansispire/  exists       (code mirror)
 #   2. Ensure /var/lib/ansispire/state/     (stateful files preserved
-#                                            across deploys: .eda_token)
+#                                            across deploys: .eda_token,
+#                                            .security_keys)
 #   3. rsync code into the mirror, with a strict exclude list so secrets
 #      and stateful files NEVER leave the workstation
-#   4. Render controller/semaphore/.env    (port + image tag + admin)
-#   5. Start controller/semaphore/docker-compose.yml as-is (no template
+#   4. Mint or reuse Semaphore security keys (state/.security_keys —
+#      ACCESS_KEY_ENCRYPTION + COOKIE_HASH + COOKIE_ENCRYPTION). Must
+#      happen BEFORE the .env render: the template consumes them.
+#   5. Render controller/semaphore/.env    (port + image tag + admin +
+#                                            security keys)
+#   6. Start controller/semaphore/docker-compose.yml as-is (no template
 #      override — the committed compose file is the SSOT)
-#   6. Mint or reuse EDA token from the state dir
+#   7. Mint or reuse EDA token from the state dir
 - name: Hub | Initialize Environment
   block:
     - name: Hub | Ensure code directory
@@ -66,7 +71,68 @@
           - "--exclude=docs/reviews"
           - "--exclude=docs/investigations"
 
-    - name: Hub | Render .env (manifest values + admin)
+    # ── Security keys lifecycle ───────────────────────────────────────
+    # state/.security_keys persists ACCESS_KEY_ENCRYPTION + COOKIE_HASH +
+    # COOKIE_ENCRYPTION across re-deploys. If the file is wiped, every
+    # already-stored Semaphore AccessKey becomes undecryptable and every
+    # active session is invalidated — DO NOT delete .security_keys to
+    # "fix" anything, restore from a backup instead.
+    - name: Hub | Check Security Keys State
+      ansible.builtin.stat:
+        path: "{{ ansispire_hub_state_dir }}/.security_keys"
+      register: ansispire_hub_security_keys_file
+
+    - name: Hub | Generate Security Keys (first-deploy path)
+      when:
+        - not ansispire_hub_security_keys_file.stat.exists
+        - not ansible_check_mode
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: |
+          set -eo pipefail
+          umask 077
+          ake=$(head -c32 /dev/urandom | base64)
+          ch=$(head -c32 /dev/urandom | base64)
+          ce=$(head -c32 /dev/urandom | base64)
+          printf '{"access_key_encryption":"%s","cookie_hash":"%s","cookie_encryption":"%s"}' \
+            "$ake" "$ch" "$ce" \
+            > "{{ ansispire_hub_state_dir }}/.security_keys"
+        creates: "{{ ansispire_hub_state_dir }}/.security_keys"
+
+    - name: Hub | Re-stat Security Keys (post-mint)
+      ansible.builtin.stat:
+        path: "{{ ansispire_hub_state_dir }}/.security_keys"
+      register: ansispire_hub_security_keys_file
+
+    - name: Hub | Load Security Keys
+      ansible.builtin.slurp:
+        src: "{{ ansispire_hub_state_dir }}/.security_keys"
+      register: ansispire_hub_security_keys_raw
+      no_log: true
+      when: ansispire_hub_security_keys_file.stat.exists
+
+    - name: Hub | Set Security Keys Fact
+      ansible.builtin.set_fact:
+        ansispire_hub_security_keys: "{{ ansispire_hub_security_keys_raw.content | b64decode | from_json }}"
+      no_log: true
+      when: ansispire_hub_security_keys_raw.content is defined
+
+    - name: Hub | Set Security Keys Placeholder (check-mode fresh host)
+      # In --check on a fresh host the generate task is skipped and the
+      # slurp has no file to read, so the template would fail with
+      # "ansispire_hub_security_keys is undefined". Stuff a placeholder
+      # so dry-run completes; real deploys never hit this branch.
+      ansible.builtin.set_fact:
+        ansispire_hub_security_keys:
+          access_key_encryption: "__check_mode_placeholder__"
+          cookie_hash: "__check_mode_placeholder__"
+          cookie_encryption: "__check_mode_placeholder__"
+      no_log: true
+      when:
+        - ansible_check_mode
+        - ansispire_hub_security_keys is not defined
+
+    - name: Hub | Render .env (manifest values + admin + security keys)
       ansible.builtin.template:
         src: semaphore_env.j2
         dest: "{{ ansispire_hub_base_dir }}/controller/semaphore/.env"

@@ -42,6 +42,15 @@ services:
       # Timezone
       TZ: "${TZ:-UTC}"
 
+      # Security keys — see .env.example "Security keys" block. Empty
+      # default means "Semaphore mints ephemeral keys each restart":
+      # safe for first-run discovery, but a hub deploy MUST persist them
+      # via .env (Path A: rendered by ansispire_hub role from
+      # state/.security_keys; Path B: user pastes manually).
+      SEMAPHORE_ACCESS_KEY_ENCRYPTION: "${SEMAPHORE_ACCESS_KEY_ENCRYPTION:-}"
+      SEMAPHORE_COOKIE_HASH: "${SEMAPHORE_COOKIE_HASH:-}"
+      SEMAPHORE_COOKIE_ENCRYPTION: "${SEMAPHORE_COOKIE_ENCRYPTION:-}"
+
       # Ansible-related
       ANSIBLE_HOST_KEY_CHECKING: "False"
     volumes:

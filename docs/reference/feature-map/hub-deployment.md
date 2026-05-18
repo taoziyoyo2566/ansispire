@@ -29,11 +29,13 @@ Path A is the production deployment path; Path B is the developer's iteration lo
 ## Engineering mandates
 
 - **All-in-One**: control + audit + reactor co-locate on the same host. (Future: TASK-003 Controller HA.)
-- **State separation**: the `.eda_token` lives at `/var/lib/ansispire/state/.eda_token` on the hub — outside the rsync target dir, so `rsync --delete` cannot wipe it across deploys.
+- **State separation**: stateful files live at `/var/lib/ansispire/state/` on the hub — outside the rsync target dir, so `rsync --delete` cannot wipe them across deploys:
+  - `.eda_token` — Semaphore M2M API token consumed by the reactor.
+  - `.security_keys` — JSON `{access_key_encryption, cookie_hash, cookie_encryption}` minted on first deploy and rendered into `.env`; **deleting it makes every stored Semaphore AccessKey undecryptable and invalidates every active session** — restore from backup, do not re-mint.
 - **Rsync hygiene**: 21 exclude patterns enforced (`roles/ansispire_hub/tasks/main.yml`) across 4 categories: local-artefacts, secrets, stateful files, docs. Verify each `--check` run with `grep -E "\.env|\.secrets|\.demo_|users\.yml|\.eda_token"`.
 - **OS-family gating**: `infra_baseline` accepts Debian/Ubuntu (Tier 1); RHEL/Alpine paths exist as explicit-fail placeholders pending TASK-007 (multi-OS target fleet).
 - **Inventory integrity**: every group referenced by `[<env>:children]` must be defined in the same inventory source — Ansible 2.20+ rejects forward references silently.
-- **No UI provisioning**: every Semaphore resource (project / template / inventory / user) must come from `bootstrap.yml`. The UI is for inspection and one-off vault key entry only.
+- **No UI provisioning**: every Semaphore resource (project / template / inventory / user) must come from `bootstrap.yml`. The UI is for inspection and one-off vault key entry only. Full ownership map per resource type: [`docs/governance/iac-vs-ui-boundary.md`](../../governance/iac-vs-ui-boundary.md).
 
 ## Deployment paths summary
 
