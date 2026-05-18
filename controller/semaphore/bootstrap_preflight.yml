@@ -14,10 +14,15 @@
 #                      runs this gate first. Read-only on Semaphore state.
 #   full             — also creates a throwaway `__preflight__` project,
 #                      walks all project-scoped GETs (keys/repos/inventory/
-#                      environment/templates), mints a throwaway token, and
-#                      deletes the project on exit. Used by
-#                      `make test-api-contract` in CI to detect breaking
+#                      environment/templates), mints a throwaway token. Used
+#                      by `make test-api-contract` in CI to detect breaking
 #                      upstream changes when bumping the Semaphore image tag.
+#                      Full mode does NOT delete the throwaway project at
+#                      end of play — the caller (`make test-api-contract`)
+#                      tears down the whole ephemeral container instead.
+#                      Do not run full mode against a PERSISTENT Semaphore
+#                      unless you are willing to manually delete the
+#                      `__preflight__` project afterwards.
 #
 # Skipping:
 #   `-e skip_preflight=true` ends the play early — used by tests that
@@ -243,17 +248,13 @@
               relay.py / reactor.py Bearer-token auth would break.
               {{ preflight_drift_hint }}
 
-      always:
-        - name: Full | DELETE throwaway project (best-effort cleanup)
-          ansible.builtin.uri:
-            url: "{{ semaphore_url }}/api/project/{{ pre_pid }}"
-            method: DELETE
-            headers:
-              Cookie: "{{ pre_cookie }}"
-            status_code: [200, 204, 404, 405]
-          when: pre_pid is defined
-          failed_when: false
-
+    # NOTE: full mode does NOT clean up the throwaway __preflight__ project
+    # via a DELETE call. The canonical caller is `make test-api-contract`,
+    # which tears down the entire ephemeral container (compose down -v) at
+    # the end of run.sh — sqlite + all projects + tokens vanish together.
+    # Running this playbook in full mode against a PERSISTENT Semaphore
+    # would leave a __preflight__ project behind; that is intentional —
+    # full mode is for the disposable harness only.
     - name: Preflight | Summary
       ansible.builtin.debug:
         msg:
