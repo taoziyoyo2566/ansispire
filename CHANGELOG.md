@@ -29,6 +29,25 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branch `feat/vps-manager-plugin`
 
+### Audit-plane engineering robustness (2026-05-18)
+
+Branch `fix/codex-cross-compare-hygiene`. WU-2 from `docs/reviews/feat-semaphore-cross-compare/plan-2026-05-17.md`.
+
+- **Reactor v2.3 → v2.4** (`controller/audit/reactor.py`):
+  - **Cursor persistence**: byte-offset into `events.jsonl` flushed to `CURSOR_FILE` every `CURSOR_FLUSH_INTERVAL` s (default `5s`). Cold-start resumes from last cursor; missing/oversized cursor falls back to EOF (with explicit log). New compose volume `audit-reactor-state:/var/lib/audit-reactor`.
+  - **Rules mtime cache**: `load_rules` only re-reads when (a) `RULES_PATH` mtime changed AND (b) `RULES_MIN_RELOAD_INTERVAL` (default `30s`) elapsed. Per-tick poll cost drops from "open+parse+json.loads" to a cached stat.
+  - **Outer-loop restart**: fatal exception path no longer recurses into `main()`; uses a flat `while True` wrapper with `FATAL_RESTART_BACKOFF` s sleep. Avoids growing call stack across long-running deployments.
+  - 4 new envs exposed: `CURSOR_FILE` / `CURSOR_FLUSH_INTERVAL` / `RULES_MIN_RELOAD_INTERVAL` / `FATAL_RESTART_BACKOFF` (all with safe defaults).
+- **Audit container images** (`controller/audit/Dockerfile.{sink,reactor}` new; `docker-compose.yml` updated):
+  - `audit-sink` and `audit-reactor` now build locally (`ansispire/audit-{sink,reactor}:${AUDIT_IMAGE_TAG}`); `logrotate` baked into the sink image, `jq` + `procps` baked into the reactor image. Eliminates runtime `apk add` from container `command:`.
+  - Healthchecks added for `audit-relay` (`pidof python3`) and `audit-reactor` (`pgrep -f reactor.py`).
+- **Hub admin password rotation** (`roles/ansispire_hub/tasks/main.yml`): `semaphore user change-by-login` now runs on **every** deploy, not just the first-deploy token mint. Rotating `vault_semaphore_admin_password` in vault.yml and re-deploying now actually lands the new password.
+- **CLI behavior**: `make test-rules-schema` was already in `make test-eda` (from WU-3); reactor v2.4 introduces no new Make targets but extends `make test-eda` coverage transparently via existing component tests.
+- **Bootstrap workspace branch**: `controller/semaphore/bootstrap.yml` `git_branch` is now overridable (`semaphore_workspace_git_branch`); defaults to `dev` to match the dev-trunk model. Previously hard-pinned to `master`, which was wrong during the dev-trunk phase.
+- **Documentation**:
+  - `controller/semaphore/README.md` updated for SQLite default + port 3300 + manifest SSOT + Path A vs Path B password rotation guidance.
+  - `docs/reference/feature-map/{audit-plane,eda-core,hub-deployment}.md` updated to reflect v2.4 reactor semantics + new Dockerfiles + admin password enforcement.
+
 ### Semaphore cross-compare hygiene + OSS key absorption (2026-05-17 → 2026-05-18)
 
 Branch `fix/codex-cross-compare-hygiene`. Bundles WU-1 (hygiene fixes) + WU-3 (OSS key absorption + schema gate + governance doc) from `docs/reviews/feat-semaphore-cross-compare/plan-2026-05-17.md`.

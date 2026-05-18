@@ -23,6 +23,9 @@ A lightweight Event-Driven Ansible (EDA) reaction engine that transforms audit e
 - **No suffix**: exact-equality match
 - **`enabled: false`**: rule short-circuits in `match_rule` early-return; preserved in file for documentation
 - **Cooldown**: per-rule timestamp prevents event-storm cascades (default 600 s)
+- **Cursor persistence (v2.4+)**: byte-offset into `events.jsonl` flushed to `CURSOR_FILE` every `CURSOR_FLUSH_INTERVAL` s (default 5 s). Restart resumes from last flushed offset; cold start with no cursor or with cursor > file size (truncation) seeks to EOF.
+- **Rules cache (v2.4+)**: `load_rules` only re-reads when both (a) `RULES_PATH` mtime changes AND (b) `RULES_MIN_RELOAD_INTERVAL` (default 30 s) elapsed. The poll loop calls it every tick but the disk hit is rate-limited.
+- **Fatal-restart loop (v2.4+)**: outer `while True` wrapper around `run_tail_loop`; on any exception logs `type+message` and sleeps `FATAL_RESTART_BACKOFF` s (default 5 s). No recursion → flat stack.
 
 ## Configuration SSOT
 - **Ports + image versions**: `config/manifest.yml` → rendered into `controller/semaphore/.env` by `make manifest-sync`; consumed by both Ansible vars_files and docker compose `${VAR}` interpolation

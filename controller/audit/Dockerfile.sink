@@ -1,0 +1,28 @@
+# controller/audit/Dockerfile.sink — local build for audit-sink.
+#
+# Why a local image instead of `python:3.12-alpine` + runtime `apk add`:
+# the old compose `command:` started with `apk add --no-cache logrotate`,
+# which (a) re-runs the package install every container start (slow on
+# cold-cache hosts), (b) silently fails if Alpine's CDN is unreachable,
+# and (c) makes the runtime image differ from the pinned base image. By
+# baking logrotate into the image we get reproducible startup + no
+# network dependency at boot.
+#
+# wget is already present in the alpine base, so the healthcheck
+# (in docker-compose.yml) needs no extra install.
+
+# checkov:skip=CKV_DOCKER_2: HEALTHCHECK lives in docker-compose.yml — the
+# deployment surface owns probe semantics, not the image.
+FROM python:3.12-alpine
+
+RUN apk add --no-cache logrotate
+
+WORKDIR /app
+COPY sink.py /app/sink.py
+COPY logrotate.conf /etc/logrotate.d/audit
+
+ENV PYTHONUNBUFFERED=1
+
+# Run logrotate once an hour in a background loop, then exec the sink
+# in the foreground so docker stays attached to the actual workload.
+CMD ["sh", "-c", "( while true; do sleep 3600; logrotate -s /tmp/logrotate.state /etc/logrotate.d/audit; done ) & exec python3 /app/sink.py"]

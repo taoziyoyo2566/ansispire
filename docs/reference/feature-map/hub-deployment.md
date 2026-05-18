@@ -36,6 +36,7 @@ Path A is the production deployment path; Path B is the developer's iteration lo
 - **OS-family gating**: `infra_baseline` accepts Debian/Ubuntu (Tier 1); RHEL/Alpine paths exist as explicit-fail placeholders pending TASK-007 (multi-OS target fleet).
 - **Inventory integrity**: every group referenced by `[<env>:children]` must be defined in the same inventory source — Ansible 2.20+ rejects forward references silently.
 - **No UI provisioning**: every Semaphore resource (project / template / inventory / user) must come from `bootstrap.yml`. The UI is for inspection and one-off vault key entry only. Full ownership map per resource type: [`docs/governance/iac-vs-ui-boundary.md`](../../governance/iac-vs-ui-boundary.md).
+- **Admin password enforcement on every deploy (post-WU-2)**: the role runs `semaphore user change-by-login` on every `make hub-deploy`, so rotating `vault_semaphore_admin_password` and re-deploying is enough to refresh the admin credential. The previous structure gated user-add inside the first-deploy token-mint block and silently dropped re-deploy rotations.
 
 ## Deployment paths summary
 

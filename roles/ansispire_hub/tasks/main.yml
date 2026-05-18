@@ -154,7 +154,37 @@
     path: "{{ ansispire_hub_state_dir }}/.eda_token"
   register: ansispire_hub_token_file
 
-- name: Hub | Provision Admin & Token
+# Admin user management runs on EVERY deploy (not just first), so that
+# a vault.yml password rotation actually lands on the running Semaphore
+# instance. The previous structure gated `user add` inside the token-
+# mint block, so re-deploys never refreshed the admin password — vault
+# rotated, hub kept the original.
+- name: Hub | Enforce Admin User & Password
+  when: not ansible_check_mode
+  block:
+    - name: CLI | Ensure admin user exists (idempotent add)
+      ansible.builtin.command:
+        cmd: >-
+          docker exec ansispire-semaphore semaphore user add
+          --admin --login "{{ ansispire_hub_admin_user }}"
+          --name "Admin" --email "{{ ansispire_hub_admin_email }}"
+          --password "{{ ansispire_hub_admin_password }}"
+      register: ansispire_hub_seed_out
+      no_log: true
+      failed_when: "ansispire_hub_seed_out.rc != 0 and 'UNIQUE' not in ansispire_hub_seed_out.stderr and 'exists' not in ansispire_hub_seed_out.stderr"
+      changed_when: "'created' in ansispire_hub_seed_out.stdout"
+
+    - name: CLI | Enforce admin password (idempotent change-by-login)
+      ansible.builtin.command:
+        cmd: >-
+          docker exec ansispire-semaphore semaphore user change-by-login
+          --login "{{ ansispire_hub_admin_user }}"
+          --password "{{ ansispire_hub_admin_password }}"
+      register: ansispire_hub_pw_out
+      no_log: true
+      changed_when: ansispire_hub_pw_out.rc == 0
+
+- name: Hub | Provision Token
   # Skip in --check mode: API tasks below cannot actually call the live
   # Semaphore HTTP API in check mode, so cookies_string would be undefined
   # on a fresh host that has no token yet. Real runs (not check) mint
@@ -163,17 +193,6 @@
     - not ansispire_hub_token_file.stat.exists
     - not ansible_check_mode
   block:
-    - name: API | Seed Admin
-      ansible.builtin.command:
-        cmd: >-
-          docker exec ansispire-semaphore semaphore user add
-          --admin --login "{{ ansispire_hub_admin_user }}"
-          --name "Admin" --email "{{ ansispire_hub_admin_email }}"
-          --password "{{ ansispire_hub_admin_password }}"
-      register: ansispire_hub_seed_out
-      failed_when: "ansispire_hub_seed_out.rc != 0 and 'UNIQUE' not in ansispire_hub_seed_out.stderr and 'exists' not in ansispire_hub_seed_out.stderr"
-      changed_when: "'created' in ansispire_hub_seed_out.stdout"
-
     - name: API | Login
       ansible.builtin.uri:
         url: "http://localhost:{{ ansispire_hub_port }}/api/auth/login"
@@ -182,6 +201,7 @@
         body_format: json
         status_code: [200, 204]
       register: ansispire_hub_login_out
+      no_log: true
 
     - name: API | Create Token
       ansible.builtin.uri:
@@ -190,6 +210,7 @@
         headers: { Cookie: "{{ ansispire_hub_login_out.cookies_string }}" }
         status_code: [200, 201]
       register: ansispire_hub_token_out
+      no_log: true
 
     - name: API | Save Token to State Dir
       ansible.builtin.copy:
