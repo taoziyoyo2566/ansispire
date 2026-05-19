@@ -29,6 +29,12 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branch `feat/vps-manager-plugin`
 
+### Hub role: rsync preflight UX (2026-05-19, Round 7)
+
+Branch `fix/codex-cross-compare-hygiene`. Engineering improvement (not a correctness fix) for the `ansispire_hub` role.
+
+- **Preflight added** (`roles/ansispire_hub/tasks/main.yml`): 4 tasks inserted between "Ensure state directory" and "Hub | Sync Code" — `rsync --version` probes on both the Ansible controller (`delegate_to: localhost`) and the target host, each gated by an `assert` task with an install-hint `fail_msg`. Replaces `ansible.posix.synchronize`'s opaque failure modes (`rsync error code 12` on remote, generic "command not found" on controller) with an actionable message before any mutating step. Probe uses `command: rsync --version` rather than path-stat so macOS Homebrew, Alpine, and Debian all work without hard-coded paths.
+
 ### Cross-pollination from fix/ansible-docs-review-remediation (2026-05-19, Round 8)
 
 Branch `fix/codex-cross-compare-hygiene`. Codex's second-pass review against the Round 6 HEAD surfaced 4 new defects; each was independently reproduced before acceptance (per W-R13). Two of the defects are runtime correctness issues (data loss + tag-name conflation), two are documentation accuracy:

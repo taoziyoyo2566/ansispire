@@ -35,6 +35,65 @@
         state: directory
         mode: '0700'
 
+    # ── rsync preflight (Round 7) ─────────────────────────────────────
+    # ansible.posix.synchronize's failure surface when rsync is absent is
+    # opaque (controller side: generic Ansible "command not found"; remote
+    # side: `rsync error: protocol data stream (code 12)`). Probe both
+    # sides explicitly so an operator gets an actionable install hint
+    # before the first mutating step.
+    #
+    # `rsync --version` is the canonical probe — it actually invokes the
+    # binary (so PATH layout / non-FHS installs are handled) and a missing
+    # binary surfaces as `Could not find the requested executable` on
+    # both Debian/Ubuntu (`/usr/bin/rsync`), Alpine (`/usr/bin/rsync`),
+    # and macOS Homebrew (`/usr/local/bin/rsync` or `/opt/homebrew/...`)
+    # without hard-coding any one path.
+    - name: Hub | Preflight - rsync available on controller  # noqa: command-instead-of-module
+      # We deliberately use `command` (not `ansible.posix.synchronize`)
+      # because the whole point of this preflight is to check that the
+      # rsync binary exists BEFORE the synchronize task that depends on it.
+      ansible.builtin.command:
+        cmd: rsync --version
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      check_mode: false
+      register: ansispire_hub_local_rsync_probe
+      failed_when: false
+
+    - name: Hub | Preflight - assert rsync on controller
+      ansible.builtin.assert:
+        that:
+          - ansispire_hub_local_rsync_probe.rc == 0
+        fail_msg: >-
+          ansible.posix.synchronize requires rsync on the Ansible controller
+          (localhost) and it is not installed. Install one of:
+          `apt install rsync` (Debian/Ubuntu) /
+          `brew install rsync` (macOS) /
+          `apk add rsync` (Alpine).
+        quiet: true
+
+    - name: Hub | Preflight - rsync available on target  # noqa: command-instead-of-module
+      # See controller-side preflight above for why `command` is correct here.
+      ansible.builtin.command:
+        cmd: rsync --version
+      changed_when: false
+      check_mode: false
+      register: ansispire_hub_remote_rsync_probe
+      failed_when: false
+
+    - name: Hub | Preflight - assert rsync on target
+      ansible.builtin.assert:
+        that:
+          - ansispire_hub_remote_rsync_probe.rc == 0
+        fail_msg: >-
+          ansible.posix.synchronize requires rsync on {{ inventory_hostname }}
+          and it is not installed. Run `make hub-baseline HUB_NODE={{ inventory_hostname }}`
+          first (the infra_baseline role installs rsync via the OS package
+          manager) or install manually: `apt install rsync` (Debian) /
+          `dnf install rsync` (RHEL) / `apk add rsync` (Alpine).
+        quiet: true
+
     - name: Hub | Sync Code
       ansible.posix.synchronize:
         src: "{{ playbook_dir }}/../"
