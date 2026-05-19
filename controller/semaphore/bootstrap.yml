@@ -562,6 +562,42 @@
          | rejectattr('status', 'in', [201, 204])
          | list | length) > 0
 
+    # ═══════════════════════════════════════════════════════════════════
+    # TASK-007 — Multi-OS target fleet: one-click "Ping all targets"
+    # operator template, used to verify managed VPS reachability from
+    # the hub without applying any role.
+    # ═══════════════════════════════════════════════════════════════════
+
+    - name: Register "Ping all targets" template (TASK-007, idempotent)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          project_id: "{{ project_id | int }}"
+          inventory_id: "{{ inventory_id | int }}"
+          repository_id: "{{ repo_id | int }}"
+          environment_id: "{{ environment_id | int }}"
+          name: "Ping all targets"
+          playbook: "playbooks/ping_targets.yml"
+          description: >-
+            TASK-007 — connectivity probe across [targets:children]. Returns
+            "pong" plus OS/Docker summary per host. Read-only; safe to run
+            anytime. Requires hub-side SSH key authorized on each target
+            (set up out-of-band before first run).
+          arguments: "[]"
+          allow_override_args_in_task: false
+          app: "ansible"
+        status_code: [201, 204, 400]
+      when: (tpl_list.json | selectattr('name', 'equalto', 'Ping all targets') | list | length) == 0
+      register: ping_targets_tpl_create
+      failed_when: >
+        ping_targets_tpl_create.status is defined
+        and ping_targets_tpl_create.status not in [201, 204]
+        and 'already exists' not in (ping_targets_tpl_create.content | default(''))
+
     - name: Bootstrap complete
       ansible.builtin.debug:
         msg:
@@ -584,3 +620,8 @@
           - "Templates:  Auto Remediation: Disk Cleanup, Auto Remediation: DB Failover"
           - "Restart audit stack to pick up new token:"
           - "  make controller-audit-down && make controller-audit-up"
+          - ""
+          - "── TASK-007 multi-OS targets ─────────────────────"
+          - "Template:   'Ping all targets' (playbooks/ping_targets.yml)"
+          - "Inventory groups: targets_debian, targets_rhel (targets_alpine empty — TASK-007.B)"
+          - "CLI: make target-deploy TARGET_NODE=debian|rhel|all|<alias> [ANSIBLE_USER=root]"

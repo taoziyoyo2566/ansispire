@@ -215,6 +215,49 @@ hub-deploy-check: ## Dry-run hub deploy (--check --diff; same HUB_NODE= selectio
 	@test -f $(VAULT_PASSWORD_FILE) || { echo "Missing $(VAULT_PASSWORD_FILE); create it (chmod 600) or pass VAULT_PASSWORD_FILE=..."; exit 1; }
 	$(HUB_ANSIBLE) --check --diff
 
+# ── Target deploy — apply infra_baseline to managed VPS (TASK-007). ───────────
+#   make target-deploy TARGET_NODE=debian          → --limit targets_debian
+#   make target-deploy TARGET_NODE=rhel            → --limit targets_rhel
+#   make target-deploy TARGET_NODE=all             → no --limit (entire targets group)
+#   make target-deploy TARGET_NODE=rocky9          → --limit rocky9 (single alias)
+#   make target-deploy TARGET_NODE=rocky9 ANSIBLE_USER=root   → fresh-host bootstrap
+#                                                              before role creates
+#                                                              the `ansible` user
+
+TARGET_INVENTORY := inventory/hosts.ini
+TARGET_PLAYBOOK  := playbooks/deploy_target.yml
+TARGET_NODE      ?= all
+ANSIBLE_USER     ?=
+
+ifeq ($(TARGET_NODE),debian)
+  TARGET_LIMIT := --limit targets_debian
+else ifeq ($(TARGET_NODE),rhel)
+  TARGET_LIMIT := --limit targets_rhel
+else ifeq ($(TARGET_NODE),all)
+  TARGET_LIMIT :=
+else
+  # Treat anything else as a single-host alias; ansible will fail clearly
+  # if the alias doesn't exist in inventory.
+  TARGET_LIMIT := --limit $(TARGET_NODE)
+endif
+
+ifneq ($(ANSIBLE_USER),)
+  TARGET_USER_OVERRIDE := -e ansible_user=$(ANSIBLE_USER)
+else
+  TARGET_USER_OVERRIDE :=
+endif
+
+TARGET_ANSIBLE := $(BIN)ansible-playbook $(TARGET_PLAYBOOK) -i $(TARGET_INVENTORY) $(TARGET_LIMIT) $(TARGET_USER_OVERRIDE)
+
+target-deploy: ## Apply infra_baseline to managed targets (TARGET_NODE=debian|rhel|all|<alias>; ANSIBLE_USER=root for fresh-host bootstrap)
+	$(TARGET_ANSIBLE) --diff
+
+target-deploy-check: ## Dry-run target deploy (--check --diff; same TARGET_NODE= + ANSIBLE_USER= selection)
+	$(TARGET_ANSIBLE) --check --diff
+
+target-ping: ## Quick connectivity check to all managed targets (no role applied)
+	$(BIN)ansible-playbook playbooks/ping_targets.yml -i $(TARGET_INVENTORY)
+
 deploy-dev-check: ## Dry-run Dev deploy (--check --diff)
 	$(BIN)ansible-playbook playbooks/site.yml -i inventory/dev --check --diff
 
