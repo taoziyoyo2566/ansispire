@@ -48,9 +48,21 @@
   ansible.builtin.debug:
     msg: >-
       Fresh RHEL host detected in --check mode. python3.11 not installed yet;
-      pivot + re-gather facts SKIPPED. Subsequent docker tasks will preview
-      against the OS-default python3 (3.9). Real run will install python3.11
-      first and proceed normally.
+      pivot + re-gather facts + subsequent docker/SELinux tasks all SKIPPED
+      because Ansible cannot accurately preview them without the actual
+      python3.11 binary + docker-ce repo present. Real run will install
+      python3.11 first and proceed normally. Ending play for this host now.
+  when:
+    - ansible_check_mode
+    - not infra_baseline_rhel_py311_stat.stat.exists
+
+# Without end_host, subsequent dnf docker-ce install in --check would error
+# ("package not found in any repository"), and main.yml's Python assert
+# would still see python_version=3.9 → also fail. end_host terminates the
+# play cleanly for THIS host only; other hosts (e.g. Debian targets in
+# the same run) continue normally.
+- name: Baseline | (RHEL) End host preview — fresh + check mode cannot continue
+  ansible.builtin.meta: end_host
   when:
     - ansible_check_mode
     - not infra_baseline_rhel_py311_stat.stat.exists
@@ -79,6 +91,7 @@
   ansible.builtin.command: getenforce
   register: infra_baseline_rhel_selinux_mode
   changed_when: false
+  check_mode: false  # getenforce is read-only; safe in --check + needed so subsequent SELinux when: conditions can evaluate the register
 
 # Include Permissive: persistent SELinux booleans are stored regardless of
 # enforcement mode and take effect when enforcement kicks in. Setting it
