@@ -1,6 +1,6 @@
-# .gitguardian.yaml — local config for `ggshield secret scan` and the
-# GitHub GitGuardian CI integration. Allowlist is curated; every entry
-# must justify itself with a one-line rationale.
+# .gitguardian.yaml — local config for `ggshield secret scan`. Dashboard
+# / GitHub check-run incidents are resolved in GitGuardian, not synced from
+# this local allowlist. Every entry must justify itself with a one-line rationale.
 #
 # https://docs.gitguardian.com/ggshield-docs/reference/
 ---
@@ -50,12 +50,6 @@ secret:
     # inventory/local/vault.yml is git-ignored.
     - name: "Vault example placeholder"
       match: "YourStrongPasswordHere"
-
-    # CI vault password (intentionally weak — only used to decrypt the
-    # placeholder vault.yml.example values for lint / syntax-check; never
-    # touches a real environment).
-    - name: "CI vault password (lint-only)"
-      match: "ci-test-password"
 
     # Historical changelog snippet (already redacted in-place to
     # <REDACTED-EXAMPLE-TOKEN>; entry kept as a tripwire in case the

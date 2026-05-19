@@ -34,7 +34,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: echo "ci-test-password" > .vault_pass
+      - name: Create disposable vault password file
+        run: |
+          umask 077
+          python -c 'import secrets; print(secrets.token_urlsafe(32))' > .vault_pass
       - run: pip install -r requirements.txt
       - run: ansible-galaxy collection install -r requirements.yml
       - run: ansible-lint --profile production
@@ -49,7 +52,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: echo "ci-test-password" > .vault_pass
+      - name: Create disposable vault password file
+        run: |
+          umask 077
+          python -c 'import secrets; print(secrets.token_urlsafe(32))' > .vault_pass
       - run: pip install -r requirements.txt
       - run: |
           ansible-galaxy role install -r requirements.yml
@@ -69,7 +75,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: echo "ci-test-password" > .vault_pass
+      - name: Create disposable vault password file
+        run: |
+          umask 077
+          python -c 'import secrets; print(secrets.token_urlsafe(32))' > .vault_pass
       - run: pip install -r requirements.txt
       - run: |
           ansible-galaxy role install -r requirements.yml
@@ -120,7 +129,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: echo "ci-test-password" > .vault_pass
+      - name: Create disposable vault password file
+        run: |
+          umask 077
+          python -c 'import secrets; print(secrets.token_urlsafe(32))' > .vault_pass
       - run: pip install -r requirements.txt docker
       - run: |
           ansible-galaxy role install -r requirements.yml
@@ -162,7 +174,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: echo "ci-test-password" > .vault_pass
+      - name: Create disposable vault password file
+        run: |
+          umask 077
+          python -c 'import secrets; print(secrets.token_urlsafe(32))' > .vault_pass
       - run: python -m venv .venv
       - run: .venv/bin/pip install -r requirements.txt
       - name: Resolve SEMAPHORE_IMAGE_TAG
