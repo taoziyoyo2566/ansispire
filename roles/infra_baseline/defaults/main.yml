@@ -15,3 +15,8 @@ infra_baseline_docker_gpg_url: "{{ infra_baseline_docker_repo_url }}/gpg"
 # Management User (Evolution toward non-root)
 infra_baseline_mgr_user: ansible
 infra_baseline_mgr_shell: /bin/bash
+# Admin group used for sudo membership. Debian default (sudo) is overridden
+# to `wheel` in vars/RedHat.yml. NOPASSWD is granted via /etc/sudoers.d/<user>
+# regardless of group; the group membership is for general "is this a sudoer"
+# discovery (e.g. `id ansible` listing).
+infra_baseline_mgr_admin_group: sudo

@@ -1,0 +1,80 @@
+# roles/infra_baseline/tasks/redhat.yml
+#
+# RHEL-family (Rocky / AlmaLinux / RHEL 9+) baseline. Called from main.yml
+# via `include_tasks: redhat.yml` when ansible_facts['os_family'] == 'RedHat'.
+#
+# Sequence rationale (plan §3 D8):
+# 1. RHEL 9 ships /usr/bin/python3 = 3.9 — below infra_baseline_python_min_version.
+#    First task installs python3.11 using the only Python that exists (3.9 is
+#    enough for the dnf module to run).
+# 2. Pivot ansible_python_interpreter to 3.11 for the rest of the play; re-run
+#    setup so the family-agnostic Python-version assert at the end of main.yml
+#    sees the new interpreter's version.
+# 3. dnf-plugins-core provides `config-manager`. The Docker CE .repo file is
+#    pulled directly from Docker's vendor URL (pins gpgkey etc. cleanly).
+# 4. SELinux: docker daemon binding cgroup sockets needs container_manage_cgroup
+#    boolean true under enforcing mode. seboolean module is the idiomatic way;
+#    its libselinux binding lives in the system Python (3.9), so we keep
+#    /usr/bin/python3 as the interpreter for that ONE task via `vars:` override.
+# 5. systemd start + enable.
+---
+- name: Baseline | (RHEL) Load family-specific vars
+  ansible.builtin.include_vars: RedHat.yml
+
+- name: Baseline | (RHEL) Install Python (project min 3.10; OS default 3.9) — pkg {{ infra_baseline_rhel_python_pkg }}
+  ansible.builtin.dnf:
+    name: "{{ infra_baseline_rhel_python_pkg }}"
+    state: present
+
+- name: Baseline | (RHEL) Pivot ansible_python_interpreter to {{ infra_baseline_rhel_python_interpreter }}
+  ansible.builtin.set_fact:
+    ansible_python_interpreter: "{{ infra_baseline_rhel_python_interpreter }}"
+
+- name: Baseline | (RHEL) Re-gather facts with new interpreter
+  ansible.builtin.setup:
+
+- name: Baseline | (RHEL) Install dnf-plugins-core (provides config-manager)
+  ansible.builtin.dnf:
+    name: dnf-plugins-core
+    state: present
+
+- name: Baseline | (RHEL) Add Docker CE repository
+  ansible.builtin.command:
+    cmd: "dnf config-manager --add-repo {{ infra_baseline_dnf_docker_repo }}"
+    creates: /etc/yum.repos.d/docker-ce.repo
+
+- name: Baseline | (RHEL) Install Docker and Compose plugin
+  ansible.builtin.dnf:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+
+- name: Baseline | (RHEL) Detect SELinux enforcing mode
+  ansible.builtin.command: getenforce
+  register: infra_baseline_rhel_selinux_mode
+  changed_when: false
+
+- name: Baseline | (RHEL) Ensure python3-libselinux (required by ansible.posix.seboolean)
+  ansible.builtin.dnf:
+    name: python3-libselinux
+    state: present
+  when: infra_baseline_rhel_selinux_mode.stdout == 'Enforcing'
+
+- name: Baseline | (RHEL) Allow Docker to manage cgroup under SELinux
+  ansible.posix.seboolean:
+    name: container_manage_cgroup
+    state: true
+    persistent: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  when: infra_baseline_rhel_selinux_mode.stdout == 'Enforcing'
+
+- name: Baseline | (RHEL) Ensure Docker service is running and enabled
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+    enabled: true

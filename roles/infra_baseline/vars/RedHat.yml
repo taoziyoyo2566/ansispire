@@ -1,0 +1,17 @@
+# roles/infra_baseline/vars/RedHat.yml
+# Per-family overrides for RHEL-family targets (Rocky / AlmaLinux / RHEL 9+).
+# Loaded explicitly via `include_vars` at the top of tasks/redhat.yml — Ansible
+# does NOT auto-load vars/<os_family>.yml for roles.
+---
+# Docker CE vendor-recommended repo for RHEL 9.
+# https://docs.docker.com/engine/install/rhel/
+infra_baseline_dnf_docker_repo: "https://download.docker.com/linux/rhel/docker-ce.repo"
+
+# Python 3.11 satisfies infra_baseline_python_min_version (3.10) and is the
+# highest stable Python in RHEL 9 AppStream as of 2026-05. RHEL 9's default
+# /usr/bin/python3 is 3.9 (below the project floor) — see plan §3 D8.
+infra_baseline_rhel_python_pkg: python3.11
+infra_baseline_rhel_python_interpreter: /usr/bin/python3.11
+
+# RHEL admin group is `wheel`, not `sudo` — overrides defaults/main.yml.
+infra_baseline_mgr_admin_group: wheel
