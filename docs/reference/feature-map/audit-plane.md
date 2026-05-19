@@ -9,9 +9,9 @@ The Audit Plane ensures a tamper-proof, reliable trace of all management actions
 ## 组件 (per hub host)
 - **`sink.py`** — Python 轻量 HTTP 接收器，append-only 写入 JSONL（host 端口 3330）。容器从 `Dockerfile.sink` 本地构建，logrotate 烘焙入镜像（不再 runtime `apk add`）
 - **`relay.py`** — Python，cursor 分页拉 Semaphore tasks → POST 到 sink；含 60 s heartbeat；compose 健康检查通过 `pidof python3`
-- **`reactor.py` (v2.5)** — 见 [`eda-core.md`](./eda-core.md)。容器从 `Dockerfile.reactor` 本地构建（baked-in jq + procps）；cursor 状态持久化到 `audit-reactor-state:/var/lib/audit-reactor/cursor`；compose 健康检查通过 `tr '\0' ' ' </proc/1/cmdline | grep -q '/app/reactor.py'` 读 PID 1 实际 argv（v2.4 用的 `pgrep -f reactor.py` 在某些实现下会自匹配 grep 自己 argv 里的 reactor.py 字符串，reactor 死了也返回 healthy）；v2.5 同时修了 v2.4 的 copytruncate 数据丢失 bug —— startup + per-tick 都改 `seek(0)` 不再 `seek(EOF)`，logrotate 触发后能正确消费 post-rotate 事件
+- **`reactor.py` (v2.6)** — 见 [`eda-core.md`](./eda-core.md)。容器从 `Dockerfile.reactor` 本地构建（baked-in jq + procps）；cursor 状态持久化到 `audit-reactor-state:/var/lib/audit-reactor/cursor`；compose 健康检查通过 `tr '\0' ' ' </proc/1/cmdline | grep -q '/app/reactor.py'` 读 PID 1 实际 argv。v2.5 修了 v2.4 的 copytruncate 数据丢失（seek 0 而非 EOF）；v2.6 进一步修了两个 follow-up：(a) `load_cursor()` 用 `Optional[int]` 区分「cursor 文件不存在」(None → seek EOF) 和「cursor 文件存在且值为 0」(int 0 → seek 0)，避免在 `save_cursor(0)` 写完后崩溃重启时再次跳到 EOF 丢光 post-rotate；(b) `process_event` 在 per-rule 循环头加 `isinstance(rule, dict)` 守卫，handle 非 dict 规则条目 (`rules: ["bad", {...}]`) 不再让 tail loop 崩
 
-容器命名：`ansispire-audit-{sink,relay,reactor}`（dev stack）/ `ansispire-audit-*-e2e`（disposable e2e 隔离命名）。镜像 tag：`ansispire/audit-{sink,reactor}:${AUDIT_IMAGE_TAG}`（本地 build；relay 仍直接用 `python:3.12-alpine` 因为 relay.py 是稳定脚本无需烘焙）。
+容器命名：`ansispire-audit-{sink,relay,reactor}`（dev stack）/ `ansispire-audit-*-e2e`（disposable e2e 隔离命名）。镜像 tag 语义（Round 8 拆开）：`AUDIT_IMAGE_TAG` 仅用于我们烘焙的 `ansispire/audit-{sink,reactor}` 镜像；`AUDIT_PYTHON_BASE_TAG` 用于 audit-relay 直接消费的 `python:VERSION` 基础镜像（以及 e2e 栈三个 python 服务）。两者 default 都是 `3.12-alpine`，将来发版时可独立 bump。
 
 ## Key Triggers
 - Any action in the Semaphore API (login, project update, key creation)

@@ -144,6 +144,20 @@ class TestProcessEvent(unittest.TestCase):
         # Good rule still fired despite bad_rule blowing up.
         mock_trigger.assert_called_once()
 
+    @patch("reactor.trigger_semaphore_task")
+    def test_non_dict_rule_isolated(self, mock_trigger):
+        """v2.6 regression: a non-dict entry in rules (e.g., hand-edited
+        rules.json with `"rules": ["bad", {...}]`) must not crash the loop.
+        v2.5 except-block called `rule.get(...)` on the non-dict and re-raised
+        AttributeError; v2.6 guards with isinstance() at the loop head."""
+        good_rule = {
+            "name": "good", "condition": {"type": "go"}, "cooldown": 60,
+            "actions": [{"type": "semaphore_api", "template_id": 99}],
+        }
+        # No exception: the string is skipped, the good dict-rule still fires.
+        reactor.process_event(json.dumps(_ev(type="go")), ["not-a-dict", good_rule])
+        mock_trigger.assert_called_once()
+
 
 class TestTruncationHandling(unittest.TestCase):
     """Regression coverage for the v2.5 copytruncate fix.
@@ -237,6 +251,88 @@ class TestTruncationHandling(unittest.TestCase):
             self.assertLessEqual(new_offset, post_size,
                 f"cursor stayed at {new_offset} (post-truncate file is "
                 f"{post_size} bytes) — truncation NOT detected. "
+                f"reactor stderr: {out.decode(errors='replace')[-500:]}")
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_cursor_zero_means_seek_to_start_not_eof(self):
+        """v2.6 regression: cursor file present with value '0' is the
+        post-truncate marker (we crashed/restarted right after writing the
+        marker). Reactor MUST seek to offset 0, not EOF — otherwise every
+        event in the post-rotate file is silently dropped.
+
+        v2.5 collapsed "cursor missing" and "cursor = 0" into the same
+        seek(EOF) branch; v2.6 splits them via Optional[int]."""
+        import subprocess
+        import tempfile
+
+        tmp = tempfile.mkdtemp()
+        try:
+            jsonl = os.path.join(tmp, "events.jsonl")
+            rules = os.path.join(tmp, "rules.json")
+            schema = os.path.join(tmp, "events.schema.json")
+            cursor = os.path.join(tmp, "cursor")
+
+            # Pre-populate the jsonl with two events as if they were the
+            # post-rotate content the previous reactor instance had not yet
+            # consumed when it died right after save_cursor(0).
+            with open(jsonl, "w") as f:
+                f.write('{"payload":{"event":{"type":"post_rotate_1"}}}\n')
+                f.write('{"payload":{"event":{"type":"post_rotate_2"}}}\n')
+            post_size = os.path.getsize(jsonl)
+            self.assertGreater(post_size, 0)
+
+            # Plant the "we just wrote post-truncate marker" state.
+            with open(cursor, "w") as f:
+                f.write("0")
+
+            with open(rules, "w") as f:
+                json.dump({"rules": []}, f)
+            with open(schema, "w") as f:
+                json.dump({"$id": "test", "version": "1"}, f)
+
+            env = {
+                **os.environ,
+                "JSONL_PATH": jsonl,
+                "RULES_PATH": rules,
+                "EVENTS_SCHEMA_PATH": schema,
+                "CURSOR_FILE": cursor,
+                "POLL_INTERVAL": "0.1",
+                "CURSOR_FLUSH_INTERVAL": "0.1",
+                "SEMAPHORE_API_TOKEN": "",
+            }
+            reactor_path = os.path.join(os.path.dirname(__file__), "reactor.py")
+            proc = subprocess.Popen(
+                [sys.executable, reactor_path],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            try:
+                import time as _time
+                _time.sleep(1.2)
+            finally:
+                proc.terminate()
+                try:
+                    out, _ = proc.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    out, _ = proc.communicate()
+
+            # The cursor must be advanced PAST 0 — proof that the reactor
+            # consumed (not skipped) the two pre-existing events instead of
+            # collapsing into seek(EOF) and parking the cursor at post_size
+            # without ever reading. Equivalently: cursor > 0 AND ≤ post_size.
+            self.assertTrue(os.path.exists(cursor), "cursor file should exist")
+            with open(cursor) as f:
+                new_offset = int(f.read().strip())
+            self.assertGreater(new_offset, 0,
+                f"cursor stayed at {new_offset} — reactor seek'd to EOF "
+                f"instead of consuming the post-rotate file. "
+                f"reactor stderr: {out.decode(errors='replace')[-500:]}")
+            self.assertLessEqual(new_offset, post_size,
+                f"cursor overshot file size — unexpected state. "
                 f"reactor stderr: {out.decode(errors='replace')[-500:]}")
         finally:
             import shutil

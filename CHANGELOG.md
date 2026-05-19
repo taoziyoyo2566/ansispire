@@ -29,6 +29,19 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branch `feat/vps-manager-plugin`
 
+### Cross-pollination from fix/ansible-docs-review-remediation (2026-05-19, Round 8)
+
+Branch `fix/codex-cross-compare-hygiene`. Codex's second-pass review against the Round 6 HEAD surfaced 4 new defects; each was independently reproduced before acceptance (per W-R13). Two of the defects are runtime correctness issues (data loss + tag-name conflation), two are documentation accuracy:
+
+- **Reactor v2.5 → v2.6** (`controller/audit/reactor.py`):
+  - **Cursor=0 disambiguation** (data-loss fix). `load_cursor()` now returns `Optional[int]`: `None` for absent / disabled cursor (fresh boot → seek EOF); `int` (including 0) for present-and-authoritative (offset 0 → seek to start, the post-truncate marker case). Previous v2.5 collapsed both into `seek(EOF)`, so a reactor crash immediately after `save_cursor(0)` would silently drop the entire post-rotate file on next boot — defeating the truncation fix itself.
+  - **Non-dict rule isolation**. `process_event` now guards with `isinstance(rule, dict)` at the head of the per-rule loop. Previous v2.5 except-block called `rule.get(...)` on whatever object `match_rule` rejected, re-raising AttributeError on non-dict rule entries and killing the tail loop.
+- **AUDIT_IMAGE_TAG semantic split**:
+  - **New env var `AUDIT_PYTHON_BASE_TAG`**: the upstream `python:VERSION` tag for non-baked containers (audit-relay + the e2e stack's three python services). Default `3.12-alpine`.
+  - **`AUDIT_IMAGE_TAG`** retains its original role: the tag for our OWN baked images (`ansispire/audit-sink`, `ansispire/audit-reactor`). Default unchanged.
+  - Previous behaviour conflated the two: setting `AUDIT_IMAGE_TAG=v0.1.0` (intending to tag our images) silently resolved relay to the nonexistent `python:v0.1.0`. Affected `controller/audit/docker-compose.yml:56` (main relay) + `controller/audit/e2e/compose.e2e.yml` (three services). Propagated through `config/manifest.yml` (new `audit_baked` key), `playbooks/manifest_sync.yml` (writes both vars), `.env.example` × 2, and `scripts/loopback_test_runner.sh`.
+- **Round 6 changelog retraction**. The Round 6 verification record claimed "No regressions" and described Codex's tag pattern as "Not adopted"; both statements were over-broad. The Round 6 changelog now carries an in-place Retraction section pointing at Round 8.
+
 ### Cross-pollination from fix/ansible-docs-review-remediation (2026-05-19, Round 6)
 
 Branch `fix/codex-cross-compare-hygiene`. Engineering-bug remediation after diff'ing this branch against parallel branch `fix/ansible-docs-review-remediation`, which surfaced 6 real defects in the WU-2 / WU-3 work units shipped in Rounds 3-4.

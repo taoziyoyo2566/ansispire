@@ -53,7 +53,10 @@ services:
 
   # Round 9: polling relay — Semaphore /api/events → audit-sink
   audit-relay:
-    image: "python:${AUDIT_IMAGE_TAG:-3.12-alpine}"
+    # Uses the upstream python base directly (no bake). AUDIT_PYTHON_BASE_TAG
+    # is semantically distinct from AUDIT_IMAGE_TAG (which tags our own baked
+    # sink/reactor images) — see Round 8 changelog for the disentanglement.
+    image: "python:${AUDIT_PYTHON_BASE_TAG:-3.12-alpine}"
     container_name: ansispire-audit-relay
     restart: unless-stopped
     depends_on:

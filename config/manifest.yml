@@ -6,7 +6,9 @@
 # image tags live. Edit a value here, then `make manifest-sync` propagates it
 # to every consumer:
 #   - controller/semaphore/.env       (SEMAPHORE_PORT, SEMAPHORE_IMAGE_TAG)
-#   - controller/audit/  via the same .env (AUDIT_PORT, AUDIT_IMAGE_TAG)
+#   - controller/audit/  via the same .env (AUDIT_PORT, AUDIT_IMAGE_TAG for
+#     baked images; AUDIT_PYTHON_BASE_TAG for the python:VERSION base used
+#     by audit-relay and the e2e stack — Round 8 split, see Round 8 changelog)
 #   - any Ansible role that reads ansispire_ports.* / ansispire_versions.*
 #
 # Ansible consumption:
@@ -32,7 +34,17 @@ ansispire_versions:
   # Pinned tags for production. Empty/null → fall back to default_tag.
   # Bump deliberately, with a PR.
   semaphore_pinned: v2.18.2
+  # Two distinct dimensions (Round 8 disentanglement):
+  #   audit_python_pinned : the upstream `python:VERSION` Docker Hub tag.
+  #                          Used by audit-relay (not baked) and by the
+  #                          e2e stack's three python services.
+  #   audit_baked_pinned  : the tag of our OWN baked images
+  #                          (ansispire/audit-sink, ansispire/audit-reactor).
+  #                          Defaults to the python base tag for now so
+  #                          behaviour is unchanged; will diverge once we
+  #                          publish tagged releases (e.g. v0.1.0).
   audit_python_pinned: "3.12-alpine"
+  audit_baked_pinned: "3.12-alpine"
 
   # Resolved tags (consumed by templates and compose). DO NOT edit by hand —
   # these are the {pinned ?? default} computation, mirrored here so other
@@ -40,6 +52,7 @@ ansispire_versions:
   # Keep the | default(...) chain in lockstep with the pinned keys above.
   semaphore: "{{ ansispire_versions.semaphore_pinned | default(ansispire_versions.default_tag, true) }}"
   audit_python: "{{ ansispire_versions.audit_python_pinned | default(ansispire_versions.default_tag, true) }}"
+  audit_baked: "{{ ansispire_versions.audit_baked_pinned | default(ansispire_versions.default_tag, true) }}"
 
 # ── Ports ─────────────────────────────────────────────────────────────────
 # Convention: host port = container port + 300, to avoid collisions with

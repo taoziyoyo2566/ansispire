@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
-"""Advanced EDA Reactor v2.5 — Observability & Robustness.
+"""Advanced EDA Reactor v2.6 — Observability & Robustness.
 
 Supports '_contains' matching, dynamic resolution, verbose diagnostic logging,
 mtime-aware rules cache, cursor-persisted jsonl tail with copytruncate-safe
 truncation handling (seek-to-start, not seek-to-EOF), per-rule exception
 isolation, and a fatal-restart outer loop (no recursion).
+
+v2.5 → v2.6 fixes (Codex second-pass review, 2026-05-19):
+- load_cursor() now returns Optional[int]: None means the cursor file is
+  absent (fresh boot → seek EOF); int (including 0) means the cursor file
+  is present and authoritative. Previously, absent and present-but-zero
+  collapsed to "0" and both fell through to seek(EOF), so a reactor crash
+  immediately after save_cursor(0) (post-truncate marker) would skip the
+  entire post-rotate file on the next boot.
+- process_event: isinstance(rule, dict) guard at the top of the per-rule
+  loop. Previous v2.5 except-block called rule.get(...) on whatever object
+  match_rule rejected, re-raising AttributeError on non-dict rules and
+  killing the tail loop.
 
 v2.4 → v2.5 fixes (cross-pollinated from fix/ansible-docs-review-remediation
 review, 2026-05-19):
@@ -27,6 +39,7 @@ import sys
 import time
 import urllib.request
 from datetime import datetime, timezone
+from typing import Optional
 
 # Configuration
 JSONL_PATH = os.environ.get("JSONL_PATH", "/var/log/semaphore/events.jsonl")
@@ -266,6 +279,10 @@ def process_event(event_line: str, rules: list) -> None:
     for rule in rules:
         # Defense in depth: one malformed rule must not crash the whole
         # tail loop. Log + skip + continue to the next rule.
+        if not isinstance(rule, dict):
+            log(f"skipping malformed rule (expected dict, got "
+                f"{type(rule).__name__}): {rule!r:.80s}")
+            continue
         try:
             matched = match_rule(payload, rule)
         except Exception as e:
@@ -281,15 +298,23 @@ def process_event(event_line: str, rules: list) -> None:
                 elif action.get("type") == "webhook":
                     trigger_webhook(action, payload)
 
-def load_cursor() -> int:
-    """Return the persisted byte offset, or 0 if disabled / unreadable."""
+def load_cursor() -> Optional[int]:
+    """Return the persisted byte offset.
+
+    - None: cursor persistence disabled OR cursor file does not yet exist
+      (fresh boot; caller should seek to EOF to avoid dumping the backlog).
+    - int (including 0): cursor file is present and authoritative — caller
+      MUST honor the offset. 0 specifically means "we just observed a
+      logrotate copytruncate; consume from the start of the new file."
+    - -1: read failed for an unexpected reason; caller treats as EOF.
+    """
     if not CURSOR_FILE:
-        return 0
+        return None
     try:
         with open(CURSOR_FILE, "r", encoding="utf-8") as f:
             return int(f.read().strip() or 0)
     except FileNotFoundError:
-        return 0
+        return None
     except Exception as e:
         log(f"cursor read failed ({CURSOR_FILE}): {e}; restarting from EOF")
         return -1  # sentinel: caller seeks to EOF
@@ -321,13 +346,18 @@ def run_tail_loop() -> None:
 
     with open(JSONL_PATH, "r", encoding="utf-8") as f:
         start = load_cursor()
-        if start == -1:
+        if start is None:
+            # No cursor file → fresh boot. Don't dump the historical backlog.
+            f.seek(0, os.SEEK_END)
+            log(f"tail start: EOF (no cursor file)")
+        elif start == -1:
             f.seek(0, os.SEEK_END)
             log(f"tail start: EOF (cursor unreadable, treating as fresh)")
-        elif start == 0:
-            f.seek(0, os.SEEK_END)
-            log(f"tail start: EOF (no cursor)")
         else:
+            # Cursor file is present and authoritative. start==0 here means
+            # "we just persisted a post-truncate marker" — we MUST seek(0),
+            # not EOF, otherwise a restart between save_cursor(0) and the
+            # first post-rotate readline skips the entire rotated file.
             try:
                 size = os.path.getsize(JSONL_PATH)
                 if start > size:
