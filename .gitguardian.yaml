@@ -62,3 +62,16 @@ secret:
     # original value resurfaces from a backup).
     - name: "Historical EDA token (rotated)"
       match: "ahen7kd4lx4getkojxrlmiwpqzej-pkddy4yyxswhhw="
+
+    # Docker Compose required-env-var references for SEMAPHORE_ADMIN_PASSWORD.
+    # GitGuardian's generic-password detector flags the long ${VAR:?msg}
+    # interpolation literal as if it were a password; it is NOT — it is a
+    # docker-compose substitution directive that resolves to the env-file
+    # value at runtime (the real value lives in .env / preflight/.env,
+    # both gitignored). One entry per ":?msg" variant currently in the tree.
+    - name: "Compose required-env ref: dev-stack admin pw"
+      match: "${SEMAPHORE_ADMIN_PASSWORD:?set in .env}"
+    - name: "Compose required-env ref: preflight admin pw"
+      match: "${SEMAPHORE_ADMIN_PASSWORD:?set in preflight/.env}"
+    - name: "Compose required-env ref: e2e admin pw"
+      match: "${SEMAPHORE_ADMIN_PASSWORD:?set in controller/audit/e2e/.env.<project>}"
