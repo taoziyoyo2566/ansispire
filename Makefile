@@ -20,7 +20,8 @@
         vps-manager-syntax \
         vps-new vps-recover vps-submit vps-tasks \
         vps-manager-init vps-manager-process vps-manager-validate \
-        hub-deploy hub-deploy-check
+        hub-deploy hub-deploy-check \
+        target-deploy target-deploy-check target-ping
 
 # Control-plane compose command wrapper
 CONTROLLER_DIR := controller/semaphore

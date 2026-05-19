@@ -19,7 +19,7 @@ Two OS families are supported as of this round:
 ## Configuration SSOT
 
 - **Physical inventory**: [`inventory/hosts.ini`](../../../inventory/hosts.ini) `[targets_debian]` / `[targets_rhel]` / `[targets_alpine]` / `[targets:children]` / `[targets:vars]`.
-- **Prod overlay**: [`inventory/prod/hosts.ini`](../../../inventory/prod/hosts.ini) mirrors the same `[targets_*]` blocks because Ansible does not auto-merge from the SSOT when invoked with `-i inventory/prod` (the path Semaphore uses by default). Both files must stay in lock-step when targets are added or removed.
+- **Prod inventory** ([`inventory/prod/hosts.ini`](../../../inventory/prod/hosts.ini)) **deliberately keeps the `[targets_*]` blocks empty**. Reason: `playbooks/site.yml` first play is `hosts: all`, so populating prod's targets would sweep them on every `make deploy-prod` / Semaphore "site.yml (check mode)" run — broadening blast radius beyond the role those hosts actually receive (infra_baseline only). The SSOT `inventory/hosts.ini` carries the targets; Semaphore consumes them via a dedicated `targets-managed` inventory record (see "Semaphore integration" below).
 - **Connection vars** ([`inventory/hosts.ini` `[targets:vars]`](../../../inventory/hosts.ini)):
   - `ansible_user=ansible` (steady-state; created by the role on first run)
   - `ansible_ssh_private_key_file=~/.ssh/ansible`
@@ -49,10 +49,15 @@ Two OS families are supported as of this round:
 
 ## Semaphore integration
 
-[`controller/semaphore/bootstrap.yml`](../../../controller/semaphore/bootstrap.yml) registers a `"Ping all targets"` Job Template (idempotent — skipped if already exists) pointing at `playbooks/ping_targets.yml`. This template materializes on the next `make hub-deploy` after this branch lands. End-to-end Semaphore execution additionally requires:
+[`controller/semaphore/bootstrap.yml`](../../../controller/semaphore/bootstrap.yml) sets up TWO things for TASK-007 (idempotent — both skipped if they already exist):
+
+1. A dedicated **`targets-managed`** Semaphore inventory record pointing at `inventory/hosts.ini` (the SSOT). This deliberately bypasses `inventory/prod/hosts.ini` so the targets don't get swept into the prod `hosts: all` lane.
+2. A **`Ping all targets`** Job Template that runs `playbooks/ping_targets.yml` against the `targets-managed` inventory.
+
+Both materialize on the next `make hub-deploy` after this branch lands. End-to-end execution additionally requires:
 
 - The hub host has an SSH private key that authorizes against each target's `ansible` user (typically the same key used by the operator, copied into the hub during deployment — out-of-band setup not covered by this role).
-- The Semaphore container's bind-mount sees `/workspace/inventory/prod/hosts.ini` with the populated `[targets_*]` blocks (handled by this round's prod-inventory edit).
+- The Semaphore container's bind-mount can read `/workspace/inventory/hosts.ini` (which carries the populated `[targets_*]` blocks).
 
 ## Dependencies
 
