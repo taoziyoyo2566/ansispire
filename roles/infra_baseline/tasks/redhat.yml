@@ -21,6 +21,15 @@
 - name: Baseline | (RHEL) Load family-specific vars
   ansible.builtin.include_vars: RedHat.yml
 
+# Detect python3.11 before any install attempt so we can short-circuit
+# pivot/setup safely in --check mode on a fresh host (where dnf reports
+# "would install" but doesn't actually create the binary).
+- name: Baseline | (RHEL) Detect existing python3.11 (gate for check-mode pivot)
+  ansible.builtin.stat:
+    path: "{{ infra_baseline_rhel_python_interpreter }}"
+  register: infra_baseline_rhel_py311_stat
+  check_mode: false
+
 - name: Baseline | (RHEL) Install Python (project min 3.10; OS default 3.9) — pkg {{ infra_baseline_rhel_python_pkg }}
   ansible.builtin.dnf:
     name: "{{ infra_baseline_rhel_python_pkg }}"
@@ -29,9 +38,22 @@
 - name: Baseline | (RHEL) Pivot ansible_python_interpreter to {{ infra_baseline_rhel_python_interpreter }}
   ansible.builtin.set_fact:
     ansible_python_interpreter: "{{ infra_baseline_rhel_python_interpreter }}"
+  when: infra_baseline_rhel_py311_stat.stat.exists or not ansible_check_mode
 
 - name: Baseline | (RHEL) Re-gather facts with new interpreter
   ansible.builtin.setup:
+  when: infra_baseline_rhel_py311_stat.stat.exists or not ansible_check_mode
+
+- name: Baseline | (RHEL) Check-mode preview notice — fresh host
+  ansible.builtin.debug:
+    msg: >-
+      Fresh RHEL host detected in --check mode. python3.11 not installed yet;
+      pivot + re-gather facts SKIPPED. Subsequent docker tasks will preview
+      against the OS-default python3 (3.9). Real run will install python3.11
+      first and proceed normally.
+  when:
+    - ansible_check_mode
+    - not infra_baseline_rhel_py311_stat.stat.exists
 
 - name: Baseline | (RHEL) Install dnf-plugins-core (provides config-manager)
   ansible.builtin.dnf:
@@ -53,16 +75,22 @@
       - docker-compose-plugin
     state: present
 
-- name: Baseline | (RHEL) Detect SELinux enforcing mode
+- name: Baseline | (RHEL) Detect SELinux mode
   ansible.builtin.command: getenforce
   register: infra_baseline_rhel_selinux_mode
   changed_when: false
 
-- name: Baseline | (RHEL) Ensure python3-libselinux (required by ansible.posix.seboolean)
+# Include Permissive: persistent SELinux booleans are stored regardless of
+# enforcement mode and take effect when enforcement kicks in. Setting it
+# while Permissive is forward-compatibility (operator may flip to Enforcing
+# later without a re-baseline).
+- name: Baseline | (RHEL) Ensure SELinux Python bindings (required by ansible.posix.seboolean)
   ansible.builtin.dnf:
-    name: python3-libselinux
+    name:
+      - python3-libselinux
+      - python3-libsemanage
     state: present
-  when: infra_baseline_rhel_selinux_mode.stdout == 'Enforcing'
+  when: infra_baseline_rhel_selinux_mode.stdout in ['Enforcing', 'Permissive']
 
 - name: Baseline | (RHEL) Allow Docker to manage cgroup under SELinux
   ansible.posix.seboolean:
@@ -71,7 +99,7 @@
     persistent: true
   vars:
     ansible_python_interpreter: /usr/bin/python3
-  when: infra_baseline_rhel_selinux_mode.stdout == 'Enforcing'
+  when: infra_baseline_rhel_selinux_mode.stdout in ['Enforcing', 'Permissive']
 
 - name: Baseline | (RHEL) Ensure Docker service is running and enabled
   ansible.builtin.systemd:
