@@ -23,6 +23,13 @@
 #
 # API docs: https://docs.semaphoreui.com/administration-guide/api/
 
+# Run the API contract preflight first — fail fast with a meaningful
+# diagnostic if upstream Semaphore renamed fields / changed status codes.
+# Skippable via `-e skip_preflight=true` (used by tests that intentionally
+# probe an unbootstrapped API).
+- name: Import API contract preflight (WU-4 gate)
+  ansible.builtin.import_playbook: bootstrap_preflight.yml
+
 - name: Bootstrap Semaphore with a minimal ansispire project
   hosts: localhost
   gather_facts: false
@@ -49,6 +56,11 @@
     repo_path_in_container: "/workspace"
     inventory_path_in_repo: "{{ semaphore_inventory_path | default('inventory/prod/hosts.ini') }}"
     playbook_path_in_repo: "playbooks/site.yml"
+    # Branch the workspace repo is pinned to in Semaphore. Bind-mount means
+    # this is mostly cosmetic (git_branch only matters when Semaphore does
+    # a git pull, which it does not for the /workspace Local repo). Kept
+    # parameterizable so a real-git deploy can override.
+    semaphore_git_branch: "{{ semaphore_workspace_git_branch | default('dev') }}"
 
   tasks:
     - name: Assert required variables are provided
@@ -151,7 +163,7 @@
           name: "{{ repo_name }}"
           project_id: "{{ project_id | int }}"
           git_url: "{{ repo_path_in_container }}"
-          git_branch: "master"
+          git_branch: "{{ semaphore_git_branch }}"
           ssh_key_id: "{{ none_key_id | int }}"
         status_code: [201, 204, 400]
       register: repo_create

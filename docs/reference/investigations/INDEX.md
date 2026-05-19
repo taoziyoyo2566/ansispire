@@ -9,6 +9,9 @@
 | IVG-TOOLENV-REGISTRY | 2026-04-27 | AI-Governance | 架构探索 | 命令执行注册表（TER）：将 AI 工具调用经验外化为可持久化查找表，消除跨会话试错；含层级设计、条目结构草案、开放问题 | Active | — | [Link](./IVG-TOOLENV-REGISTRY.md) |
 | LESSONS-MIGRATED | 2026-05-10 | Multi | Consolidation | Former SUMMARY.md §4 operational truths consolidated into a single governance doc (Python 3.9+ baseline, env sensing, var precedence, molecule plugin isolation, image deps, RHEL tier, etc.) | Applied | [docs/governance/operational-truths.md](../../governance/operational-truths.md) | [refactor-docs-enterprise plan](../../reviews/refactor-docs-enterprise/plan-2026-05-10.md) |
 | VENDOR-PATCHES-MIGRATED | 2026-05-10 | Vendor-roles | Consolidation | Former SUMMARY.md §5 vendor patch obligations (geerlingguy.docker FQCN/octal patches) moved to dedicated governance doc with re-apply protocol | Applied | [docs/governance/vendor-patches.md](../../governance/vendor-patches.md) | [refactor-docs-enterprise plan](../../reviews/refactor-docs-enterprise/plan-2026-05-10.md) |
+| IVG-SEMAPHORE-CROSS-COMPARE | 2026-05-17 | Control-plane + Audit | 架构探索 + 交叉验证 | 独立审计 ansispire vs upstream semaphore v2.18，5 条 Codex 发现全部独立确认，另独立发现 8 条工程项 + 1 条 Vault Pro 修正；分 Tier 1/2/3 建议未实施 | Active | — | [Link](./IVG-SEMAPHORE-CROSS-COMPARE.md) |
+| IVG-EDA-RULEBOOK-MIGRATION | 2026-05-18 | Audit / Reaction-plane | 架构探索 / 可行性 | 评估自研 reactor (235 行) vs upstream `ansible-rulebook` (Apache-2.0 v1.3.0)；功能等价但运行时 ×5-8 (JVM)、镜像 ×4-5、当前 2 条规则不构成迁移收益；推荐**暂不迁移**，记录 4 项触发条件清单 | Active | — | [Link](./IVG-EDA-RULEBOOK-MIGRATION.md) |
+| IVG-EXECUTION-PLANE-RUNNER | 2026-05-18 | Control + Data-plane | 架构探索 / 可行性 | 评估引入 Semaphore OSS Runner 拆分 controller/executor；OSS 完全支持基础 Runner（tag-routing 是 Pro，不可吸收）；当前 1 job/min + 0 真实 fleet 节点不构成拆分收益；推荐**暂不引入**，记录 5 项触发条件 + 6-Gate 落地路径草案 | Active | — | [Link](./IVG-EXECUTION-PLANE-RUNNER.md) |
 
 ---
 

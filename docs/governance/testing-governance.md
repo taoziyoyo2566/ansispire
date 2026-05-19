@@ -58,6 +58,9 @@
 | `extensions/eda/rules.json` | `make test-eda-contract` | `make test-eda` | `make controller-loop-smoke` |
 | `controller/rbac/**` | `make controller-rbac-smoke` | `make verify` | — |
 | `extensions/eda/rulebooks/**` | `make test-eda-contract` | `make controller-loop-smoke` | `make test-eda-e2e` |
+| `controller/semaphore/bootstrap.yml` / `bootstrap_preflight.yml` | `make verify` | `make test-api-contract` | — |
+| `config/manifest.yml` (Semaphore 镜像 tag bump) | `make manifest-sync` + `make verify` | `make test-api-contract` | — |
+| `controller/semaphore/preflight/**` | `bash -n` + `make verify` | `make test-api-contract` | — |
 | `filter_plugins/**` | `make test-filters` | `make verify` | （由 molecule 间接覆盖渲染产物） |
 | `plugins/vps_manager/**` | `make test-vps-manager` + `make vps-manager-syntax` | `make verify` | 真实远端 onboarding 仍需人工 smoke 或后续 L4/L5 |
 | `playbooks/site.yml` | `make verify` | `make verify-full` | — |
@@ -81,6 +84,7 @@
 | `make verify` | **yamllint** + **ansible-lint** + syntax + `vps-manager-syntax` + **detect-secrets** + `test-eda` (L1+L2+L3, 5 个文件) + `test-filters` + `test-vps-manager` + dry-run | ~30–60 s | push / PR 前默认、一般改动闸口 |
 | `make verify-full` | `verify` + `molecule-all` (4 场景串行) | ~10–20 min | release 前 / 涉及 role 改动 / 涉及 Make 改动 |
 | `make test-eda-e2e` | 真实 docker e2e（约 60–90 s） | ~90 s | 涉及 reactor / 审计链路改动 |
+| `make test-api-contract` | 一次性 Semaphore 容器 + `bootstrap_preflight.yml --full`（17 endpoints 走完） | ~30–60 s | bump `config/manifest.yml` 的 Semaphore tag、改 `bootstrap.yml`/`bootstrap_preflight.yml`、PR 前预演 |
 | `make test-filters` | `filter_plugins/custom_filters.py` 单测 | < 1 s | 改了 custom filter 行为 |
 | `make test-vps-manager` | `plugins/vps_manager/` 本地 lifecycle 单测 | < 1 s | 改了 VPS Manager 调度器、schema、示例或本地状态逻辑 |
 | `make vps-manager-syntax` | `plugins/vps_manager/playbooks/*.yml` 原生 Ansible syntax-check | < 5 s | 改了 VPS Manager action playbook |
@@ -103,6 +107,8 @@ yamllint ──┬─→ ansible-lint ──┬─→ dry-run
            └─→ python tests (test-eda + test-filters + test-vps-manager) ──┴─→ molecule [matrix: common, webserver, database, full-stack 并行]
 
 detect-secrets (独立 job；同样是合并门禁)
+api-contract [matrix: pinned (gating), latest (continue-on-error, drift warning)]
+              ↑ 依赖 ansible-lint；起一次性 Semaphore 容器跑 bootstrap_preflight.yml --full
 ```
 
 **CI 与本地的责任划分**：

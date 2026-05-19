@@ -1,0 +1,24 @@
+---
+# controller/semaphore/preflight/compose.yml — disposable bare Semaphore
+# for `make test-api-contract`. No audit stack, no shared volumes, no
+# external controller-net. Port + image tag come from preflight/.env.
+services:
+  semaphore:
+    image: "semaphoreui/semaphore:${SEMAPHORE_IMAGE_TAG:-latest}"
+    container_name: ansispire-apicontract-semaphore
+    ports:
+      - "${SEMAPHORE_PREFLIGHT_PORT:-3301}:3000"
+    environment:
+      SEMAPHORE_DB_DIALECT: sqlite
+      SEMAPHORE_ADMIN: "${SEMAPHORE_ADMIN:-admin}"
+      SEMAPHORE_ADMIN_NAME: "Preflight Admin"
+      SEMAPHORE_ADMIN_EMAIL: "admin@preflight.local"
+      SEMAPHORE_ADMIN_PASSWORD: "${SEMAPHORE_ADMIN_PASSWORD:?set in preflight/.env}"
+      ANSIBLE_HOST_KEY_CHECKING: "False"
+      TZ: "UTC"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s

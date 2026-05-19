@@ -29,6 +29,92 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branch `feat/vps-manager-plugin`
 
+### Hub role: rsync preflight UX (2026-05-19, Round 7)
+
+Branch `fix/codex-cross-compare-hygiene`. Engineering improvement (not a correctness fix) for the `ansispire_hub` role.
+
+- **Preflight added** (`roles/ansispire_hub/tasks/main.yml`): 4 tasks inserted between "Ensure state directory" and "Hub | Sync Code" — `rsync --version` probes on both the Ansible controller (`delegate_to: localhost`) and the target host, each gated by an `assert` task with an install-hint `fail_msg`. Replaces `ansible.posix.synchronize`'s opaque failure modes (`rsync error code 12` on remote, generic "command not found" on controller) with an actionable message before any mutating step. Probe uses `command: rsync --version` rather than path-stat so macOS Homebrew, Alpine, and Debian all work without hard-coded paths.
+
+### Cross-pollination from fix/ansible-docs-review-remediation (2026-05-19, Round 8)
+
+Branch `fix/codex-cross-compare-hygiene`. Codex's second-pass review against the Round 6 HEAD surfaced 4 new defects; each was independently reproduced before acceptance (per W-R13). Two of the defects are runtime correctness issues (data loss + tag-name conflation), two are documentation accuracy:
+
+- **Reactor v2.5 → v2.6** (`controller/audit/reactor.py`):
+  - **Cursor=0 disambiguation** (data-loss fix). `load_cursor()` now returns `Optional[int]`: `None` for absent / disabled cursor (fresh boot → seek EOF); `int` (including 0) for present-and-authoritative (offset 0 → seek to start, the post-truncate marker case). Previous v2.5 collapsed both into `seek(EOF)`, so a reactor crash immediately after `save_cursor(0)` would silently drop the entire post-rotate file on next boot — defeating the truncation fix itself.
+  - **Non-dict rule isolation**. `process_event` now guards with `isinstance(rule, dict)` at the head of the per-rule loop. Previous v2.5 except-block called `rule.get(...)` on whatever object `match_rule` rejected, re-raising AttributeError on non-dict rule entries and killing the tail loop.
+- **AUDIT_IMAGE_TAG semantic split**:
+  - **New env var `AUDIT_PYTHON_BASE_TAG`**: the upstream `python:VERSION` tag for non-baked containers (audit-relay + the e2e stack's three python services). Default `3.12-alpine`.
+  - **`AUDIT_IMAGE_TAG`** retains its original role: the tag for our OWN baked images (`ansispire/audit-sink`, `ansispire/audit-reactor`). Default unchanged.
+  - Previous behaviour conflated the two: setting `AUDIT_IMAGE_TAG=v0.1.0` (intending to tag our images) silently resolved relay to the nonexistent `python:v0.1.0`. Affected `controller/audit/docker-compose.yml:56` (main relay) + `controller/audit/e2e/compose.e2e.yml` (three services). Propagated through `config/manifest.yml` (new `audit_baked` key), `playbooks/manifest_sync.yml` (writes both vars), `.env.example` × 2, and `scripts/loopback_test_runner.sh`.
+- **Round 6 changelog retraction**. The Round 6 verification record claimed "No regressions" and described Codex's tag pattern as "Not adopted"; both statements were over-broad. The Round 6 changelog now carries an in-place Retraction section pointing at Round 8.
+
+### Cross-pollination from fix/ansible-docs-review-remediation (2026-05-19, Round 6)
+
+Branch `fix/codex-cross-compare-hygiene`. Engineering-bug remediation after diff'ing this branch against parallel branch `fix/ansible-docs-review-remediation`, which surfaced 6 real defects in the WU-2 / WU-3 work units shipped in Rounds 3-4.
+
+- **Reactor v2.4 → v2.5** (`controller/audit/reactor.py`):
+  - **Truncation handling: seek(0), not seek(EOF)** (data-loss fix). Both at startup (`cursor > file_size` at boot) and during run (per-tick `f.tell() > size` check), the reactor now seeks to the start of the post-rotate file. Previous behaviour silently dropped every event written between the truncation point and the next reactor restart, defeating cursor persistence's whole purpose.
+  - **Per-rule exception isolation**: `match_rule` is wrapped in try/except inside `process_event`. A malformed rule logs and is skipped rather than crashing the tail loop.
+  - **Defense-in-depth `_contains` coercion**: `if str(value) not in actual_val` so a numeric `_contains` value in hand-edited `rules.json` (bypassing `make test-rules-schema`) cannot raise TypeError.
+- **Reactor healthcheck** (`controller/audit/docker-compose.yml`): replaced `pgrep -f reactor.py` (self-matches its own grep argv on some implementations → false-healthy) with `tr '\0' ' ' </proc/1/cmdline | grep -q '/app/reactor.py'`. Bulletproof since reactor runs as PID 1.
+- **Hub role admin-password idempotency** (`roles/ansispire_hub/tasks/main.yml`): added an `API | Probe admin password` task that calls `/api/auth/login`; the subsequent `CLI | Enforce admin password` runs only when the probe is rejected (status ∉ {200, 204}). Previous version reported `changed=1` on every deploy regardless of whether the password actually changed — Ansible idempotency violation.
+- **Audit role build: always + dropped admin password env** (`roles/ansispire_audit/tasks/main.yml`): added `build: always` so re-deploys after editing `reactor.py`/`sink.py` actually rebuild the baked image (module default `policy` only builds if missing). Removed `SEMAPHORE_ADMIN_PASSWORD` from the env block — the audit stack authenticates via Bearer token, the admin password was unused secret exposure.
+- **Rules schema tightened** (`extensions/eda/rules.schema.json`):
+  - `_contains` keys are constrained to string values via `patternProperties`. Numbers/booleans no longer pass schema; reactor's `str()` coercion is the defense-in-depth net for hand edits.
+  - `semaphore_api` actions now require BOTH a project identifier (id|name) AND a template identifier (id|name) via `allOf` + `anyOf`. Reactor's POST `/api/project/{id}/tasks` payload mandates both — the previous schema let through actions that would fail at runtime.
+
+### Semaphore API contract preflight (2026-05-19)
+
+Branch `fix/codex-cross-compare-hygiene`. WU-4 from `docs/reviews/feat-semaphore-cross-compare/plan-2026-05-17.md`.
+
+- **New playbook `controller/semaphore/bootstrap_preflight.yml`** — schema-mode (default) + full-mode API contract probe. Imported at the top of `bootstrap.yml` so every bootstrap run fails fast on upstream Semaphore schema drift before mutating state. Skip per-run with `-e skip_preflight=true`.
+  - Schema mode (~2 s): verifies `POST /api/auth/login` sets a session cookie; `GET /api/projects` and `GET /api/users` return arrays with `id` + `name` / `username` fields.
+  - Full mode (~30–60 s): also creates a throwaway `__preflight__` project, walks all 5 project-scoped GETs (`keys` / `repositories` / `inventory` / `environment` / `templates`), mints a throwaway API token via `POST /api/user/tokens`, deletes the throwaway project on exit.
+- **New harness `controller/semaphore/preflight/`** — disposable `compose.yml` (bare Semaphore, isolated host port `3301`) + `run.sh` (clean → up → wait healthy → preflight `mode=full` → teardown).
+- **Make target `test-api-contract`** — wraps `controller/semaphore/preflight/run.sh`. Override the image tag via `SEMAPHORE_IMAGE_TAG=...`. Not part of `make verify` (needs Docker daemon).
+- **CI matrix `api-contract`** — runs full preflight against both the manifest-pinned tag (gating) and `latest` (`continue-on-error: true` — surfaces upstream drift as a warning, not a merge block).
+- **Governance**: `docs/governance/testing-governance.md` §3 decision tree gains rows for `bootstrap.yml` / `bootstrap_preflight.yml` / `config/manifest.yml` Semaphore tag bumps. §4.1 catalogues `make test-api-contract`. §4.2 documents the new CI dependency.
+
+### Audit-plane engineering robustness (2026-05-18)
+
+Branch `fix/codex-cross-compare-hygiene`. WU-2 from `docs/reviews/feat-semaphore-cross-compare/plan-2026-05-17.md`.
+
+- **Reactor v2.3 → v2.4** (`controller/audit/reactor.py`):
+  - **Cursor persistence**: byte-offset into `events.jsonl` flushed to `CURSOR_FILE` every `CURSOR_FLUSH_INTERVAL` s (default `5s`). Cold-start resumes from last cursor; missing/oversized cursor falls back to EOF (with explicit log). New compose volume `audit-reactor-state:/var/lib/audit-reactor`.
+  - **Rules mtime cache**: `load_rules` only re-reads when (a) `RULES_PATH` mtime changed AND (b) `RULES_MIN_RELOAD_INTERVAL` (default `30s`) elapsed. Per-tick poll cost drops from "open+parse+json.loads" to a cached stat.
+  - **Outer-loop restart**: fatal exception path no longer recurses into `main()`; uses a flat `while True` wrapper with `FATAL_RESTART_BACKOFF` s sleep. Avoids growing call stack across long-running deployments.
+  - 4 new envs exposed: `CURSOR_FILE` / `CURSOR_FLUSH_INTERVAL` / `RULES_MIN_RELOAD_INTERVAL` / `FATAL_RESTART_BACKOFF` (all with safe defaults).
+- **Audit container images** (`controller/audit/Dockerfile.{sink,reactor}` new; `docker-compose.yml` updated):
+  - `audit-sink` and `audit-reactor` now build locally (`ansispire/audit-{sink,reactor}:${AUDIT_IMAGE_TAG}`); `logrotate` baked into the sink image, `jq` + `procps` baked into the reactor image. Eliminates runtime `apk add` from container `command:`.
+  - Healthchecks added for `audit-relay` (`pidof python3`) and `audit-reactor` (`pgrep -f reactor.py`).
+- **Hub admin password rotation** (`roles/ansispire_hub/tasks/main.yml`): `semaphore user change-by-login` now runs on **every** deploy, not just the first-deploy token mint. Rotating `vault_semaphore_admin_password` in vault.yml and re-deploying now actually lands the new password.
+- **CLI behavior**: `make test-rules-schema` was already in `make test-eda` (from WU-3); reactor v2.4 introduces no new Make targets but extends `make test-eda` coverage transparently via existing component tests.
+- **Bootstrap workspace branch**: `controller/semaphore/bootstrap.yml` `git_branch` is now overridable (`semaphore_workspace_git_branch`); defaults to `dev` to match the dev-trunk model. Previously hard-pinned to `master`, which was wrong during the dev-trunk phase.
+- **Documentation**:
+  - `controller/semaphore/README.md` updated for SQLite default + port 3300 + manifest SSOT + Path A vs Path B password rotation guidance.
+  - `docs/reference/feature-map/{audit-plane,eda-core,hub-deployment}.md` updated to reflect v2.4 reactor semantics + new Dockerfiles + admin password enforcement.
+
+### Semaphore cross-compare hygiene + OSS key absorption (2026-05-17 → 2026-05-18)
+
+Branch `fix/codex-cross-compare-hygiene`. Bundles WU-1 (hygiene fixes) + WU-3 (OSS key absorption + schema gate + governance doc) from `docs/reviews/feat-semaphore-cross-compare/plan-2026-05-17.md`.
+
+- **Configuration defaults**:
+  - `SEMAPHORE_DB_PATH` removed from `controller/semaphore/docker-compose.yml` — the upstream wrapper treats it as a *directory* and appends `database.sqlite`; pinning it to a file path silently turned the leaf into a directory.
+  - `SEMAPHORE_ACCESS_KEY_ENCRYPTION` / `SEMAPHORE_COOKIE_HASH` / `SEMAPHORE_COOKIE_ENCRYPTION` added to compose `environment:` with empty `${VAR:-}` defaults; `.env.example` documents how to generate (`head -c32 /dev/urandom | base64`). Empty = ephemeral keys at restart (safe for first-run discovery; production needs them persisted).
+- **Security policy (Path A)**: `roles/ansispire_hub` now mints `state/.security_keys` once on first deploy, persists across redeploys, and renders the three envs into `.env`. Deleting `.security_keys` invalidates every stored Semaphore AccessKey and every active session — restore from backup, do not re-mint.
+- **Public interface — EDA rule contract**: new `extensions/eda/rules.schema.json` (JSON Schema Draft-07) covers rule structure (name / cooldown / enabled / condition / actions); validation gated by `make test-rules-schema`, wired into `make test-eda`.
+- **CLI behavior**: `make test-rules-schema` added (inline `jsonschema.validate`; no new script files); included by default in `make test-eda` chain.
+- **Hygiene fixes (WU-1)**:
+  - `controller/audit/reactor.py` `webhook` action implemented (was `pass` no-op); POSTs `{rule_action, event}` JSON to `action.url`.
+  - `roles/ansispire_hub/tasks/main.yml` first-deploy token path now sets `ansispire_hub_eda_token` fact directly from the mint response (previously fell through to a stat-gated slurp that ran before the file existed).
+  - `roles/ansispire_hub/tasks/main.yml` rsync excludes extended with `runtime/` (vps_manager workstation-local artefacts must never leak to the hub).
+- **Documentation**:
+  - `docs/governance/iac-vs-ui-boundary.md` (new) — authoritative ownership map for every Semaphore resource type (project / user / inventory / repo / env / key / template / token / future runner) plus hybrid resource patterns and a decision flowchart.
+  - `docs/reference/feature-map/{eda-core,hub-deployment,INDEX}.md` updated to reflect rules schema + security keys lifecycle + IaC/UI boundary link.
+  - `docs/reference/investigations/IVG-EDA-RULEBOOK-MIGRATION.md` (new, WU-5a) — recommend deferring `ansible-rulebook` adoption; 4 trigger conditions recorded.
+  - `docs/reference/investigations/IVG-EXECUTION-PLANE-RUNNER.md` (new, WU-5b) — recommend deferring OSS Runner abstraction; 5 trigger conditions + 6-Gate landing path drafted; strong coupling to ACCESS_KEY_ENCRYPTION called out.
+- **Dependency**: `jsonschema>=4.0` pinned in `requirements.txt` (was transitively present via molecule plugins; now explicit because the EDA schema gate consumes it directly).
+
 ### VPS Manager plugin MVP (2026-05-14)
 
 - **New plugin**: `plugins/vps_manager/` processes one-shot VPS task YAML from

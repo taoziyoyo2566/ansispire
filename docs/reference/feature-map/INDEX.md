@@ -53,6 +53,7 @@
 ### 3.1 Semaphore Web UI (`controller/semaphore/`)
 - **功能**：基于 Docker Compose 的可视化管理界面（默认 host 端口 3320）
 - **自动化**：`bootstrap.yml` 实现零点击创建 Project / Inventory / Environment / Job 模板 / RBAC
+- **API 契约保护 (post-WU-4)**：`bootstrap_preflight.yml` 在 `bootstrap.yml` 顶部 `import_playbook`。schema mode（默认 ~2 s）验证 `/api/auth/login` + `/api/projects` + `/api/users` 的字段形状；full mode（`make test-api-contract`，~30–60 s）在临时 `__preflight__` 项目上走完所有 5 个 project-scoped GETs + token mint。CI 矩阵 `[pinned, latest]` 跑 full mode，`latest` 配 `continue-on-error` —— 上游 schema 漂移作为预警，不阻断主合并。`-e skip_preflight=true` 可逐次跳过（仅用于刻意探测未 bootstrap 的实例的测试）
 
 ### 3.2 审计与自愈链路 (`controller/audit/`)
 - **`sink.py`** — Python 轻量 HTTP 接收器（host 端口 3330），将 Semaphore webhook POST 固化为追加型 `events.jsonl`
@@ -119,11 +120,14 @@
 
 完整治理见 [`docs/governance/testing-governance.md`](../../governance/testing-governance.md)（含 §9 测试卫生）+ [`docs/governance/test-plan.md`](../../governance/test-plan.md)（surface × quality 矩阵 + 9 G 缺口）。
 
-- **L1–L3（pytest，`controller/audit/test_*.py`）**：28 cases
+- **L1–L3（pytest，`controller/audit/test_*.py`）**：28 cases + 1 schema gate
   - L1 reactor unit 14 / L2 rules contract 9 / L3 reactor component 5
-  - 入口：`make test-eda`（< 1 s）
+  - L1 schema gate `test-rules-schema`：`extensions/eda/rules.json` ↔ `extensions/eda/rules.schema.json`（Draft-07，inline `jsonschema.validate`）
+  - 入口：`make test-eda`（< 1 s）— 已含 schema gate
 - **L4（disposable e2e）**：`controller/audit/e2e/run.sh` 真 docker 栈
   - 入口：`make test-eda-e2e`（~60 s）
+- **L4（API contract）**：`controller/semaphore/preflight/run.sh` 真 docker 栈，纯 Semaphore（无 audit stack）
+  - 入口：`make test-api-contract`（~30–60 s）；CI 矩阵 `[pinned, latest]`
 - **L5（Molecule）**：4 场景跨 Ubuntu 22.04 + Debian 12
   - `common` / `database` / `webserver` / `full-stack`，各 8 阶段 destroy → … → destroy
   - 入口：`make molecule-all` 串行（CI matrix 并行）

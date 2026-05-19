@@ -50,7 +50,7 @@ services:
         aliases: [semaphore]
 
   audit-sink:
-    image: "python:${AUDIT_IMAGE_TAG:-3.12-alpine}"
+    image: "python:${AUDIT_PYTHON_BASE_TAG:-3.12-alpine}"
     container_name: "${AUDIT_SINK_CONTAINER_NAME:-ansispire-audit-sink-e2e}"
     restart: "no"
     ports:
@@ -76,7 +76,7 @@ services:
         aliases: [audit-sink]
 
   audit-relay:
-    image: "python:${AUDIT_IMAGE_TAG:-3.12-alpine}"
+    image: "python:${AUDIT_PYTHON_BASE_TAG:-3.12-alpine}"
     container_name: "${AUDIT_RELAY_CONTAINER_NAME:-ansispire-audit-relay-e2e}"
     restart: "no"
     depends_on:
@@ -100,7 +100,7 @@ services:
       - controller-net-e2e
 
   audit-reactor:
-    image: "python:${AUDIT_IMAGE_TAG:-3.12-alpine}"
+    image: "python:${AUDIT_PYTHON_BASE_TAG:-3.12-alpine}"
     container_name: "${AUDIT_REACTOR_CONTAINER_NAME:-ansispire-audit-reactor-e2e}"
     restart: "no"
     depends_on:

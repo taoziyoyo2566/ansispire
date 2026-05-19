@@ -34,7 +34,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: echo "ci-test-password" > .vault_pass
+      - name: Create disposable vault password file
+        run: |
+          umask 077
+          python -c 'import secrets; print(secrets.token_urlsafe(32))' > .vault_pass
       - run: pip install -r requirements.txt
       - run: ansible-galaxy collection install -r requirements.yml
       - run: ansible-lint --profile production
@@ -49,7 +52,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: echo "ci-test-password" > .vault_pass
+      - name: Create disposable vault password file
+        run: |
+          umask 077
+          python -c 'import secrets; print(secrets.token_urlsafe(32))' > .vault_pass
       - run: pip install -r requirements.txt
       - run: |
           ansible-galaxy role install -r requirements.yml
@@ -69,7 +75,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: echo "ci-test-password" > .vault_pass
+      - name: Create disposable vault password file
+        run: |
+          umask 077
+          python -c 'import secrets; print(secrets.token_urlsafe(32))' > .vault_pass
       - run: pip install -r requirements.txt
       - run: |
           ansible-galaxy role install -r requirements.yml
@@ -120,7 +129,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: echo "ci-test-password" > .vault_pass
+      - name: Create disposable vault password file
+        run: |
+          umask 077
+          python -c 'import secrets; print(secrets.token_urlsafe(32))' > .vault_pass
       - run: pip install -r requirements.txt docker
       - run: |
           ansible-galaxy role install -r requirements.yml
@@ -142,3 +154,37 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python scripts/detect_secrets_gate.py
+
+  # API contract preflight (WU-4) — spins a disposable Semaphore container,
+  # runs bootstrap_preflight.yml in full mode against it. Two matrix entries:
+  #   - pinned (must pass): the tag committed in config/manifest.yml
+  #   - latest (continue-on-error): early warning of upstream schema drift
+  api-contract:
+    name: "API Contract / ${{ matrix.image_tag_kind }}"
+    runs-on: ubuntu-latest
+    needs: [ansible-lint]
+    continue-on-error: ${{ matrix.image_tag_kind == 'latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        image_tag_kind: [pinned, latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Create disposable vault password file
+        run: |
+          umask 077
+          python -c 'import secrets; print(secrets.token_urlsafe(32))' > .vault_pass
+      - run: python -m venv .venv
+      - run: .venv/bin/pip install -r requirements.txt
+      - name: Resolve SEMAPHORE_IMAGE_TAG
+        run: |
+          if [ "${{ matrix.image_tag_kind }}" = "latest" ]; then
+            echo "SEMAPHORE_IMAGE_TAG=latest" >> "$GITHUB_ENV"
+          fi
+        # Pinned: run.sh will read ansispire_versions.semaphore_pinned from
+        # config/manifest.yml — no env override needed.
+      - run: make test-api-contract
