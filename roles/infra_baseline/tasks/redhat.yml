@@ -1,0 +1,121 @@
+# roles/infra_baseline/tasks/redhat.yml
+#
+# RHEL-family (Rocky / AlmaLinux / RHEL 9+) baseline. Called from main.yml
+# via `include_tasks: redhat.yml` when ansible_facts['os_family'] == 'RedHat'.
+#
+# Sequence rationale (plan §3 D8):
+# 1. RHEL 9 ships /usr/bin/python3 = 3.9 — below infra_baseline_python_min_version.
+#    First task installs python3.11 using the only Python that exists (3.9 is
+#    enough for the dnf module to run).
+# 2. Pivot ansible_python_interpreter to 3.11 for the rest of the play; re-run
+#    setup so the family-agnostic Python-version assert at the end of main.yml
+#    sees the new interpreter's version.
+# 3. dnf-plugins-core provides `config-manager`. The Docker CE .repo file is
+#    pulled directly from Docker's vendor URL (pins gpgkey etc. cleanly).
+# 4. SELinux: docker daemon binding cgroup sockets needs container_manage_cgroup
+#    boolean true under enforcing mode. seboolean module is the idiomatic way;
+#    its libselinux binding lives in the system Python (3.9), so we keep
+#    /usr/bin/python3 as the interpreter for that ONE task via `vars:` override.
+# 5. systemd start + enable.
+---
+- name: Baseline | (RHEL) Load family-specific vars
+  ansible.builtin.include_vars: RedHat.yml
+
+# Detect python3.11 before any install attempt so we can short-circuit
+# pivot/setup safely in --check mode on a fresh host (where dnf reports
+# "would install" but doesn't actually create the binary).
+- name: Baseline | (RHEL) Detect existing python3.11 (gate for check-mode pivot)
+  ansible.builtin.stat:
+    path: "{{ infra_baseline_rhel_python_interpreter }}"
+  register: infra_baseline_rhel_py311_stat
+  check_mode: false
+
+- name: Baseline | (RHEL) Install Python (project min 3.10; OS default 3.9) — pkg {{ infra_baseline_rhel_python_pkg }}
+  ansible.builtin.dnf:
+    name: "{{ infra_baseline_rhel_python_pkg }}"
+    state: present
+
+- name: Baseline | (RHEL) Pivot ansible_python_interpreter to {{ infra_baseline_rhel_python_interpreter }}
+  ansible.builtin.set_fact:
+    ansible_python_interpreter: "{{ infra_baseline_rhel_python_interpreter }}"
+  when: infra_baseline_rhel_py311_stat.stat.exists or not ansible_check_mode
+
+- name: Baseline | (RHEL) Re-gather facts with new interpreter
+  ansible.builtin.setup:
+  when: infra_baseline_rhel_py311_stat.stat.exists or not ansible_check_mode
+
+- name: Baseline | (RHEL) Check-mode preview notice — fresh host
+  ansible.builtin.debug:
+    msg: >-
+      Fresh RHEL host detected in --check mode. python3.11 not installed yet;
+      pivot + re-gather facts + subsequent docker/SELinux tasks all SKIPPED
+      because Ansible cannot accurately preview them without the actual
+      python3.11 binary + docker-ce repo present. Real run will install
+      python3.11 first and proceed normally. Ending play for this host now.
+  when:
+    - ansible_check_mode
+    - not infra_baseline_rhel_py311_stat.stat.exists
+
+# Without end_host, subsequent dnf docker-ce install in --check would error
+# ("package not found in any repository"), and main.yml's Python assert
+# would still see python_version=3.9 → also fail. end_host terminates the
+# play cleanly for THIS host only; other hosts (e.g. Debian targets in
+# the same run) continue normally.
+- name: Baseline | (RHEL) End host preview — fresh + check mode cannot continue
+  ansible.builtin.meta: end_host
+  when:
+    - ansible_check_mode
+    - not infra_baseline_rhel_py311_stat.stat.exists
+
+- name: Baseline | (RHEL) Install dnf-plugins-core (provides config-manager)
+  ansible.builtin.dnf:
+    name: dnf-plugins-core
+    state: present
+
+- name: Baseline | (RHEL) Add Docker CE repository
+  ansible.builtin.command:
+    cmd: "dnf config-manager --add-repo {{ infra_baseline_dnf_docker_repo }}"
+    creates: /etc/yum.repos.d/docker-ce.repo
+
+- name: Baseline | (RHEL) Install Docker and Compose plugin
+  ansible.builtin.dnf:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+
+- name: Baseline | (RHEL) Detect SELinux mode
+  ansible.builtin.command: getenforce
+  register: infra_baseline_rhel_selinux_mode
+  changed_when: false
+  check_mode: false  # getenforce is read-only; safe in --check + needed so subsequent SELinux when: conditions can evaluate the register
+
+# Include Permissive: persistent SELinux booleans are stored regardless of
+# enforcement mode and take effect when enforcement kicks in. Setting it
+# while Permissive is forward-compatibility (operator may flip to Enforcing
+# later without a re-baseline).
+- name: Baseline | (RHEL) Ensure SELinux Python bindings (required by ansible.posix.seboolean)
+  ansible.builtin.dnf:
+    name:
+      - python3-libselinux
+      - python3-libsemanage
+    state: present
+  when: infra_baseline_rhel_selinux_mode.stdout in ['Enforcing', 'Permissive']
+
+- name: Baseline | (RHEL) Allow Docker to manage cgroup under SELinux
+  ansible.posix.seboolean:
+    name: container_manage_cgroup
+    state: true
+    persistent: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  when: infra_baseline_rhel_selinux_mode.stdout in ['Enforcing', 'Permissive']
+
+- name: Baseline | (RHEL) Ensure Docker service is running and enabled
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+    enabled: true

@@ -21,10 +21,11 @@ Ansispire is a **Multi-Server Management Control System** for high-availability 
   - **Dev** (`inventory/dev/`): local development, unit testing, ephemeral EDA validation (`make test-eda-e2e`).
   - **Stag** (`inventory/stag/`): pre-production mirroring on real infrastructure (`make deploy-stag`).
   - **Prod** (`inventory/prod/`): live management and application plane (`make hub-deploy`, `make deploy-prod`).
-- **Inventory taxonomy**: `[hub_local]` / `[hub_remote]` / `[hub:children]` for management nodes; `[targets_debian|rhel|alpine]` placeholders for managed VPS.
+- **Inventory taxonomy**: `[hub_local]` / `[hub_remote]` / `[hub:children]` for management nodes; `[targets_debian|rhel|alpine]` for managed VPS data-plane (Debian + RHEL families populated in TASK-007 round 1, 2026-05-19 — 4 hosts across Debian 13, Ubuntu 24.04, Rocky 9, AlmaLinux 9; Alpine remains a placeholder pending TASK-007.B).
 
 ## 3. Module Scope (Logic Truths)
 - [Hub Deployment](docs/reference/feature-map/hub-deployment.md) — feature map · ops: [`docs/operations/hub-deployment.md`](docs/operations/hub-deployment.md)
+- [Multi-OS Target Fleet](docs/reference/feature-map/multi-os-fleet.md) — feature map (TASK-007 data-plane: per-family `infra_baseline` + `make target-deploy`)
 - [Audit Plane Reliability](docs/reference/feature-map/audit-plane.md)
 - [EDA Core Engine](docs/reference/feature-map/eda-core.md) — feature map · ops: [`docs/operations/eda-core.md`](docs/operations/eda-core.md)
 - [EDA Remediation (Nginx)](docs/reference/feature-map/eda-remediation.md) — first remediation rule

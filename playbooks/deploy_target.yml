@@ -1,0 +1,38 @@
+# playbooks/deploy_target.yml
+# Usage: ansible-playbook playbooks/deploy_target.yml -i inventory/hosts.ini
+#        (optionally --limit targets_debian|targets_rhel for per-family runs)
+#
+# Targets in the [targets_*] groups receive the infra_baseline role only —
+# no hub (Semaphore + audit) is deployed onto them. They are pure managed
+# data-plane hosts, supervised by the hub via SSH-based job dispatch.
+#
+# Cross-OS support (TASK-007):
+#   - Debian / Ubuntu (targets_debian) — apt + systemd path, implemented inline
+#   - Rocky / AlmaLinux (targets_rhel)  — dnf + systemd path via redhat.yml
+#   - Alpine (targets_alpine)           — apk + OpenRC path, STUB (TASK-007.B)
+---
+- name: Deploy Ansispire managed targets (infra_baseline only)
+  hosts: targets
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: infra_baseline
+      tags: [infra, baseline]
+
+  post_tasks:
+    - name: Final | Verify Docker daemon is reachable
+      ansible.builtin.command: docker version --format '{{ "{{" }}.Server.Version{{ "}}" }}'
+      register: _docker_ping
+      changed_when: false
+      when: not ansible_check_mode
+      tags: [verify]
+
+    - name: Final | Summary
+      ansible.builtin.debug:
+        msg: |
+          Target {{ inventory_hostname }} baselined ({{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}):
+          - Docker server: {{ _docker_ping.stdout | default('(check mode — not verified)') }}
+          - Python: {{ ansible_facts['python_version'] }}
+          - Management user: {{ infra_baseline_mgr_user }} ({{ infra_baseline_mgr_admin_group }} group)
+      tags: [always]
