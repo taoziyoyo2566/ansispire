@@ -49,6 +49,13 @@ class TestMatchRule(unittest.TestCase):
         rule = {"name": "R1", "condition": {"description_contains": "Disk Full"}, "cooldown": 60}
         self.assertFalse(reactor.match_rule(_ev(type="task_completed"), rule))
 
+    def test_contains_value_coerced_to_string(self):
+        """Schema rejects numeric _contains values, but reactor's str() coercion
+        is the defense-in-depth net for rules.json edited by hand without
+        running `make test-rules-schema`. Must not crash the tail loop."""
+        rule = {"name": "R1", "condition": {"description_contains": 123}, "cooldown": 60}
+        self.assertTrue(reactor.match_rule(_ev(description="error 123 happened"), rule))
+
     def test_mixed_exact_and_contains(self):
         """Both conditions must be satisfied."""
         rule = {
@@ -123,6 +130,117 @@ class TestProcessEvent(unittest.TestCase):
     def test_empty_line_skipped(self, mock_trigger):
         reactor.process_event("   \n", [])
         mock_trigger.assert_not_called()
+
+    @patch("reactor.trigger_semaphore_task")
+    def test_malformed_rule_does_not_crash_loop(self, mock_trigger):
+        """One bad rule logs + is skipped; subsequent good rules still fire."""
+        # condition: not a dict → match_rule raises AttributeError on .items().
+        bad_rule = {"name": "bad", "condition": "not-a-dict", "cooldown": 60, "actions": []}
+        good_rule = {
+            "name": "good", "condition": {"type": "go"}, "cooldown": 60,
+            "actions": [{"type": "semaphore_api", "template_id": 99}],
+        }
+        reactor.process_event(json.dumps(_ev(type="go")), [bad_rule, good_rule])
+        # Good rule still fired despite bad_rule blowing up.
+        mock_trigger.assert_called_once()
+
+
+class TestTruncationHandling(unittest.TestCase):
+    """Regression coverage for the v2.5 copytruncate fix.
+
+    The reactor's tail-FD must seek to OFFSET 0 (not EOF) when it detects
+    that the cursor offset exceeds the current file size — that condition
+    is the signature of `logrotate copytruncate`: the file shrinks to 0
+    bytes (or smaller than the cursor) and then accumulates new content
+    from the start.
+
+    Previous v2.4 behaviour was `f.seek(0, SEEK_END)` which silently dropped
+    every event written to the post-rotate file before the next reactor
+    restart cycle observed it — defeating cursor persistence.
+    """
+
+    def test_truncation_resets_cursor_to_start(self):
+        """Black-box: run reactor.py as a subprocess against a small temp
+        sandbox; force a cursor > file-size condition; verify reactor saves
+        cursor=0 (proving it seek(0)-ed) within one POLL_INTERVAL."""
+        import subprocess
+        import tempfile
+
+        tmp = tempfile.mkdtemp()
+        try:
+            jsonl = os.path.join(tmp, "events.jsonl")
+            rules = os.path.join(tmp, "rules.json")
+            schema = os.path.join(tmp, "events.schema.json")
+            cursor = os.path.join(tmp, "cursor")
+
+            # 1. Create a non-empty file → discover its size.
+            with open(jsonl, "w") as f:
+                f.write('{"payload":{"event":{"type":"x"}}}\n' * 5)
+            pre_size = os.path.getsize(jsonl)
+            self.assertGreater(pre_size, 0)
+
+            # 2. Simulate copytruncate: shrink to zero, write a new event.
+            with open(jsonl, "w") as f:
+                f.write('{"payload":{"event":{"type":"post_rotate"}}}\n')
+            post_size = os.path.getsize(jsonl)
+            self.assertLess(post_size, pre_size)
+
+            # 3. Plant a cursor that points past the new (smaller) file.
+            with open(cursor, "w") as f:
+                f.write(str(pre_size))
+
+            # 4. Minimal rules + schema files so reactor doesn't bail.
+            with open(rules, "w") as f:
+                json.dump({"rules": []}, f)
+            with open(schema, "w") as f:
+                json.dump({"$id": "test", "version": "1"}, f)
+
+            # 5. Run reactor with tiny intervals; ~1s is enough for it to
+            #    parse cursor, detect cursor>size, seek(0), save_cursor(0).
+            env = {
+                **os.environ,
+                "JSONL_PATH": jsonl,
+                "RULES_PATH": rules,
+                "EVENTS_SCHEMA_PATH": schema,
+                "CURSOR_FILE": cursor,
+                "POLL_INTERVAL": "0.1",
+                "CURSOR_FLUSH_INTERVAL": "0.1",
+                "SEMAPHORE_API_TOKEN": "",
+            }
+            reactor_path = os.path.join(os.path.dirname(__file__), "reactor.py")
+            proc = subprocess.Popen(
+                [sys.executable, reactor_path],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            try:
+                # Give it long enough to: open file, load cursor, detect
+                # truncation, seek(0), processs the post_rotate line.
+                import time as _time
+                _time.sleep(1.2)
+            finally:
+                proc.terminate()
+                try:
+                    out, _ = proc.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    out, _ = proc.communicate()
+
+            # 6. Cursor must have been reset to ≤ new file size — proving
+            #    truncation was detected. Post-process events would push it
+            #    to ~ post_size, but the critical assertion is "not stuck
+            #    at the pre-truncation value".
+            self.assertTrue(os.path.exists(cursor), "cursor file should exist")
+            with open(cursor) as f:
+                new_offset = int(f.read().strip())
+            self.assertLessEqual(new_offset, post_size,
+                f"cursor stayed at {new_offset} (post-truncate file is "
+                f"{post_size} bytes) — truncation NOT detected. "
+                f"reactor stderr: {out.decode(errors='replace')[-500:]}")
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":

@@ -14,11 +14,13 @@ import os
 import sys
 import unittest
 
+from jsonschema import Draft7Validator
 import yaml  # PyYAML — comes via the project .venv (ansible dependency)
 
 REPO_ROOT = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 RULES_PATH = os.path.join(REPO_ROOT, "extensions", "eda", "rules.json")
 SCHEMA_PATH = os.path.join(REPO_ROOT, "extensions", "eda", "events.schema.json")
+RULES_SCHEMA_PATH = os.path.join(REPO_ROOT, "extensions", "eda", "rules.schema.json")
 BOOTSTRAP_PATH = os.path.join(REPO_ROOT, "controller", "semaphore", "bootstrap.yml")
 REGISTER_TASK_NAME = "Register remediation templates (idempotent)"
 
@@ -75,6 +77,40 @@ class TestRulesJsonStructure(unittest.TestCase):
                     self.assertIn("project_name", a)
                     self.assertTrue(a["template_name"], "template_name must be non-empty")
                     self.assertTrue(a["project_name"], "project_name must be non-empty")
+
+    def test_C10_rules_schema_rejects_numeric_contains_values(self):
+        """Schema must reject _contains values that aren't strings —
+        substring match against a number is semantically meaningless."""
+        with open(RULES_SCHEMA_PATH, "r", encoding="utf-8") as f:
+            schema = json.load(f)
+        bad_doc = {
+            "rules": [{
+                "name": "bad contains",
+                "condition": {"description_contains": 123},
+                "actions": [{"type": "webhook", "url": "http://example.invalid"}],
+            }],
+        }
+        errors = list(Draft7Validator(schema).iter_errors(bad_doc))
+        self.assertGreater(len(errors), 0,
+                           "numeric _contains values must be rejected by the schema")
+
+    def test_C11_rules_schema_requires_template_for_semaphore_api(self):
+        """reactor.py:trigger_semaphore_task POSTs to
+        /api/project/{id}/tasks with a template_id payload — neither the
+        project nor the template is optional, even though the action
+        type itself only mandates the project identifier."""
+        with open(RULES_SCHEMA_PATH, "r", encoding="utf-8") as f:
+            schema = json.load(f)
+        bad_doc = {
+            "rules": [{
+                "name": "bad semaphore action",
+                "condition": {"object_type": "task"},
+                "actions": [{"type": "semaphore_api", "project_name": "ansispire"}],
+            }],
+        }
+        errors = list(Draft7Validator(schema).iter_errors(bad_doc))
+        self.assertGreater(len(errors), 0,
+                           "semaphore_api actions must identify a template (id or name)")
 
 
 class TestBootstrapTemplates(unittest.TestCase):

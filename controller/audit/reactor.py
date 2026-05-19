@@ -1,9 +1,23 @@
 #!/usr/bin/env python3
-"""Advanced EDA Reactor v2.4 — Observability & Robustness.
+"""Advanced EDA Reactor v2.5 — Observability & Robustness.
 
 Supports '_contains' matching, dynamic resolution, verbose diagnostic logging,
-mtime-aware rules cache, cursor-persisted jsonl tail, and a fatal-restart
-outer loop (no recursion).
+mtime-aware rules cache, cursor-persisted jsonl tail with copytruncate-safe
+truncation handling (seek-to-start, not seek-to-EOF), per-rule exception
+isolation, and a fatal-restart outer loop (no recursion).
+
+v2.4 → v2.5 fixes (cross-pollinated from fix/ansible-docs-review-remediation
+review, 2026-05-19):
+- Truncation handling at startup AND during run: seek(0), not seek(EOF).
+  Previous EOF-seek silently dropped events between truncation and reactor
+  restart — defeating the whole point of cursor persistence.
+- Per-tick `f.tell() > size` detection: catches `logrotate copytruncate`
+  events that happen WHILE reactor is running. Previous version only
+  checked truncation at startup, leaking events until next restart.
+- match_rule wrapped in try/except per rule: a malformed rule cannot
+  bring down the tail loop.
+- _contains values coerced via str() — defense in depth for hand-edited
+  rules.json that bypassed `make test-rules-schema`.
 """
 
 import json
@@ -118,7 +132,10 @@ def match_rule(event_payload: dict, rule: dict) -> bool:
         if key.endswith("_contains"):
             real_key = key.replace("_contains", "")
             actual_val = str(event.get(real_key, ""))
-            if value not in actual_val:
+            # str(value) defense: rules.schema.json restricts _contains values
+            # to strings, but if a rule slipped past validation (e.g., rules.json
+            # edited by hand without `make test-rules-schema`), avoid TypeError.
+            if str(value) not in actual_val:
                 return False
         elif event.get(key) != value:
             return False
@@ -247,7 +264,15 @@ def process_event(event_line: str, rules: list) -> None:
         return
 
     for rule in rules:
-        if match_rule(payload, rule):
+        # Defense in depth: one malformed rule must not crash the whole
+        # tail loop. Log + skip + continue to the next rule.
+        try:
+            matched = match_rule(payload, rule)
+        except Exception as e:
+            log(f"rule evaluation failed ({rule.get('name', '<unnamed>')}): "
+                f"{type(e).__name__}: {e}")
+            continue
+        if matched:
             log(f"MATCH FOUND: {rule.get('name')}")
             LAST_TRIGGERED[rule.get("name")] = time.time()
             for action in rule.get("actions", []):
@@ -306,8 +331,14 @@ def run_tail_loop() -> None:
             try:
                 size = os.path.getsize(JSONL_PATH)
                 if start > size:
-                    log(f"tail start: cursor {start} > file size {size}; treating as truncation, seeking to EOF")
-                    f.seek(0, os.SEEK_END)
+                    # Truncation detected at startup (logrotate copytruncate
+                    # produced a smaller file). The post-truncation file
+                    # holds fresh content from offset 0 — seek to the start
+                    # so we consume new events instead of skipping them.
+                    log(f"tail start: cursor {start} > file size {size}; "
+                        f"truncation detected, seeking to start")
+                    f.seek(0)
+                    save_cursor(0)
                 else:
                     f.seek(start)
                     log(f"tail start: cursor offset {start} (file size {size})")
@@ -323,6 +354,21 @@ def run_tail_loop() -> None:
                 # mtime-gated cheap call — see load_rules.
                 rules = load_rules()
                 now = time.time()
+                # Per-tick truncation detection: copytruncate while running.
+                # Without this, the FD keeps reading past the new (smaller)
+                # file size and returns empty, silently dropping post-rotate
+                # events until the next reactor restart.
+                try:
+                    size = os.path.getsize(JSONL_PATH)
+                except Exception:
+                    size = None
+                if size is not None and f.tell() > size:
+                    log(f"tail running: offset {f.tell()} > file size {size}; "
+                        f"truncation detected, seeking to start")
+                    f.seek(0)
+                    save_cursor(0)
+                    last_flush = now
+                    continue
                 if CURSOR_FILE and (now - last_flush) >= CURSOR_FLUSH_INTERVAL:
                     save_cursor(f.tell())
                     last_flush = now
@@ -338,7 +384,7 @@ def run_tail_loop() -> None:
 
 
 def main() -> None:
-    log(f"starting advanced reactor v2.4, monitoring {JSONL_PATH}")
+    log(f"starting advanced reactor v2.5, monitoring {JSONL_PATH}")
     log(f"event schema: {schema_banner()}")
     log(f"rules: min reload interval={RULES_MIN_RELOAD_INTERVAL}s; cursor={CURSOR_FILE or '<disabled>'} flush_every={CURSOR_FLUSH_INTERVAL}s")
     # Outer loop: if the tail dies (file deleted, FS error, …) log and

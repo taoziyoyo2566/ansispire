@@ -4,12 +4,19 @@
   community.docker.docker_compose_v2:
     project_src: "{{ ansispire_audit_base_dir }}/controller/audit"
     state: present
+    # build: always — sink + reactor are local builds (Dockerfile.sink /
+    # Dockerfile.reactor). Module default is `policy` (= build if missing),
+    # which means a re-deploy after editing reactor.py would NOT rebuild
+    # the baked image. Force rebuild every run so code changes land.
+    build: always
     wait: true
   environment:
     AUDIT_PORT: "{{ ansispire_audit_port | string }}"
     AUDIT_IMAGE_TAG: "{{ ansispire_audit_image_tag }}"
+    # The audit stack authenticates to Semaphore via Bearer token only;
+    # SEMAPHORE_ADMIN_PASSWORD is never consumed by relay.py/reactor.py
+    # and used to leak via env into every audit-* container.
     SEMAPHORE_API_TOKEN: "{{ ansispire_hub_eda_token | default('') }}"
-    SEMAPHORE_ADMIN_PASSWORD: "{{ ansispire_hub_admin_password }}"
   # Skip on first --check before any real deploy has minted a token: audit
   # depends on the hub's API token, which doesn't exist yet.
   when: ansispire_hub_eda_token is defined or not ansible_check_mode

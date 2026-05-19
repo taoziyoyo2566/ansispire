@@ -174,7 +174,23 @@
       failed_when: "ansispire_hub_seed_out.rc != 0 and 'UNIQUE' not in ansispire_hub_seed_out.stderr and 'exists' not in ansispire_hub_seed_out.stderr"
       changed_when: "'created' in ansispire_hub_seed_out.stdout"
 
-    - name: CLI | Enforce admin password (idempotent change-by-login)
+    # Idempotency: probe the API login with the current password first.
+    # Only run change-by-login if the probe fails — so a re-deploy with
+    # unchanged vault.yml password reports changed=0, matching Ansible's
+    # idempotency contract. (Previous version reported changed=1 every
+    # deploy even when nothing changed.)
+    - name: API | Probe admin password
+      ansible.builtin.uri:
+        url: "http://localhost:{{ ansispire_hub_port }}/api/auth/login"
+        method: POST
+        body: { auth: "{{ ansispire_hub_admin_user }}", password: "{{ ansispire_hub_admin_password }}" }
+        body_format: json
+        status_code: [200, 204, 400, 401, 403]
+      register: ansispire_hub_admin_probe
+      no_log: true
+      changed_when: false
+
+    - name: CLI | Enforce admin password (only when probe says drifted)
       ansible.builtin.command:
         cmd: >-
           docker exec ansispire-semaphore semaphore user change-by-login
@@ -182,7 +198,8 @@
           --password "{{ ansispire_hub_admin_password }}"
       register: ansispire_hub_pw_out
       no_log: true
-      changed_when: ansispire_hub_pw_out.rc == 0
+      changed_when: true
+      when: ansispire_hub_admin_probe.status not in [200, 204]
 
 - name: Hub | Provision Token
   # Skip in --check mode: API tasks below cannot actually call the live

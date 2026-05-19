@@ -50,14 +50,22 @@
     "condition": {
       "type": "object",
       "minProperties": 1,
-      "additionalProperties": {
-        "oneOf": [
-          { "type": "string" },
-          { "type": "number" },
-          { "type": "boolean" }
-        ]
+      "patternProperties": {
+        ".*_contains$": {
+          "type": "string",
+          "description": "Substring match. Must be a string — reactor.py:match_rule does `if str(value) not in actual_val`, but coercion is a defense-in-depth net; semantically a number or boolean substring is nonsense."
+        },
+        "^(?!.*_contains$).+$": { "$ref": "#/definitions/condition_value" }
       },
-      "description": "Matched against payload.event.<key>. A key suffixed '_contains' is matched via substring; bare keys are matched via equality. See controller/audit/reactor.py:match_rule."
+      "additionalProperties": false,
+      "description": "Matched against payload.event.<key>. A key suffixed '_contains' is matched via substring and MUST be a string; bare keys are matched via equality. See controller/audit/reactor.py:match_rule."
+    },
+    "condition_value": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" }
+      ]
     },
     "action": {
       "type": "object",
@@ -79,11 +87,21 @@
         "template_id": { "type": "integer" },
         "template_name": { "type": "string" }
       },
-      "anyOf": [
-        { "required": ["project_id"] },
-        { "required": ["project_name"] }
+      "allOf": [
+        {
+          "anyOf": [
+            { "required": ["project_id"] },
+            { "required": ["project_name"] }
+          ]
+        },
+        {
+          "anyOf": [
+            { "required": ["template_id"] },
+            { "required": ["template_name"] }
+          ]
+        }
       ],
-      "description": "Trigger a Semaphore template via /api/project/{id}/tasks. Either project_id or project_name must be provided; same for template_id or template_name. Name resolution is cached per (project, template) pair."
+      "description": "Trigger a Semaphore template via /api/project/{id}/tasks. BOTH a project identifier (project_id or project_name) AND a template identifier (template_id or template_name) must be provided — reactor.py constructs /api/project/{project_id}/tasks with a template_id payload, neither is optional. Name resolution is cached per (project, template) pair."
     },
     "action_webhook": {
       "type": "object",

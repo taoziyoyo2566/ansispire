@@ -29,6 +29,21 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branch `feat/vps-manager-plugin`
 
+### Cross-pollination from fix/ansible-docs-review-remediation (2026-05-19, Round 6)
+
+Branch `fix/codex-cross-compare-hygiene`. Engineering-bug remediation after diff'ing this branch against parallel branch `fix/ansible-docs-review-remediation`, which surfaced 6 real defects in the WU-2 / WU-3 work units shipped in Rounds 3-4.
+
+- **Reactor v2.4 → v2.5** (`controller/audit/reactor.py`):
+  - **Truncation handling: seek(0), not seek(EOF)** (data-loss fix). Both at startup (`cursor > file_size` at boot) and during run (per-tick `f.tell() > size` check), the reactor now seeks to the start of the post-rotate file. Previous behaviour silently dropped every event written between the truncation point and the next reactor restart, defeating cursor persistence's whole purpose.
+  - **Per-rule exception isolation**: `match_rule` is wrapped in try/except inside `process_event`. A malformed rule logs and is skipped rather than crashing the tail loop.
+  - **Defense-in-depth `_contains` coercion**: `if str(value) not in actual_val` so a numeric `_contains` value in hand-edited `rules.json` (bypassing `make test-rules-schema`) cannot raise TypeError.
+- **Reactor healthcheck** (`controller/audit/docker-compose.yml`): replaced `pgrep -f reactor.py` (self-matches its own grep argv on some implementations → false-healthy) with `tr '\0' ' ' </proc/1/cmdline | grep -q '/app/reactor.py'`. Bulletproof since reactor runs as PID 1.
+- **Hub role admin-password idempotency** (`roles/ansispire_hub/tasks/main.yml`): added an `API | Probe admin password` task that calls `/api/auth/login`; the subsequent `CLI | Enforce admin password` runs only when the probe is rejected (status ∉ {200, 204}). Previous version reported `changed=1` on every deploy regardless of whether the password actually changed — Ansible idempotency violation.
+- **Audit role build: always + dropped admin password env** (`roles/ansispire_audit/tasks/main.yml`): added `build: always` so re-deploys after editing `reactor.py`/`sink.py` actually rebuild the baked image (module default `policy` only builds if missing). Removed `SEMAPHORE_ADMIN_PASSWORD` from the env block — the audit stack authenticates via Bearer token, the admin password was unused secret exposure.
+- **Rules schema tightened** (`extensions/eda/rules.schema.json`):
+  - `_contains` keys are constrained to string values via `patternProperties`. Numbers/booleans no longer pass schema; reactor's `str()` coercion is the defense-in-depth net for hand edits.
+  - `semaphore_api` actions now require BOTH a project identifier (id|name) AND a template identifier (id|name) via `allOf` + `anyOf`. Reactor's POST `/api/project/{id}/tasks` payload mandates both — the previous schema let through actions that would fail at runtime.
+
 ### Semaphore API contract preflight (2026-05-19)
 
 Branch `fix/codex-cross-compare-hygiene`. WU-4 from `docs/reviews/feat-semaphore-cross-compare/plan-2026-05-17.md`.

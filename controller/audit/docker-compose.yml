@@ -115,9 +115,11 @@ services:
       CURSOR_FILE: /var/lib/audit-reactor/cursor
       PYTHONUNBUFFERED: "1"
     healthcheck:
-      # Reactor is a tail-loop with no HTTP surface — pgrep ships with the
-      # baked-in procps package (see Dockerfile.reactor).
-      test: ["CMD-SHELL", "pgrep -f reactor.py >/dev/null"]
+      # Reactor is a tail-loop with no HTTP surface. Inspect PID 1's
+      # cmdline directly — `pgrep -f reactor.py` self-matches its own
+      # grep argv on some implementations, causing the probe to report
+      # healthy even after the reactor process has died.
+      test: ["CMD-SHELL", "tr '\\0' ' ' </proc/1/cmdline | grep -q '/app/reactor.py'"]
       interval: 30s
       timeout: 3s
       retries: 5

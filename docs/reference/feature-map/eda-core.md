@@ -23,7 +23,9 @@ A lightweight Event-Driven Ansible (EDA) reaction engine that transforms audit e
 - **No suffix**: exact-equality match
 - **`enabled: false`**: rule short-circuits in `match_rule` early-return; preserved in file for documentation
 - **Cooldown**: per-rule timestamp prevents event-storm cascades (default 600 s)
-- **Cursor persistence (v2.4+)**: byte-offset into `events.jsonl` flushed to `CURSOR_FILE` every `CURSOR_FLUSH_INTERVAL` s (default 5 s). Restart resumes from last flushed offset; cold start with no cursor or with cursor > file size (truncation) seeks to EOF.
+- **Cursor persistence (v2.4+)**: byte-offset into `events.jsonl` flushed to `CURSOR_FILE` every `CURSOR_FLUSH_INTERVAL` s (default 5 s). Restart resumes from last flushed offset; cold start with no cursor reads from EOF.
+- **Copytruncate-safe (v2.5+)**: when `cursor > file_size` (logrotate copytruncate signature) — either at startup or detected per-tick via `f.tell() > size` — the reactor seeks to OFFSET 0 (not EOF) and persists cursor=0. This consumes post-rotate content from the start instead of skipping it. Previous v2.4 seeked to EOF on truncation, silently dropping every event written between rotation and the next reactor restart cycle.
+- **Per-rule exception isolation (v2.5+)**: `match_rule` is wrapped in try/except inside `process_event` — one malformed rule logs `rule evaluation failed (<name>): <type>: <msg>` and is skipped; the rest of the rule set still evaluates.
 - **Rules cache (v2.4+)**: `load_rules` only re-reads when both (a) `RULES_PATH` mtime changes AND (b) `RULES_MIN_RELOAD_INTERVAL` (default 30 s) elapsed. The poll loop calls it every tick but the disk hit is rate-limited.
 - **Fatal-restart loop (v2.4+)**: outer `while True` wrapper around `run_tail_loop`; on any exception logs `type+message` and sleeps `FATAL_RESTART_BACKOFF` s (default 5 s). No recursion → flat stack.
 
@@ -31,7 +33,7 @@ A lightweight Event-Driven Ansible (EDA) reaction engine that transforms audit e
 - **Ports + image versions**: `config/manifest.yml` → rendered into `controller/semaphore/.env` by `make manifest-sync`; consumed by both Ansible vars_files and docker compose `${VAR}` interpolation
 - **Hub topology**: `inventory/hosts.ini` `[hub_local]` / `[hub_remote]` / `[hub:children]`
 - **Rules**: `extensions/eda/rules.json`
-- **Rules schema**: `extensions/eda/rules.schema.json` (Draft-07; validated by `make test-rules-schema` — part of `make test-eda` chain)
+- **Rules schema**: `extensions/eda/rules.schema.json` (Draft-07; validated by `make test-rules-schema` — part of `make test-eda` chain). **Round 6 tightening**: `_contains` keys must be strings (substring match against non-string values is rejected); `semaphore_api` actions require BOTH a project identifier (id|name) AND a template identifier (id|name) — reactor's POST `/api/project/{id}/tasks` payload mandates both.
 - **Event contract**: `extensions/eda/events.schema.json` (Draft-07; reactor logs `event schema: <$id>@<version>` at startup)
 
 ## Test pyramid (TSVS-tracked)
