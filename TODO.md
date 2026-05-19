@@ -10,6 +10,7 @@
 
 | ID | 任务 | 闭环时间 | 闭环报告 |
 |---|---|---|---|
+| TASK-007 | Multi-OS Target Fleet (round 1 — Debian + RHEL families) | 2026-05-19 | [`docs/reviews/feat-multi-os-target-fleet/round1-2026-05-19.changelog.md`](docs/reviews/feat-multi-os-target-fleet/round1-2026-05-19.changelog.md) |
 | TASK-001 | Advanced Self-Healing Scenarios (v2.3 API-driven reactor & IaC) | 2026-05-10 | [`docs/reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md`](docs/reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md) |
 | TASK-004 | Robust Bootstrap 2.1 (venv isolation & path consistency) | — | — |
 | TASK-006 | 升级至 Ansible-Core 2.20.5 (2026 LTS) | — | — |
@@ -23,21 +24,29 @@
 
 ## 🟡 进行中 / 下一轮可立刻启动 (Active / Next-up)
 
-### TASK-007 — Multi-OS Target Fleet  🆕
-- **目标**：把 Alpine / Rocky / Ubuntu / Debian 4 台 VPS 接入 `[targets_*]` 组，实现 `infra_baseline` 的 RHEL / Alpine 分支，让管理 hub 能统一保持全 fleet 的安全基线。
-- **入口**：`inventory/hosts.ini` 的 `[targets_debian]` / `[targets_rhel]` / `[targets_alpine]` 占位组（Round 4 已就位）。
+### TASK-007.B — Alpine OS-family branch  🆕
+- **目标**：把 `roles/infra_baseline/tasks/alpine.yml` fail-stub 替换为真实 apk+OpenRC 实现，让 Alpine VPS 也能纳管。
+- **入口**：现有 `main.yml:70-78` fail 占位；Phase 3 已设计好 `target-deploy` 的 `TARGET_NODE=alpine` 路径（接 placeholder）。
 - **拆解**：
-    1. `[ ]` 在 inventory 加 4 台真实 VPS（host alias + python interpreter pin）
-    2. `[ ]` `roles/infra_baseline/tasks/redhat.yml` 实现（dnf 装 docker / 用户）；删 RHEL fail 占位
-    3. `[ ]` `roles/infra_baseline/tasks/alpine.yml` 实现（apk + openrc）；删 Alpine fail 占位
-    4. `[ ]` 写 `playbooks/deploy_target.yml`（applies infra_baseline only，不装 hub）
-    5. `[ ]` Makefile 加 `target-deploy TARGET_NODE=<group>` 包装
-    6. `[ ]` 在 ans-hk01 hub 上从 Semaphore 调度对全 targets 的安全任务（demo: ansible all -m ping）
-    7. `[ ]` 写 round1-changelog 闭环
-- **依赖**：用户提供 4 台 VPS 的 SSH config alias
+    1. `[ ]` 用户拨备 1+ 台 Alpine VPS 进 `[targets_alpine]`
+    2. `[ ]` `roles/infra_baseline/tasks/alpine.yml` 实现（`apk add docker docker-cli-compose`，OpenRC `rc-update add docker default` + `rc-service docker start`）
+    3. `[ ]` `roles/infra_baseline/vars/Alpine.yml`（docker repo URL、python pkg、admin group ≈ `wheel`）
+    4. `[ ]` 删 `main.yml:70-78` fail-stub，换 `include_tasks: alpine.yml`
+    5. `[ ]` 真跑 + idempotency 验证 + 写 round1-changelog
+- **依赖**：用户拨备 Alpine VPS
 - **owner**：Claude（实现） + 用户（开 VPS）
-- **优先级**：P1（用户已宣布的下一阶段）
-- **建议分支**：`feat/multi-os-target-fleet`
+- **优先级**：P2
+- **建议分支**：`feat/infra-baseline-alpine`
+
+### TASK-007.C — Hub remote orphan cleanup  🆕
+- **目标**：`inventory/hosts.ini` 与 `inventory/prod/hosts.ini` 里的 `[hub_remote]` 仍指向 `ans-hk01` (89.185.26.211:1156)，但该 IP 在 2026-05-19 被 OS 重装抹掉了（现在是 Debian 13 target `d13` port 22）。需要决定：(a) 拨一台新 VPS 当 remote hub，(b) 接受 hub-only-local 状态并把 `[hub_remote]` 拿空，(c) 重新部署 hub 到 d13 / 其他机器。
+- **拆解**：
+    1. `[ ]` 用户决策：要不要还有 hub_remote？
+    2. `[ ]` 按决策更新 inventory + SSH config
+    3. `[ ]` 如保留：`make hub-deploy HUB_NODE=remote` 验证
+- **依赖**：用户决策
+- **优先级**：P2
+- **建议分支**：`fix/hub-remote-cleanup`
 
 ### TASK-008 — DB Failover Playbook 真实化
 - **目标**：把 `playbooks/remediation/db_failover.yml` 占位剧本替换为真实 failover 实现；翻 `extensions/eda/rules.json` 中 `Remediation: DB Connection Failure` 的 `enabled: true`；加 L4 e2e 用例。
