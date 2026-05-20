@@ -7,7 +7,7 @@
 The Audit Plane ensures a tamper-proof, reliable trace of all management actions performed in the Ansispire system. It decouples event capture from core management logic.
 
 ## 组件 (per hub host)
-- **`sink.py`** — Python 轻量 HTTP 接收器，append-only 写入 JSONL（host 端口 3330）。容器从 `Dockerfile.sink` 本地构建，logrotate 烘焙入镜像（不再 runtime `apk add`）
+- **`sink.py`** — Python 轻量 HTTP 接收器，append-only 写入 JSONL（host 端口 3310，container 内 3010；`AUDIT_PORT` 可覆盖）。容器从 `Dockerfile.sink` 本地构建，logrotate 烘焙入镜像（不再 runtime `apk add`）
 - **`relay.py`** — Python，cursor 分页拉 Semaphore tasks → POST 到 sink；含 60 s heartbeat；compose 健康检查通过 `pidof python3`
 - **`reactor.py` (v2.6)** — 见 [`eda-core.md`](./eda-core.md)。容器从 `Dockerfile.reactor` 本地构建（baked-in jq + procps）；cursor 状态持久化到 `audit-reactor-state:/var/lib/audit-reactor/cursor`；compose 健康检查通过 `tr '\0' ' ' </proc/1/cmdline | grep -q '/app/reactor.py'` 读 PID 1 实际 argv。v2.5 修了 v2.4 的 copytruncate 数据丢失（seek 0 而非 EOF）；v2.6 进一步修了两个 follow-up：(a) `load_cursor()` 用 `Optional[int]` 区分「cursor 文件不存在」(None → seek EOF) 和「cursor 文件存在且值为 0」(int 0 → seek 0)，避免在 `save_cursor(0)` 写完后崩溃重启时再次跳到 EOF 丢光 post-rotate；(b) `process_event` 在 per-rule 循环头加 `isinstance(rule, dict)` 守卫，handle 非 dict 规则条目 (`rules: ["bad", {...}]`) 不再让 tail loop 崩
 
