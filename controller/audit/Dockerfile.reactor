@@ -1,0 +1,22 @@
+# controller/audit/Dockerfile.reactor — local build for audit-reactor.
+#
+# Bakes jq into the image (was previously `apk add` on each container
+# start) and pre-creates /var/lib/audit-reactor so the cursor file has a
+# writable home even before the audit-reactor-state volume is mounted.
+#
+# reactor.py is copied in rather than bind-mounted so the deployed image
+# is self-contained — bind mounts remain available in docker-compose for
+# dev-time edits that want to skip a rebuild.
+
+FROM python:3.12-alpine
+
+RUN apk add --no-cache jq procps
+
+WORKDIR /app
+COPY reactor.py /app/reactor.py
+RUN mkdir -p /var/lib/audit-reactor
+
+ENV PYTHONUNBUFFERED=1 \
+    CURSOR_FILE=/var/lib/audit-reactor/cursor
+
+CMD ["python3", "/app/reactor.py"]

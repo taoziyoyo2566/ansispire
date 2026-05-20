@@ -12,8 +12,9 @@ grep-able / `jq`-able JSONL event stream.
   Container restarts do not lose audit trail.
 - **Stdlib-only**: no Flask / FastAPI dep — one file, one runtime
   (`python:3.12-alpine`, ~50 MB image).
-- **Loopback-only**: bound to `127.0.0.1:3010` on the host. This is a
-  learning sink, not a production audit bus.
+- **Loopback-only**: bound to `127.0.0.1:3310` on the host (container
+  port 3010, `+300` host-port convention; `AUDIT_PORT` overridable).
+  This is a learning sink, not a production audit bus.
 
 ## Start / stop
 
@@ -48,10 +49,10 @@ events. In the demo project, configure the webhook URL to the sink.
 Inside Docker, the sink is reachable at the host bridge:
 
 - From Semaphore container (same compose network is not used — the
-  sink runs in its own compose): use `http://host.docker.internal:3010/event`
+  sink runs in its own compose): use `http://host.docker.internal:3310/event`
   on Linux with `--add-host host.docker.internal:host-gateway`, or
-  use the host IP directly.
-- From the host: `http://127.0.0.1:3010/event`
+  use the host IP directly (host port 3310).
+- From the host: `http://127.0.0.1:3310/event`
 
 An alternative (safer): configure Semaphore to POST to the sink
 through a small `socat` relay, or run both in the same compose network.
@@ -63,8 +64,8 @@ For the learning round we keep it simple and document the wiring here.
 # Start
 make controller-audit-up
 
-# Send a test event
-curl -s -X POST http://127.0.0.1:3010/event \
+# Send a test event (host port 3310; container port is 3010)
+curl -s -X POST http://127.0.0.1:3310/event \
   -H 'Content-Type: application/json' \
   -d '{"event":"smoke_test","note":"from README"}'
 

@@ -361,11 +361,13 @@ PY
 }
 
 prepare_smoke_stack() {
-    local semaphore_tag audit_tag
+    local semaphore_tag audit_python_base_tag
     semaphore_tag=$(grep -E '^SEMAPHORE_IMAGE_TAG=' controller/audit/e2e/.env.example | cut -d= -f2-)
-    audit_tag=$(grep -E '^AUDIT_IMAGE_TAG=' controller/audit/e2e/.env.example | cut -d= -f2-)
+    # Round 8: e2e .env.example renamed AUDIT_IMAGE_TAG → AUDIT_PYTHON_BASE_TAG
+    # to disentangle the python base tag from our baked image tag.
+    audit_python_base_tag=$(grep -E '^AUDIT_PYTHON_BASE_TAG=' controller/audit/e2e/.env.example | cut -d= -f2-)
     semaphore_tag=${semaphore_tag:-v2.18.2}
-    audit_tag=${audit_tag:-3.12-alpine}
+    audit_python_base_tag=${audit_python_base_tag:-3.12-alpine}
 
     SMOKE_PROJECT="ansispire-smoke-$TS"
     SMOKE_ENV="$WORKDIR/smoke.env"
@@ -389,7 +391,7 @@ prepare_smoke_stack() {
 SEMAPHORE_PORT=$SMOKE_SEMAPHORE_PORT
 AUDIT_PORT=$SMOKE_AUDIT_PORT
 SEMAPHORE_IMAGE_TAG=$semaphore_tag
-AUDIT_IMAGE_TAG=$audit_tag
+AUDIT_PYTHON_BASE_TAG=$audit_python_base_tag
 SEMAPHORE_ADMIN=$SMOKE_ADMIN_USER
 SEMAPHORE_ADMIN_PASSWORD=$SMOKE_ADMIN_PASSWORD
 TZ=UTC

@@ -1,6 +1,7 @@
-# .gitleaks.toml — mirror of .gitguardian.yaml allowlist for local
-# parity. ggshield is the CI authority; this file lets `gitleaks
-# detect` run cleanly during local dev / pre-commit hooks.
+# .gitleaks.toml — mirror of .gitguardian.yaml allowlist for local parity.
+# GitGuardian dashboard / GitHub check-run incidents are resolved in
+# GitGuardian; this file lets `gitleaks detect` run cleanly during local dev
+# / pre-commit hooks.
 
 title = "Ansispire scan"
 
@@ -35,7 +36,6 @@ regexes = [
   '''IntegrationTestApp456!''',
   '''e2e_disposable_pw''',
   '''YourStrongPasswordHere''',
-  '''ci-test-password''',
   # Historical EDA token that was redacted in-place (tripwire)
   '''ahen7kd4lx4getkojxrlmiwpqzej-pkddy4yyxswhhw=''',
 ]

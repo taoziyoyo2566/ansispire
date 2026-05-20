@@ -23,11 +23,17 @@ A lightweight Event-Driven Ansible (EDA) reaction engine that transforms audit e
 - **No suffix**: exact-equality match
 - **`enabled: false`**: rule short-circuits in `match_rule` early-return; preserved in file for documentation
 - **Cooldown**: per-rule timestamp prevents event-storm cascades (default 600 s)
+- **Cursor persistence (v2.4+, refined v2.6)**: byte-offset into `events.jsonl` flushed to `CURSOR_FILE` every `CURSOR_FLUSH_INTERVAL` s (default 5 s). `load_cursor()` returns `Optional[int]` — `None` means the cursor file is absent (fresh boot → seek EOF; don't dump backlog); `int` (including 0) means the cursor file is present and authoritative. Critically, `0` is NOT a synonym for "no cursor" — it's the post-truncate marker written by `save_cursor(0)`, and v2.6 honours it as `seek(0)`. v2.5 collapsed both into seek(EOF), losing the post-rotate file if the reactor crashed between the marker write and the first post-rotate readline.
+- **Copytruncate-safe (v2.5+)**: when `cursor > file_size` (logrotate copytruncate signature) — either at startup or detected per-tick via `f.tell() > size` — the reactor seeks to OFFSET 0 (not EOF) and persists cursor=0. This consumes post-rotate content from the start instead of skipping it. Previous v2.4 seeked to EOF on truncation, silently dropping every event written between rotation and the next reactor restart cycle.
+- **Per-rule exception isolation (v2.5+, hardened v2.6)**: two layers. (a) `isinstance(rule, dict)` guard at the top of the per-rule loop in `process_event` — non-dict rule entries (e.g. hand-edited `rules.json` with `"rules": ["bad", {...}]`) log `skipping malformed rule (expected dict, got str)` and are skipped. (b) `match_rule` is wrapped in try/except — a dict rule whose internal evaluation throws logs `rule evaluation failed (<name>): <type>: <msg>` and is skipped. Either way, one malformed rule does not crash the tail loop.
+- **Rules cache (v2.4+)**: `load_rules` only re-reads when both (a) `RULES_PATH` mtime changes AND (b) `RULES_MIN_RELOAD_INTERVAL` (default 30 s) elapsed. The poll loop calls it every tick but the disk hit is rate-limited.
+- **Fatal-restart loop (v2.4+)**: outer `while True` wrapper around `run_tail_loop`; on any exception logs `type+message` and sleeps `FATAL_RESTART_BACKOFF` s (default 5 s). No recursion → flat stack.
 
 ## Configuration SSOT
 - **Ports + image versions**: `config/manifest.yml` → rendered into `controller/semaphore/.env` by `make manifest-sync`; consumed by both Ansible vars_files and docker compose `${VAR}` interpolation
 - **Hub topology**: `inventory/hosts.ini` `[hub_local]` / `[hub_remote]` / `[hub:children]`
 - **Rules**: `extensions/eda/rules.json`
+- **Rules schema**: `extensions/eda/rules.schema.json` (Draft-07; validated by `make test-rules-schema` — part of `make test-eda` chain). **Round 6 tightening**: `_contains` keys must be strings (substring match against non-string values is rejected); `semaphore_api` actions require BOTH a project identifier (id|name) AND a template identifier (id|name) — reactor's POST `/api/project/{id}/tasks` payload mandates both.
 - **Event contract**: `extensions/eda/events.schema.json` (Draft-07; reactor logs `event schema: <$id>@<version>` at startup)
 
 ## Test pyramid (TSVS-tracked)

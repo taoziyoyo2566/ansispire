@@ -16,6 +16,7 @@
         controller-loop-smoke \
         test-eda test-eda-unit test-eda-contract test-eda-component \
         test-eda-relay-unit test-eda-sink-unit test-eda-e2e \
+        test-rules-schema test-api-contract \
         test-filters test-vps-manager detect-secrets \
         vps-manager-syntax \
         vps-new vps-recover vps-submit vps-tasks \
@@ -130,10 +131,21 @@ test-eda-relay-unit: ## L1 — relay.py cursor/fetch/tick (urllib mocked)
 test-eda-sink-unit: ## L1 — sink.py HTTP handler (socket/wfile mocked)
 	$(BIN)python3 controller/audit/test_sink.py
 
-test-eda: test-eda-unit test-eda-contract test-eda-component test-eda-relay-unit test-eda-sink-unit ## All EDA tests (L1+L2+L3); no docker
+test-eda: test-eda-unit test-eda-contract test-eda-component test-eda-relay-unit test-eda-sink-unit test-rules-schema ## All EDA tests (L1+L2+L3); no docker
 
 test-eda-e2e: ## L4 — disposable end-to-end (real docker; ~60–90s; NOT in `make verify`)
 	@bash controller/audit/e2e/run.sh
+
+test-api-contract: ## L4 — Semaphore API contract preflight (real docker; ~30–60s; tag override: SEMAPHORE_IMAGE_TAG=...)
+	@bash controller/semaphore/preflight/run.sh
+
+test-rules-schema: ## L1 — extensions/eda/rules.json structural validation against rules.schema.json
+	@$(BIN)python3 -c "import json, sys; from jsonschema import validate, Draft7Validator; \
+		s = json.load(open('extensions/eda/rules.schema.json')); \
+		Draft7Validator.check_schema(s); \
+		r = json.load(open('extensions/eda/rules.json')); \
+		validate(instance=r, schema=s); \
+		print('OK extensions/eda/rules.json valid against rules.schema.json')"
 
 test-filters: ## L1 — filter_plugins/custom_filters.py (pure functions, no Ansible)
 	$(BIN)python3 controller/audit/test_filters.py
@@ -325,8 +337,8 @@ controller-bootstrap: manifest-sync ## Bootstrap Semaphore project/inventory/tem
 
 # ── Round 8: audit sink ──────────────────────────────────────────────────────
 controller-audit-up: controller-net ## Start audit sink + Round 9 polling relay
-	$(AUDIT_COMPOSE) up -d
-	@echo "==> audit-sink listening at http://127.0.0.1:3010/event"
+	$(AUDIT_COMPOSE) up -d --build
+	@echo "==> audit-sink listening at http://127.0.0.1:3310/event (container 3010 → host 3310)"
 	@echo "==> audit-relay polling Semaphore /api/events → sink"
 
 controller-audit-down: ## Stop the audit sink (volume preserved)

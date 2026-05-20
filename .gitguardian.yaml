@@ -1,6 +1,6 @@
-# .gitguardian.yaml — local config for `ggshield secret scan` and the
-# GitHub GitGuardian CI integration. Allowlist is curated; every entry
-# must justify itself with a one-line rationale.
+# .gitguardian.yaml — local config for `ggshield secret scan`. Dashboard
+# / GitHub check-run incidents are resolved in GitGuardian, not synced from
+# this local allowlist. Every entry must justify itself with a one-line rationale.
 #
 # https://docs.gitguardian.com/ggshield-docs/reference/
 ---
@@ -51,14 +51,21 @@ secret:
     - name: "Vault example placeholder"
       match: "YourStrongPasswordHere"
 
-    # CI vault password (intentionally weak — only used to decrypt the
-    # placeholder vault.yml.example values for lint / syntax-check; never
-    # touches a real environment).
-    - name: "CI vault password (lint-only)"
-      match: "ci-test-password"
-
     # Historical changelog snippet (already redacted in-place to
     # <REDACTED-EXAMPLE-TOKEN>; entry kept as a tripwire in case the
     # original value resurfaces from a backup).
     - name: "Historical EDA token (rotated)"
       match: "ahen7kd4lx4getkojxrlmiwpqzej-pkddy4yyxswhhw="
+
+    # Docker Compose required-env-var references for SEMAPHORE_ADMIN_PASSWORD.
+    # GitGuardian's generic-password detector flags the long ${VAR:?msg}
+    # interpolation literal as if it were a password; it is NOT — it is a
+    # docker-compose substitution directive that resolves to the env-file
+    # value at runtime (the real value lives in .env / preflight/.env,
+    # both gitignored). One entry per ":?msg" variant currently in the tree.
+    - name: "Compose required-env ref: dev-stack admin pw"
+      match: "${SEMAPHORE_ADMIN_PASSWORD:?set in .env}"
+    - name: "Compose required-env ref: preflight admin pw"
+      match: "${SEMAPHORE_ADMIN_PASSWORD:?set in preflight/.env}"
+    - name: "Compose required-env ref: e2e admin pw"
+      match: "${SEMAPHORE_ADMIN_PASSWORD:?set in controller/audit/e2e/.env.<project>}"
