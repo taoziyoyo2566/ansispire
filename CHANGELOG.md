@@ -27,7 +27,18 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ---
 
-## [Unreleased] — branch `feat/vps-manager-plugin`
+## [Unreleased] — branches `feat/vps-manager-plugin` + `feat/multi-os-target-fleet`
+
+### Multi-OS target fleet — RHEL family support (TASK-007 round 1, 2026-05-19)
+
+First-class data-plane support for managed VPS across two OS families: Debian (Debian 13 + Ubuntu 24.04) and RHEL (Rocky Linux 9 + AlmaLinux 9). Closes the placeholder fail-stub that `infra_baseline` carried for RHEL since the role's inception. Alpine remains a placeholder for follow-up TASK-007.B.
+
+- **Role**: `roles/infra_baseline/tasks/redhat.yml` (new) — dnf-based Docker CE install via vendor `.repo`; SELinux `container_manage_cgroup` boolean flip (enforcing OR permissive); `python3.11` install + interpreter pivot to satisfy `infra_baseline_python_min_version: 3.10` (RHEL 9 ships 3.9 by default); `--check` mode safety via stat probe + `meta: end_host` for fresh-host preview.
+- **Role**: `roles/infra_baseline/tasks/main.yml` (refactored) — Python version assert moved from position 1 to after per-family blocks; Docker service start relocated from family-agnostic into the Debian `block:` (RHEL handles its own via `redhat.yml`); RHEL fail-stub replaced with `include_tasks: redhat.yml`; user creation parameterized to use OS-appropriate admin group (`sudo` on Debian, `wheel` on RHEL via `vars/RedHat.yml`).
+- **CLI**: `make target-deploy TARGET_NODE=debian|rhel|all|<alias>` + `target-deploy-check` (`--check --diff`) + `target-ping` (read-only connectivity probe). `ANSIBLE_USER=root` env-var override for fresh-host bootstrap (before role creates the `ansible` user).
+- **Inventory**: `inventory/hosts.ini` + `inventory/prod/hosts.ini` now have populated `[targets_debian]` (`d13`, `u24`) and `[targets_rhel]` (`rocky9`, `alma9`) with `[targets:vars]` common SSH/Python settings. Steady-state inventory uses `ansible_user=ansible`; fresh-host onboarding uses the Makefile knob.
+- **Playbooks**: `playbooks/deploy_target.yml` (new) applies `infra_baseline` to `hosts: targets` only — no hub roles. `playbooks/ping_targets.yml` (new) supports the Semaphore "Ping all targets" Job Template registered in `controller/semaphore/bootstrap.yml`.
+- **Verified**: all 4 VPS baselined cleanly with idempotent re-runs (`ok=20–21 changed=0` on RHEL, `ok=13 changed=0` on Debian).
 
 ### VPS Manager plugin MVP (2026-05-14)
 
