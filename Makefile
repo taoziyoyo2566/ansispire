@@ -294,7 +294,7 @@ controller-bootstrap: manifest-sync ## Bootstrap Semaphore project/inventory/tem
 # ── Round 8: audit sink ──────────────────────────────────────────────────────
 controller-audit-up: controller-net ## Start audit sink + Round 9 polling relay
 	$(AUDIT_COMPOSE) up -d --build
-	@echo "==> audit-sink listening at http://127.0.0.1:3010/event"
+	@echo "==> audit-sink listening at http://127.0.0.1:3310/event (container 3010 → host 3310)"
 	@echo "==> audit-relay polling Semaphore /api/events → sink"
 
 controller-audit-down: ## Stop the audit sink (volume preserved)

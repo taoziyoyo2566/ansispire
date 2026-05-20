@@ -56,7 +56,7 @@
 - **API 契约保护 (post-WU-4)**：`bootstrap_preflight.yml` 在 `bootstrap.yml` 顶部 `import_playbook`。schema mode（默认 ~2 s）验证 `/api/auth/login` + `/api/projects` + `/api/users` 的字段形状；full mode（`make test-api-contract`，~30–60 s）在临时 `__preflight__` 项目上走完所有 5 个 project-scoped GETs + token mint。CI 矩阵 `[pinned, latest]` 跑 full mode，`latest` 配 `continue-on-error` —— 上游 schema 漂移作为预警，不阻断主合并。`-e skip_preflight=true` 可逐次跳过（仅用于刻意探测未 bootstrap 的实例的测试）
 
 ### 3.2 审计与自愈链路 (`controller/audit/`)
-- **`sink.py`** — Python 轻量 HTTP 接收器（host 端口 3330），将 Semaphore webhook POST 固化为追加型 `events.jsonl`
+- **`sink.py`** — Python 轻量 HTTP 接收器（host 端口 3310，container 内 3010；`AUDIT_PORT` 可覆盖），将 Semaphore webhook POST 固化为追加型 `events.jsonl`
 - **`relay.py`** — Python，cursor-based 分页拉 Semaphore tasks → POST 到 sink；重启可续传（heartbeat 60 s）
 - **`reactor.py` (v2.3)** — Python，tail `events.jsonl`，匹配 `rules.json`，触发自愈：
   - Bearer Token 身份验证（无明文 admin）

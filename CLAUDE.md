@@ -72,25 +72,37 @@ Branch types form a strict hierarchy. Every new branch MUST be created from a pe
 | `hotfix/<topic>` | `master` (production emergency only) | `master` + cherry-pick to `dev` |
 
 - **`fix/` NEVER merges directly to `dev`.** Sub-fix work rolls up through its parent `feat/`, then the `feat/` merges to `dev`. This keeps `dev` history readable as one PR per topic.
-- **`feat/` can stack on another `feat/`** when work logically depends on an uncompleted parent (see [[feedback-branching-model]]).
+- **`feat/` can stack on another `feat/`** when work logically depends on an uncompleted parent.
 - **No direct commits to `dev` or `master`.** Every change lands via PR.
 
 ### Archive on merge (do NOT delete branches)
 
-Merged branches are **historical evidence** — preserve them. After a `feat/<topic>` merges to `dev` (or a `fix/<topic>` merges to its parent `feat/`), archive via annotated tag and remove the branch ref:
+Merged branches are **historical evidence** — preserve them via annotated tag, then remove the branch ref. The two recipes below differ in hardcoded prefix and merge target; **pick by branch type, do NOT copy across types**.
+
+**Recipe A — `feat/<topic>` merged to `dev`** (trunk-bound):
 
 ```bash
-# After PR merge confirmed in origin/dev:
-TIP=$(git rev-parse origin/feat/<topic>)        # tip of the merged branch
+TIP=$(git rev-parse origin/feat/<topic>)         # tip of the merged feat branch
 git tag -a archive/feat-<topic>-YYYY-MM-DD "$TIP" \
     -m "Merged to dev via PR #<N> on YYYY-MM-DD"
 git push origin archive/feat-<topic>-YYYY-MM-DD  # publish the tag
-git push origin :feat/<topic>                    # delete remote branch ref (commits stay reachable via tag)
+git push origin :feat/<topic>                    # delete remote branch ref
 git branch -D feat/<topic>                       # local cleanup (safe — tag holds the commits)
 ```
 
+**Recipe B — `fix/<sub-topic>` (or `chore/`/`refactor/`) merged to parent `feat/<parent>`**:
+
+```bash
+TIP=$(git rev-parse origin/fix/<sub-topic>)      # tip of the merged fix branch
+git tag -a archive/fix-<sub-topic>-YYYY-MM-DD "$TIP" \
+    -m "Merged to feat/<parent> via PR #<N> on YYYY-MM-DD"
+git push origin archive/fix-<sub-topic>-YYYY-MM-DD
+git push origin :fix/<sub-topic>                 # delete the fix branch, NOT the parent feat
+git branch -D fix/<sub-topic>
+```
+
 - Tag namespace `archive/<original-branch-name>-<merge-date>` keeps the branch listing clean while making history searchable via `git tag -l 'archive/*'`.
-- The merge commit on `dev` plus the archive tag together form the durable record; the branch ref itself is redundant.
+- The merge commit + archive tag together form the durable record; the branch ref itself is redundant.
 - Existing branches that pre-date this rule (created before 2026-05-20) are grandfathered — apply the new rule on their next merge, not retroactively.
 
 ---
