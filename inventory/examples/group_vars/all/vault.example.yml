@@ -1,9 +1,13 @@
 # vault.example.yml — shape of the vault variables (no real secrets; safe to commit)
 #
+# This file lives under inventory/examples/ — Ansible does NOT auto-load it.
+# (Compare: any *.yml under inventory/<env>/group_vars/<g>/ IS auto-loaded.)
+#
 # Workflow:
-#   1. cp vault.example.yml vault.yml
-#   2. Edit vault.yml and fill in the real passwords
-#   3. ansible-vault encrypt vault.yml
+#   1. cp inventory/examples/group_vars/all/vault.example.yml \
+#        inventory/<env>/group_vars/all/vault.yml
+#   2. Edit the new vault.yml and fill in the real passwords
+#   3. ansible-vault encrypt inventory/<env>/group_vars/all/vault.yml
 #   4. Commit the encrypted vault.yml (never commit the plain-text version)
 #
 # Reference from vars.yml (naming convention: vault_ prefix marks the source):
