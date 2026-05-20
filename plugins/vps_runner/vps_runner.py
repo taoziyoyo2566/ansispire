@@ -37,6 +37,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_ROOT = PROJECT_ROOT / "inventory" / "vps_runner"
 ARTIFACT_ROOT = PROJECT_ROOT / "runtime" / "logs" / "vps_runner"
 PLAYBOOK_DIR = Path(__file__).resolve().parent / "playbooks"
+SSH_CONFIG_TEMPLATE = PLAYBOOK_DIR / "templates" / "ssh_config_entry.j2"
+DEFAULT_SSH_CONFIG_DIR = Path("~/.ssh/config.d").expanduser()
+DEFAULT_SSH_MAIN_CONFIG = Path("~/.ssh/config").expanduser()
+DEFAULT_PERSONAL_IDENTITY_FILE = Path("~/.ssh/id_ed25519").expanduser()
 
 DEFAULT_FORKS = 20
 DEFAULT_ROTATE_ARTIFACTS = 10
