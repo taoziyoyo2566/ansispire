@@ -59,4 +59,39 @@ To optimize context and cost, load information in this hierarchy:
 - **Evidence-based Verification**: Every change must be backed by terminal logs (lint / test / syntax). The decision tree for *what to run when* lives in `docs/governance/testing-governance.md §3`.
 
 ---
+
+## 4. Branching & Lifecycle Rules
+
+Branch types form a strict hierarchy. Every new branch MUST be created from a permitted base and MUST merge back to a permitted parent. `dev` is trunk during the development phase; `master` ships at release boundaries.
+
+| Branch type | Created from | Merges to |
+| :--- | :--- | :--- |
+| `feat/<topic>` | `dev` OR another `feat/<parent>` (stacked feature) | **`dev` only** |
+| `fix/<topic>` | **`feat/<parent>` only** | back to that parent `feat/<parent>` |
+| `chore/<topic>` / `refactor/<topic>` | same rules as `fix/` (must roll up via a `feat/`) | parent `feat/` |
+| `hotfix/<topic>` | `master` (production emergency only) | `master` + cherry-pick to `dev` |
+
+- **`fix/` NEVER merges directly to `dev`.** Sub-fix work rolls up through its parent `feat/`, then the `feat/` merges to `dev`. This keeps `dev` history readable as one PR per topic.
+- **`feat/` can stack on another `feat/`** when work logically depends on an uncompleted parent (see [[feedback-branching-model]]).
+- **No direct commits to `dev` or `master`.** Every change lands via PR.
+
+### Archive on merge (do NOT delete branches)
+
+Merged branches are **historical evidence** — preserve them. After a `feat/<topic>` merges to `dev` (or a `fix/<topic>` merges to its parent `feat/`), archive via annotated tag and remove the branch ref:
+
+```bash
+# After PR merge confirmed in origin/dev:
+TIP=$(git rev-parse origin/feat/<topic>)        # tip of the merged branch
+git tag -a archive/feat-<topic>-YYYY-MM-DD "$TIP" \
+    -m "Merged to dev via PR #<N> on YYYY-MM-DD"
+git push origin archive/feat-<topic>-YYYY-MM-DD  # publish the tag
+git push origin :feat/<topic>                    # delete remote branch ref (commits stay reachable via tag)
+git branch -D feat/<topic>                       # local cleanup (safe — tag holds the commits)
+```
+
+- Tag namespace `archive/<original-branch-name>-<merge-date>` keeps the branch listing clean while making history searchable via `git tag -l 'archive/*'`.
+- The merge commit on `dev` plus the archive tag together form the durable record; the branch ref itself is redundant.
+- Existing branches that pre-date this rule (created before 2026-05-20) are grandfathered — apply the new rule on their next merge, not retroactively.
+
+---
 *Project: Ansispire | Optimized for Claude with XML & Thinking*
