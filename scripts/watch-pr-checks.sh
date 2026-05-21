@@ -9,15 +9,15 @@
 #   ./scripts/watch-pr-checks.sh 15 60 60               # poll every 60s, up to 60 min
 #
 #   EXPECTED_CHECKS="lint,test,build" ./scripts/watch-pr-checks.sh 15
-#                                                       # explicit authoritative mode
+#                                                       # L2 fallback authoritative mode
 #
 # Authoritative-vs-heuristic mode (codex round 8 fix):
 #
 #   L1 — branch protection: if `gh api repos/:o/:r/branches/$base/protection/
-#        required_status_checks` returns a non-empty `.contexts` list (branch
-#        protection is configured AND caller has permission to read it), use
-#        that as the expected set. This is the authoritative GitHub-side
-#        merge gate.
+#        required_status_checks` returns non-empty `.contexts` or
+#        `.checks[].context` names (branch protection is configured AND caller
+#        has permission to read it), use that as the expected set. This is the
+#        authoritative GitHub-side merge gate.
 #   L2 — EXPECTED_CHECKS env var: comma-separated list of names. Use this when
 #        branch protection is not configured or readable. Note: names may
 #        contain '/' and spaces (matrix check IDs); commas in names are not
@@ -76,8 +76,8 @@ START_EPOCH=$(date +%s)
 
 if [[ -z "$PR" ]]; then
   echo "Usage: $0 <PR_NUMBER> [INTERVAL_SEC=30] [MAX_ITER=30]" >&2
-  echo "  env EXPECTED_CHECKS=name1,name2 — explicit authoritative mode (L2)" >&2
-  echo "  env EXPECTED_CHECKS_FILE=path  — same as above, one name per line" >&2
+  echo "  env EXPECTED_CHECKS=name1,name2 — fallback authoritative mode if L1 unavailable (L2)" >&2
+  echo "  env EXPECTED_CHECKS_FILE=path  — same fallback, one name per line" >&2
   echo "  env MIN_SETTLE_SEC=N (default 120 heuristic / 30 authoritative)" >&2
   exit 1
 fi
@@ -123,46 +123,21 @@ fi
 EXPECTED_NL=""
 MODE="heuristic"
 
-# L2-file: EXPECTED_CHECKS_FILE — one name per line, accommodates names with commas
-if [[ -n "${EXPECTED_CHECKS_FILE:-}" ]]; then
-  if [[ ! -f "$EXPECTED_CHECKS_FILE" ]]; then
-    echo "Error: EXPECTED_CHECKS_FILE='$EXPECTED_CHECKS_FILE' does not exist" >&2
-    exit 1
-  fi
-  EXPECTED_NL=$(grep -v '^[[:space:]]*$\|^[[:space:]]*#' "$EXPECTED_CHECKS_FILE" || true)
-  # Codex round 9 bug_001: if filtering left nothing (file with only blanks /
-  # comments, accidentally `touch`-created empty file), the script previously
-  # set MODE=env-file unconditionally and silently degraded to a state weaker
-  # than heuristic mode (banner claimed authoritative; python ran heuristic
-  # branch; MIN_SETTLE_SEC defaulted to 30s vs heuristic 120s). Fail-fast
-  # instead — the operator explicitly opted in to authoritative mode and
-  # deserves to know their config yielded zero names.
-  if [[ -z "$EXPECTED_NL" ]]; then
-    echo "Error: EXPECTED_CHECKS_FILE='$EXPECTED_CHECKS_FILE' yielded no check names" >&2
-    echo "       (after filtering blank lines and #-comments). Edit the file or" >&2
-    echo "       unset the env var to use heuristic mode." >&2
-    exit 1
-  fi
-  MODE="env-file"
-elif [[ -n "${EXPECTED_CHECKS:-}" ]]; then
-  # L2: comma-separated env var
-  EXPECTED_NL=$(printf '%s' "$EXPECTED_CHECKS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' || true)
-  if [[ -z "$EXPECTED_NL" ]]; then
-    echo "Error: EXPECTED_CHECKS='$EXPECTED_CHECKS' yielded no check names after parsing" >&2
-    echo "       (each entry is comma-split and whitespace-stripped). Set a real" >&2
-    echo "       list or unset the env var to use heuristic mode." >&2
-    exit 1
-  fi
-  MODE="env"
-else
-  # L1: try branch protection. Need the PR's base branch and the repo nwo.
-  base=$(gh pr view "$PR" --json baseRefName -q .baseRefName 2>/dev/null || true)
-  nwo=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)
-  if [[ -n "$base" && -n "$nwo" ]]; then
-    # 404 (no protection) and 403 (no permission) are both expected — fall through.
-    protection_json=$(gh api "repos/${nwo}/branches/${base}/protection/required_status_checks" 2>/dev/null || true)
-    if [[ -n "$protection_json" ]]; then
-      EXPECTED_NL=$(printf '%s' "$protection_json" | python3 -c '
+# L1: branch protection. Need the PR's base branch and the repo nwo.
+# Branch protection is the GitHub-side merge gate, so it takes precedence over
+# operator-supplied EXPECTED_CHECKS. The env/file inputs are fallback config for
+# repos without readable branch protection, not an override that can shrink L1.
+base=$(gh pr view "$PR" --json baseRefName -q .baseRefName 2>/dev/null || true)
+nwo=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)
+if [[ -n "$base" && -n "$nwo" ]]; then
+  # GitHub's branch-protection endpoint requires slashes in branch names to be
+  # URL-encoded (e.g. feat/parent -> feat%2Fparent). Otherwise L1 silently
+  # misses protection on non-trunk base branches and falls back to heuristic/L2.
+  base_encoded=$(printf '%s' "$base" | python3 -c 'from urllib.parse import quote; import sys; print(quote(sys.stdin.read(), safe=""))')
+  # 404 (no protection) and 403 (no permission) are both expected — fall through.
+  protection_json=$(gh api "repos/${nwo}/branches/${base_encoded}/protection/required_status_checks" 2>/dev/null || true)
+  if [[ -n "$protection_json" ]]; then
+    EXPECTED_NL=$(printf '%s' "$protection_json" | python3 -c '
 import json, sys
 try:
     d = json.load(sys.stdin)
@@ -177,11 +152,48 @@ for c in d.get("checks") or []:
 for n in sorted(names):
     print(n)
 ')
-      if [[ -n "$EXPECTED_NL" ]]; then
-        MODE="branch-protection"
-      fi
+    if [[ -n "$EXPECTED_NL" ]]; then
+      MODE="branch-protection"
     fi
   fi
+fi
+
+# L2-file/env: fallback only when L1 is absent/unreadable.
+if [[ "$MODE" == "heuristic" ]]; then
+  # L2-file: EXPECTED_CHECKS_FILE — one name per line, accommodates names with commas
+  if [[ -n "${EXPECTED_CHECKS_FILE:-}" ]]; then
+    if [[ ! -f "$EXPECTED_CHECKS_FILE" ]]; then
+      echo "Error: EXPECTED_CHECKS_FILE='$EXPECTED_CHECKS_FILE' does not exist" >&2
+      exit 1
+    fi
+    EXPECTED_NL=$(grep -v '^[[:space:]]*$\|^[[:space:]]*#' "$EXPECTED_CHECKS_FILE" || true)
+    # Codex round 9 bug_001: if filtering left nothing (file with only blanks /
+    # comments, accidentally `touch`-created empty file), the script previously
+    # set MODE=env-file unconditionally and silently degraded to a state weaker
+    # than heuristic mode (banner claimed authoritative; python ran heuristic
+    # branch; MIN_SETTLE_SEC defaulted to 30s vs heuristic 120s). Fail-fast
+    # instead — the operator explicitly opted in to authoritative mode and
+    # deserves to know their config yielded zero names.
+    if [[ -z "$EXPECTED_NL" ]]; then
+      echo "Error: EXPECTED_CHECKS_FILE='$EXPECTED_CHECKS_FILE' yielded no check names" >&2
+      echo "       (after filtering blank lines and #-comments). Edit the file or" >&2
+      echo "       unset the env var to use heuristic mode." >&2
+      exit 1
+    fi
+    MODE="env-file"
+  elif [[ -n "${EXPECTED_CHECKS:-}" ]]; then
+    # L2: comma-separated env var
+    EXPECTED_NL=$(printf '%s' "$EXPECTED_CHECKS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' || true)
+    if [[ -z "$EXPECTED_NL" ]]; then
+      echo "Error: EXPECTED_CHECKS='$EXPECTED_CHECKS' yielded no check names after parsing" >&2
+      echo "       (each entry is comma-split and whitespace-stripped). Set a real" >&2
+      echo "       list or unset the env var to use heuristic mode." >&2
+      exit 1
+    fi
+    MODE="env"
+  fi
+elif [[ -n "${EXPECTED_CHECKS_FILE:-}${EXPECTED_CHECKS:-}" ]]; then
+  echo "[branch-protection] ignoring EXPECTED_CHECKS(_FILE): branch protection is the authoritative L1 gate." >&2
 fi
 
 # Mode-dependent default for MIN_SETTLE_SEC. Authoritative mode doesn't need
