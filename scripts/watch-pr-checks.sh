@@ -21,9 +21,19 @@
 
 set -u  # NOT -e — Python's exit code is a signal here, not an error
 
+# Wave-registration race (per W-R15 attack category j, codex round 4 finding):
+# Different check producers (GitHub Actions matrix vs StatusContext like
+# GitGuardian) register at different times after a push. A naive "0 pending"
+# check can match on a partial wave (e.g. GitGuardian SUCCESS arrives before
+# the Actions matrix even registers) and exit 0 prematurely. We defend by
+# requiring the FULL set of check NAMES to be stable across two consecutive
+# polls before accepting any all-green state. If a new check appears between
+# polls, prev_sig != current_sig → wait one more iteration.
+
 PR="${1:-}"
 INTERVAL="${2:-30}"
 MAX_ITER="${3:-30}"
+prev_sig=""  # sorted, comma-joined check-name set from previous iteration
 
 if [[ -z "$PR" ]]; then
   echo "Usage: $0 <PR_NUMBER> [INTERVAL_SEC=30] [MAX_ITER=30]" >&2
@@ -91,6 +101,12 @@ terms = [terminal(c) for c in checks]
 done = sum(1 for t in terms if t is not None)
 pending = total - done
 failures = [name(c) for c, t in zip(checks, terms) if t and t not in OK_TERMINAL]
+# Emit the sorted name-set on its own line — bash side uses it for the
+# wave-registration stability check. Emitted unconditionally (i.e. in BOTH
+# pending and all-done branches) so prev_sig stays meaningful across the
+# transition into the all-done state.
+sorted_names = sorted(name(c) for c in checks)
+print('__NAMES__:' + ','.join(sorted_names))
 print(f'{done}/{total} done, {pending} pending, {len(failures)} fail', end='')
 if pending == 0:
     print()
@@ -103,11 +119,26 @@ sys.exit(99)
 ")
   rc=$?
   ts=$(date -u +%H:%M:%S)
-  echo "[${ts}] iter=${i}: ${result}"
+  # Split __NAMES__: signal line (if any) from the user-facing display.
+  current_sig=$(printf '%s\n' "$result" | sed -n 's/^__NAMES__://p')
+  result_display=$(printf '%s\n' "$result" | grep -v '^__NAMES__:')
+  echo "[${ts}] iter=${i}: ${result_display}"
 
   if [[ $rc -eq 0 ]]; then
-    echo "FINAL: all checks green"
-    exit 0
+    # Wave-registration defense: a single all-green observation is not enough
+    # because external checks (e.g. GitGuardian StatusContext) may register
+    # and complete before the GitHub Actions matrix even registers. Require
+    # the name-set to match the previous iteration's name-set; only then is
+    # it safe to declare green. First all-green observation prints a marker
+    # and falls through to one more sleep+poll cycle.
+    if [[ -n "$current_sig" && "$current_sig" == "$prev_sig" ]]; then
+      echo "FINAL: all checks green (name-set stable across 2 consecutive polls)"
+      exit 0
+    fi
+    echo "  (all green, but name-set not yet stable across 2 polls — waiting one more iteration)"
+    prev_sig="$current_sig"
+    sleep "$INTERVAL"
+    continue
   elif [[ $rc -eq 2 ]]; then
     echo "FINAL: at least one check failed"
     exit 2
@@ -118,7 +149,8 @@ sys.exit(99)
     echo "FINAL: watcher exited unexpectedly (rc=$rc); aborting watch" >&2
     exit "$rc"
   fi
-  # rc == 99 means still pending; continue
+  # rc == 99 means still pending; remember the current name-set and continue
+  prev_sig="$current_sig"
   sleep "$INTERVAL"
 done
 
