@@ -203,20 +203,32 @@ if ! git push --quiet origin "$TAG"; then
 fi
 echo "✅ tag pushed to origin"
 
-# Step 3: delete remote branch — this is the high-blast step;
-# tag has been verified-pushed so commits remain reachable.
-if ! git push --quiet origin ":$BRANCH"; then
-  echo "Error: remote branch delete failed. Tag remains; remote branch unchanged." >&2
+# Step 3: delete remote branch — high-blast. Per W-R19 (no bare force-push):
+# use --force-with-lease tied to $TIP. If anyone pushed to origin/$BRANCH
+# between guard 8's gh check and now, the lease fails and the delete is
+# refused — preserving any new commits that the archive tag does NOT cover.
+if ! git push --quiet --force-with-lease="refs/heads/$BRANCH:$TIP" origin ":refs/heads/$BRANCH"; then
+  echo "Error: remote branch delete failed." >&2
+  echo "       Either origin/$BRANCH was updated since verification (lease" >&2
+  echo "       refused — re-run after re-checking new commits), or another" >&2
+  echo "       git error occurred. Tag '$TAG' remains; remote branch unchanged." >&2
   exit 2
 fi
-echo "✅ remote branch deleted (commits live on under $TAG)"
+echo "✅ remote branch deleted (lease matched TIP; commits live on under $TAG)"
 
-# Step 4: delete local branch if present
+# Step 4: delete local branch if present AND local tip matches the merged TIP
+# (per W-R19: no unguarded `-D`. Refuse if local has commits beyond TIP — those
+# would be unpushed work that the archive tag does NOT cover.)
 if git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null; then
-  if ! git branch -D "$BRANCH" >/dev/null; then
+  local_tip=$(git rev-parse "refs/heads/$BRANCH")
+  if [[ "$local_tip" != "$TIP" ]]; then
+    echo "ℹ local '$BRANCH' kept: local tip ($local_tip)" >&2
+    echo "  differs from merged TIP ($TIP) — may contain unpushed commits" >&2
+    echo "  review with: git log $TIP..$local_tip   then delete manually if safe" >&2
+  elif ! git branch -D "$BRANCH" >/dev/null; then
     echo "Warning: local branch delete failed (non-fatal)" >&2
   else
-    echo "✅ local branch deleted"
+    echo "✅ local branch deleted (tip == merged TIP)"
   fi
 else
   echo "ℹ local branch already absent"

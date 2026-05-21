@@ -73,6 +73,11 @@ def terminal(c):
 def display(c):
     return c.get('conclusion') or c.get('state') or c.get('status') or '?'
 
+def name(c):
+    # CheckRun → 'name'; StatusContext → 'context'; defensive fallback for
+    # unexpected entry shapes so a KeyError doesn't silently become a timeout.
+    return c.get('name') or c.get('context') or '?'
+
 d=json.load(sys.stdin)
 checks=d.get('statusCheckRollup', [])
 total=len(checks)
@@ -85,13 +90,13 @@ if total == 0:
 terms = [terminal(c) for c in checks]
 done = sum(1 for t in terms if t is not None)
 pending = total - done
-failures = [c['name'] for c, t in zip(checks, terms) if t and t not in OK_TERMINAL]
+failures = [name(c) for c, t in zip(checks, terms) if t and t not in OK_TERMINAL]
 print(f'{done}/{total} done, {pending} pending, {len(failures)} fail', end='')
 if pending == 0:
     print()
     # Sort: failures first, then by name
-    for c, t in sorted(zip(checks, terms), key=lambda p: (p[1] in OK_TERMINAL, p[0]['name'])):
-        print(f\"  {display(c):14} {c['name']}\")
+    for c, t in sorted(zip(checks, terms), key=lambda p: (p[1] in OK_TERMINAL, name(p[0]))):
+        print(f\"  {display(c):14} {name(c)}\")
     sys.exit(0 if not failures else 2)
 print()
 sys.exit(99)
@@ -106,6 +111,12 @@ sys.exit(99)
   elif [[ $rc -eq 2 ]]; then
     echo "FINAL: at least one check failed"
     exit 2
+  elif [[ $rc -ne 99 ]]; then
+    # Unexpected rc (Python crash, KeyError, gh failure piped to corrupt JSON,
+    # etc.) — fail fast instead of silently treating as 'still pending' and
+    # waiting out MAX_ITER.
+    echo "FINAL: watcher exited unexpectedly (rc=$rc); aborting watch" >&2
+    exit "$rc"
   fi
   # rc == 99 means still pending; continue
   sleep "$INTERVAL"
