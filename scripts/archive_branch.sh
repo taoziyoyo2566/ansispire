@@ -33,7 +33,11 @@
 #      server-side transaction (`git push --atomic ...`), with lease
 #      `refs/heads/BRANCH:TIP` on the delete refspec. Both refs update
 #      or neither (no stuck "tag pushed, branch not deleted" state).
-#  11. Delete local BRANCH if local tip matches TIP (keeps unpushed work).
+#  11. Delete local BRANCH iff local tip is at-or-ancestor-of TIP, using
+#      `git update-ref -d <ref> <expected_old_oid>` for atomic
+#      check-and-delete (TOCTOU-safe, local equivalent of --force-with-lease).
+#      Ahead/divergent local refs are kept with a hint pointing at the
+#      commits the archive tag does NOT cover.
 #
 # Exit codes:
 #   0 — archived successfully.
@@ -222,19 +226,51 @@ if ! git push --quiet --atomic \
 fi
 echo "✅ remote archived atomically: tag '$TAG' created + branch '$BRANCH' deleted"
 
-# Step 4: delete local branch if present AND local tip matches the merged TIP
-# (per W-R19: no unguarded `-D`. Refuse if local has commits beyond TIP — those
-# would be unpushed work that the archive tag does NOT cover.)
+# Step 4: delete local branch if present, with TOCTOU defense symmetric to
+# the remote --force-with-lease used in Step 2+3.
+#
+# Per W-R19 (no unguarded -D) and W-R20 attack-category (f) (TOCTOU race
+# between verification and operation): `git branch -D` takes no expected-
+# OID and unconditionally deletes whatever the ref currently points to.
+# Capture-then-delete (rev-parse → branch -D) lets a concurrent git process
+# (parallel agent, IDE auto-commit, another shell) advance the ref between
+# capture and delete; the delete then removes unobserved commits which are
+# NOT in the archive tag.
+#
+# Defense: use `git update-ref -d <ref> <expected_old_oid>` — atomic
+# check-and-delete, the local equivalent of `--force-with-lease`.
+#
+# Behind/ahead/divergent discrimination:
+#   - local == TIP                    → safe atomic delete
+#   - local is-ancestor-of TIP        → behind (user didn't pull); safe,
+#                                       all local commits are in TIP
+#   - else (ahead or divergent)       → real unpushed work; keep + warn
 if git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null; then
   local_tip=$(git rev-parse "refs/heads/$BRANCH")
-  if [[ "$local_tip" != "$TIP" ]]; then
-    echo "ℹ local '$BRANCH' kept: local tip ($local_tip)" >&2
-    echo "  differs from merged TIP ($TIP) — may contain unpushed commits" >&2
-    echo "  review with: git log $TIP..$local_tip   then delete manually if safe" >&2
-  elif ! git branch -D "$BRANCH" >/dev/null; then
-    echo "Warning: local branch delete failed (non-fatal)" >&2
+  if [[ "$local_tip" == "$TIP" ]] || \
+     git merge-base --is-ancestor "$local_tip" "$TIP" 2>/dev/null; then
+    # local is at-or-behind TIP — all local commits reachable from TIP
+    if git update-ref -d "refs/heads/$BRANCH" "$local_tip" 2>/dev/null; then
+      if [[ "$local_tip" == "$TIP" ]]; then
+        echo "✅ local branch deleted (tip == merged TIP)"
+      else
+        echo "✅ local branch deleted (was behind merged TIP; all commits in tag)"
+      fi
+    else
+      # `update-ref -d` failed = ref moved between rev-parse and now (TOCTOU)
+      # OR another concurrent writer. Refuse rather than fall back to -D.
+      echo "Warning: local '$BRANCH' kept — ref moved between verification" >&2
+      echo "  and delete attempt (TOCTOU window). Check reflog before manual delete." >&2
+    fi
   else
-    echo "✅ local branch deleted (tip == merged TIP)"
+    # local has commits NOT reachable from TIP — real unpushed work (ahead
+    # or divergent). Keep the branch and direct user to the only commits
+    # the archive tag does NOT cover.
+    echo "ℹ local '$BRANCH' kept: has commits not in merged TIP" >&2
+    echo "  local tip:  $local_tip" >&2
+    echo "  merged TIP: $TIP" >&2
+    echo "  unpushed commits: git log $TIP..$local_tip" >&2
+    echo "  delete manually after review if safe." >&2
   fi
 else
   echo "ℹ local branch already absent"
