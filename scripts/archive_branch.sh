@@ -28,10 +28,12 @@
 #          and surfaces a distinct error.
 #   7. Compute archive tag: archive/<branch-slash-to-dash>-<YYYY-MM-DD>.
 #   8. Refuse to overwrite an existing archive tag (no-clobber).
-#   9. Create annotated tag at origin/BRANCH's tip.
-#  10. Push tag to origin.
-#  11. Push :BRANCH to origin (delete remote ref).
-#  12. Delete local BRANCH if it exists locally.
+#   9. Create annotated tag at origin/BRANCH's tip (local only).
+#  10. Atomic remote push: create tag + delete :BRANCH on origin in one
+#      server-side transaction (`git push --atomic ...`), with lease
+#      `refs/heads/BRANCH:TIP` on the delete refspec. Both refs update
+#      or neither (no stuck "tag pushed, branch not deleted" state).
+#  11. Delete local BRANCH if local tip matches TIP (keeps unpushed work).
 #
 # Exit codes:
 #   0 — archived successfully.
@@ -195,26 +197,30 @@ if ! git tag -a "$TAG" "$TIP" -m "Merged to $TARGET via PR #$PR_NUM on $DATE"; t
 fi
 echo "✅ tag created locally"
 
-# Step 2: push tag
-if ! git push --quiet origin "$TAG"; then
-  echo "Error: tag push failed; reverting local tag" >&2
+# Steps 2+3: atomic remote push — create tag AND delete branch as one
+# server-side transaction. --atomic guarantees both refs update or neither.
+# This eliminates the stuck state where tag-push succeeded but
+# branch-delete failed, which would block re-runs at guard 9 (tag exists).
+# Per W-R19: lease keyed to refs/heads/$BRANCH:$TIP — if someone pushed
+# to origin/$BRANCH between guard 8's gh check and now, the lease fails
+# and the WHOLE atomic push rolls back (no orphan tag).
+if ! git push --quiet --atomic \
+       --force-with-lease="refs/heads/$BRANCH:$TIP" \
+       origin \
+       "refs/tags/$TAG" \
+       ":refs/heads/$BRANCH"; then
+  echo "Error: atomic archive push failed (both refs rolled back on remote)." >&2
+  echo "       Possible causes:" >&2
+  echo "         (a) origin/$BRANCH was updated since verification — lease" >&2
+  echo "             refused; re-run after re-checking new commits" >&2
+  echo "         (b) remote tag '$TAG' was created by another process in the" >&2
+  echo "             race window between guard 9 and now" >&2
+  echo "         (c) network / auth / other git error" >&2
+  echo "       Reverting local tag '$TAG'..." >&2
   git tag -d "$TAG" >/dev/null
   exit 2
 fi
-echo "✅ tag pushed to origin"
-
-# Step 3: delete remote branch — high-blast. Per W-R19 (no bare force-push):
-# use --force-with-lease tied to $TIP. If anyone pushed to origin/$BRANCH
-# between guard 8's gh check and now, the lease fails and the delete is
-# refused — preserving any new commits that the archive tag does NOT cover.
-if ! git push --quiet --force-with-lease="refs/heads/$BRANCH:$TIP" origin ":refs/heads/$BRANCH"; then
-  echo "Error: remote branch delete failed." >&2
-  echo "       Either origin/$BRANCH was updated since verification (lease" >&2
-  echo "       refused — re-run after re-checking new commits), or another" >&2
-  echo "       git error occurred. Tag '$TAG' remains; remote branch unchanged." >&2
-  exit 2
-fi
-echo "✅ remote branch deleted (lease matched TIP; commits live on under $TAG)"
+echo "✅ remote archived atomically: tag '$TAG' created + branch '$BRANCH' deleted"
 
 # Step 4: delete local branch if present AND local tip matches the merged TIP
 # (per W-R19: no unguarded `-D`. Refuse if local has commits beyond TIP — those
