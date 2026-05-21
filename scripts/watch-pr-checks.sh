@@ -49,17 +49,27 @@ fi
 for ((i=1; i<=MAX_ITER; i++)); do
   result=$(gh pr view "$PR" --json statusCheckRollup 2>/dev/null | python3 -c "
 import json,sys
+# Treat as 'OK' anything GitHub considers a non-failure terminal state.
+# Anything outside this set + with a conclusion set is a failure-equivalent:
+# FAILURE, CANCELLED, TIMED_OUT, ACTION_REQUIRED, STALE, STARTUP_FAILURE.
+OK_CONCLUSIONS = {'SUCCESS', 'SKIPPED', 'NEUTRAL'}
 d=json.load(sys.stdin)
 checks=d.get('statusCheckRollup', [])
-done=sum(1 for c in checks if c.get('conclusion'))
-pending=sum(1 for c in checks if not c.get('conclusion'))
 total=len(checks)
-failures=[c['name'] for c in checks if c.get('conclusion')=='FAILURE']
+# Empty rollup right after push = workflow runs not yet registered. Treat
+# as 'still pending' — declaring green on total=0 was the iter-2 bug.
+if total == 0:
+    print('0/0 done (workflow runs not yet registered)', end='')
+    print()
+    sys.exit(99)
+done=sum(1 for c in checks if c.get('conclusion'))
+pending=total - done
+failures=[c['name'] for c in checks if c.get('conclusion') and c['conclusion'] not in OK_CONCLUSIONS]
 print(f'{done}/{total} done, {pending} pending, {len(failures)} fail', end='')
 if pending == 0:
     print()
     # Sort: failures first, then by name
-    for c in sorted(checks, key=lambda x: (x.get('conclusion','')!='FAILURE', x['name'])):
+    for c in sorted(checks, key=lambda x: (x.get('conclusion','') in OK_CONCLUSIONS, x['name'])):
         print(f\"  {(c.get('conclusion') or c['status']):12} {c['name']}\")
     sys.exit(0 if not failures else 2)
 print()
