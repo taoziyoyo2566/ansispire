@@ -129,11 +129,30 @@ if [[ -n "${EXPECTED_CHECKS_FILE:-}" ]]; then
     echo "Error: EXPECTED_CHECKS_FILE='$EXPECTED_CHECKS_FILE' does not exist" >&2
     exit 1
   fi
-  EXPECTED_NL=$(grep -v '^[[:space:]]*$\|^[[:space:]]*#' "$EXPECTED_CHECKS_FILE")
+  EXPECTED_NL=$(grep -v '^[[:space:]]*$\|^[[:space:]]*#' "$EXPECTED_CHECKS_FILE" || true)
+  # Codex round 9 bug_001: if filtering left nothing (file with only blanks /
+  # comments, accidentally `touch`-created empty file), the script previously
+  # set MODE=env-file unconditionally and silently degraded to a state weaker
+  # than heuristic mode (banner claimed authoritative; python ran heuristic
+  # branch; MIN_SETTLE_SEC defaulted to 30s vs heuristic 120s). Fail-fast
+  # instead — the operator explicitly opted in to authoritative mode and
+  # deserves to know their config yielded zero names.
+  if [[ -z "$EXPECTED_NL" ]]; then
+    echo "Error: EXPECTED_CHECKS_FILE='$EXPECTED_CHECKS_FILE' yielded no check names" >&2
+    echo "       (after filtering blank lines and #-comments). Edit the file or" >&2
+    echo "       unset the env var to use heuristic mode." >&2
+    exit 1
+  fi
   MODE="env-file"
 elif [[ -n "${EXPECTED_CHECKS:-}" ]]; then
   # L2: comma-separated env var
-  EXPECTED_NL=$(printf '%s' "$EXPECTED_CHECKS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$')
+  EXPECTED_NL=$(printf '%s' "$EXPECTED_CHECKS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' || true)
+  if [[ -z "$EXPECTED_NL" ]]; then
+    echo "Error: EXPECTED_CHECKS='$EXPECTED_CHECKS' yielded no check names after parsing" >&2
+    echo "       (each entry is comma-split and whitespace-stripped). Set a real" >&2
+    echo "       list or unset the env var to use heuristic mode." >&2
+    exit 1
+  fi
   MODE="env"
 else
   # L1: try branch protection. Need the PR's base branch and the repo nwo.
@@ -194,7 +213,12 @@ if [[ "$MODE" == "heuristic" ]]; then
   echo "[HEURISTIC] no branch protection / EXPECTED_CHECKS — falling back to empirical settle (${MIN_SETTLE_SEC}s) + name-set stability." >&2
   echo "[HEURISTIC] safe for progress-watching; NOT authoritative as a merge gate. Set EXPECTED_CHECKS or configure branch protection for L1/L2." >&2
 else
-  echo "[$MODE] expected checks ($(printf '%s\n' "$EXPECTED_NL" | wc -l | tr -d ' ')):" >&2
+  # Use grep -c '.' so empty content reports 0, not 1 (printf '%s\n' "" emits
+  # a trailing newline that wc -l would miscount as 1). Fail-fast above
+  # makes this branch unreachable with EXPECTED_NL empty, but keep the count
+  # honest in case future edits relax the fail-fast.
+  expected_count=$(printf '%s\n' "$EXPECTED_NL" | grep -c '.' || true)
+  echo "[$MODE] expected checks ($expected_count):" >&2
   printf '%s\n' "$EXPECTED_NL" | sed 's/^/  /' >&2
 fi
 

@@ -16,7 +16,7 @@
 #   1. Validate three positional args.
 #   2. Reject if BRANCH is a trunk-protected name (dev/master/main).
 #   3. Reject if working tree is dirty.
-#   4. Reject if currently checked out on BRANCH.
+#   4. Reject if BRANCH is checked out in any worktree (this one or another).
 #   5. Fetch + verify origin/MERGE_TARGET and origin/BRANCH both exist.
 #   6. Verify branch is merged into MERGE_TARGET via EITHER:
 #      (a) ancestor check — origin/BRANCH tip is reachable from MERGE_TARGET
@@ -36,6 +36,10 @@
 #  11. Delete local BRANCH iff local tip is at-or-ancestor-of TIP, using
 #      `git update-ref -d <ref> <expected_old_oid>` for atomic
 #      check-and-delete (TOCTOU-safe, local equivalent of --force-with-lease).
+#      Before the local delete, re-run the worktree check (in case a worktree
+#      was added between Guard 5 and here); if blocked, soft-skip local
+#      cleanup (remote archive already completed atomically and is not
+#      reversible — operator finishes manually after switching the worktree).
 #      Ahead/divergent local refs are kept with a hint pointing at the
 #      commits the archive tag does NOT cover.
 #
