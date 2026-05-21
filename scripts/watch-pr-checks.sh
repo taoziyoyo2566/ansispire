@@ -21,39 +21,40 @@
 
 set -u  # NOT -e — Python's exit code is a signal here, not an error
 
-# Wave-registration race — TWO-LAYER defense (W-R15 attack category j refined
-# after codex rounds 4 + 6):
+# Wave-registration race — defense after codex rounds 4 + 6 + 7. Refined
+# in this iteration to a single, honest invariant:
 #
-# Different check producers register at different times after a push.
-# Empirical observation on this repo: GitHub Actions matrix can take up
-# to ~120s to fully register after `git push`, while StatusContext entries
-# (e.g. GitGuardian) often appear within 5s. A naive "0 pending + all
-# SUCCESS" check on the early partial wave produces a false-green.
+#   STABILITY INVARIANT (required for rc=0 exit):
+#     1. elapsed >= MIN_SETTLE_SEC since watcher START_EPOCH; AND
+#     2. The current poll AND the immediately-preceding poll were BOTH
+#        all-green observations with the SAME name-set.
 #
-# Codex round 4 fix tried name-set stability across 2 polls. Codex round 6
-# repro showed it was insufficient: if iter-1 sees {GG=PENDING} and iter-2
-# sees {GG=SUCCESS}, the *sig* is identical across polls but the set is
-# still partial. The bug: prev_sig was updated on every iteration, so two
-# observations of the same partial wave could pass the "stable" check.
+# "Immediately-preceding" is strict: if a pending/failed/error poll
+# occurs between two all-green observations, the consecutiveness breaks
+# and the stability counter resets. (Codex round 7 repro: all-green →
+# pending → all-green would otherwise satisfy "two all-green sigs match"
+# without being consecutive — that's the bug iter-6 fixes.)
 #
-# Real defense (this iteration):
-#   (a) MIN_SETTLE_SEC — minimum wall-clock seconds since watch start before
-#       any rc=0 exit. Set to 120s based on observed registration latency.
-#       Eliminates the "fast partial wave passes before slow wave even
-#       registers" class entirely (independent of name-set logic).
-#   (b) prev_all_green_sig — tracked SEPARATELY from any pending-state
-#       observation. Only updated in the rc=0 branch. Ensures the "stable
-#       across 2 polls" requirement counts only consecutive ALL-GREEN
-#       observations, not pending-then-success transitions.
-#   (c) MAX_ITER lower bound — with min 2 all-green polls and MIN_SETTLE_SEC,
-#       MAX_ITER must allow at least ceil(MIN_SETTLE_SEC/INTERVAL)+1 polls.
-#       Reject smaller MAX_ITER upfront rather than guaranteeing timeout.
+# Implementation: prev_all_green_sig is cleared in EVERY non-rc=0 path
+# (rc=99 pending, and the unexpected-rc abort which itself exits). Only
+# rc=0 paths read or write it.
+#
+# Why both layers (settling AND consecutive stability):
+#   - Settling alone is insufficient: someone could pass MIN_SETTLE_SEC=0;
+#     defense-in-depth means consecutive stability still catches the bug.
+#   - Stability alone is insufficient: codex round 4 demonstrated a stuck
+#     partial wave (same partial set across many polls) could satisfy
+#     stability without representing the full check set.
+#
+# Empirical: GitHub Actions matrix takes up to ~120s to fully register
+# after `git push`; StatusContext (GitGuardian) often <5s. Default
+# MIN_SETTLE_SEC=120 covers the slowest observed registration window.
 
 PR="${1:-}"
 INTERVAL="${2:-30}"
 MAX_ITER="${3:-30}"
 MIN_SETTLE_SEC="${MIN_SETTLE_SEC:-120}"
-prev_all_green_sig=""  # ONLY updated inside the rc=0 branch
+prev_all_green_sig=""  # written ONLY in rc=0 branches; cleared in rc=99
 START_EPOCH=$(date +%s)
 
 if [[ -z "$PR" ]]; then
@@ -62,13 +63,37 @@ if [[ -z "$PR" ]]; then
   exit 1
 fi
 
+# Positive-integer validation for the three numeric inputs (codex round 7
+# LOW finding). Catches: empty string, non-digit chars, leading zeroes/signs,
+# and the dangerous INTERVAL=0 case (division-by-zero in min_required_iter).
+# MIN_SETTLE_SEC=0 is explicitly allowed (it's the documented "disable
+# settling" sentinel); everything else must be >= 1.
+is_positive_int() { [[ "$1" =~ ^[1-9][0-9]*$ ]]; }
+is_nonneg_int()   { [[ "$1" =~ ^(0|[1-9][0-9]*)$ ]]; }
+
+if ! is_positive_int "$INTERVAL"; then
+  echo "Error: INTERVAL must be a positive integer, got '$INTERVAL'" >&2
+  exit 1
+fi
+if ! is_positive_int "$MAX_ITER"; then
+  echo "Error: MAX_ITER must be a positive integer, got '$MAX_ITER'" >&2
+  exit 1
+fi
+if ! is_nonneg_int "$MIN_SETTLE_SEC"; then
+  echo "Error: MIN_SETTLE_SEC must be a non-negative integer, got '$MIN_SETTLE_SEC'" >&2
+  exit 1
+fi
+
 # Sanity: INTERVAL + MIN_SETTLE_SEC vs MAX_ITER. Need at least enough polls
-# to: (i) cover MIN_SETTLE_SEC, AND (ii) observe 2 consecutive all-green polls.
-min_required_iter=$(( (MIN_SETTLE_SEC + INTERVAL - 1) / INTERVAL + 1 ))
+# to: (i) cover MIN_SETTLE_SEC, AND (ii) observe 2 CONSECUTIVE all-green
+# polls (so floor is 2 even when settling is disabled).
+settling_polls=$(( (MIN_SETTLE_SEC + INTERVAL - 1) / INTERVAL + 1 ))
+min_required_iter=$(( settling_polls > 2 ? settling_polls : 2 ))
 if (( MAX_ITER < min_required_iter )); then
   echo "Error: MAX_ITER=$MAX_ITER too small for INTERVAL=${INTERVAL}s + MIN_SETTLE_SEC=${MIN_SETTLE_SEC}s" >&2
-  echo "       need MAX_ITER >= $min_required_iter (settling + 2-poll stability needs that many polls)" >&2
+  echo "       need MAX_ITER >= $min_required_iter (settling + 2 consecutive all-green polls)" >&2
   echo "       either raise MAX_ITER, raise INTERVAL, or set MIN_SETTLE_SEC=0 to disable settling" >&2
+  echo "       (note: even with MIN_SETTLE_SEC=0, MAX_ITER >= 2 is required for stability)" >&2
   exit 1
 fi
 
@@ -159,18 +184,17 @@ sys.exit(99)
   echo "[${ts}] iter=${i} (t+${elapsed}s): ${result_display}"
 
   if [[ $rc -eq 0 ]]; then
-    # Two-layer wave-registration defense (see header comment for full
-    # rationale). BOTH must hold for rc=0 exit:
+    # Stability invariant (see header). BOTH must hold for rc=0 exit:
     #
     #   (a) elapsed >= MIN_SETTLE_SEC — guarantees we waited long enough
     #       for slow producers (e.g. GitHub Actions matrix taking ~120s)
     #       to register, regardless of what we observed in the meantime.
     #
-    #   (b) current_sig == prev_all_green_sig — two consecutive all-green
-    #       observations with the same name-set. prev_all_green_sig is
-    #       updated ONLY in this branch (never in rc=99/pending), so two
-    #       observations of the same partial wave with pending-then-success
-    #       transition cannot pass this check (codex round 6 repro).
+    #   (b) current_sig == prev_all_green_sig with prev being the
+    #       IMMEDIATELY-PRECEDING poll's sig (and that poll was also
+    #       all-green). Because prev_all_green_sig is cleared on every
+    #       rc=99 transition, a non-empty match here implies the prior
+    #       poll was likewise all-green with the same name-set.
     if (( elapsed < MIN_SETTLE_SEC )); then
       echo "  (all green observed, but only ${elapsed}s elapsed since start — waiting until t+${MIN_SETTLE_SEC}s)"
       prev_all_green_sig="$current_sig"
@@ -199,9 +223,14 @@ sys.exit(99)
     exit "$rc"
   fi
   # rc == 99 means still pending.
-  # CRITICAL: do NOT touch prev_all_green_sig here — that would re-introduce
-  # the codex-round-6 partial-wave-stable bug. Pending observations are not
-  # evidence of name-set stability for the all-green decision.
+  # Clear prev_all_green_sig: stability requires CONSECUTIVE all-green polls.
+  # A pending observation breaks the chain — the next all-green poll starts
+  # a fresh consecutive count. Codex round 7 repro: without this clear,
+  # "all-green → pending → all-green" satisfies sig-match across two
+  # all-green observations that were NOT consecutive, which is the bug
+  # (codex finding line 180 / 201). The invariant in the header says
+  # "immediately-preceding poll was all-green"; this line enforces it.
+  prev_all_green_sig=""
   sleep "$INTERVAL"
 done
 
