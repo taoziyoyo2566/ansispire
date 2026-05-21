@@ -88,7 +88,8 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 1
 fi
 
-# Guard 5: Branch is not checked out in ANY worktree (this one or others).
+# Helper: print the path of any worktree that has refs/heads/$BRANCH checked
+# out (return 0); print nothing (return 1) if no worktree uses the branch.
 #
 # `git branch -d/-D` refuses when a branch is checked out in another worktree,
 # but `git update-ref -d` (used in Step 4 for atomic semantics) bypasses that
@@ -96,21 +97,30 @@ fi
 # checked out leaves that worktree in a broken "No commits yet on <BRANCH>"
 # state — possibly with uncommitted work that becomes hard to recover.
 #
-# Scan all worktrees via `git worktree list --porcelain`. Refuse if any
-# worktree (including the current one) has refs/heads/$BRANCH checked out.
-worktree_blocker=""
-while IFS= read -r line; do
-  case "$line" in
-    "worktree "*) wt_path="${line#worktree }" ;;
-    "branch refs/heads/$BRANCH")
-      worktree_blocker="$wt_path"
-      break
-      ;;
-    "") wt_path="" ;;
-  esac
-done < <(git worktree list --porcelain)
-if [[ -n "$worktree_blocker" ]]; then
-  echo "Error: '$BRANCH' is checked out in worktree: $worktree_blocker" >&2
+# This is called at BOTH Guard 5 (hard fail before any destructive operation)
+# AND immediately before Step 4 (soft skip if a worktree appeared in the
+# Guard-5-to-Step-4 window, since remote tag+delete already succeeded and is
+# not reversible — local cleanup gets skipped with a warning rather than
+# rolled back).
+worktree_using_branch() {
+  local branch="$1"
+  local wt_path=""
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) wt_path="${line#worktree }" ;;
+      "branch refs/heads/$branch")
+        printf '%s\n' "$wt_path"
+        return 0
+        ;;
+      "") wt_path="" ;;
+    esac
+  done < <(git worktree list --porcelain)
+  return 1
+}
+
+# Guard 5: Branch is not checked out in ANY worktree (this one or others).
+if blocker=$(worktree_using_branch "$BRANCH"); then
+  echo "Error: '$BRANCH' is checked out in worktree: $blocker" >&2
   echo "       Switch that worktree to a different branch (or remove it) before archiving." >&2
   exit 1
 fi
@@ -266,6 +276,25 @@ echo "✅ remote archived atomically: tag '$TAG' created + branch '$BRANCH' dele
 #                                       all local commits are in TIP
 #   - else (ahead or divergent)       → real unpushed work; keep + warn
 if git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null; then
+  # Re-check worktree blocker right before destructive local action.
+  # Guard 5 to here spans `git fetch` + `gh pr view` + tag create + atomic
+  # remote push — a window of 5-15s during which a concurrent agent could
+  # `git worktree add` for this branch. update-ref -d would silently delete
+  # that worktree's HEAD ref. Per codex round 8: remote archive has already
+  # succeeded (tag pushed, remote branch deleted, both atomically) so we
+  # CANNOT roll back; the right behavior is soft-skip the local cleanup
+  # with a clear warning. Operator can manually delete after switching
+  # the other worktree.
+  if blocker=$(worktree_using_branch "$BRANCH"); then
+    echo "Warning: local '$BRANCH' kept — checked out in worktree: $blocker" >&2
+    echo "  (appeared in the window between Guard 5 and Step 4)" >&2
+    echo "  Remote archive already completed atomically; not reversible." >&2
+    echo "  Switch that worktree to another branch, then manually run:" >&2
+    echo "    git update-ref -d refs/heads/$BRANCH $TIP" >&2
+    echo ""
+    echo "─── Done. Recover commits anytime via: git show $TAG"
+    exit 0
+  fi
   local_tip=$(git rev-parse "refs/heads/$BRANCH")
   if [[ "$local_tip" == "$TIP" ]] || \
      git merge-base --is-ancestor "$local_tip" "$TIP" 2>/dev/null; then
