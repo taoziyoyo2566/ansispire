@@ -22,7 +22,8 @@
         vps-new vps-recover vps-submit vps-tasks \
         vps-manager-init vps-manager-process vps-manager-validate \
         hub-deploy hub-deploy-check \
-        target-deploy target-deploy-check target-ping
+        target-deploy target-deploy-check target-ping \
+        check-claude-links review-local
 
 # Control-plane compose command wrapper
 CONTROLLER_DIR := controller/semaphore
@@ -92,13 +93,42 @@ yamllint: ## Run yamllint
 ansible-lint: ## Run ansible-lint
 	$(BIN)ansible-lint --profile production
 
+check-claude-links: ## Lint repo-tracked CLAUDE.md for memory-namespace wikilinks
+	@bash scripts/check_claude_md_links.sh
+
+review-local: ## Local "what am I about to push" — diff stat / files / whitespace check vs upstream (or origin/dev fallback)
+	@REF=$$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || true); \
+	 if [ -z "$$REF" ]; then \
+	     if git rev-parse --verify --quiet origin/dev >/dev/null; then \
+	         REF="origin/dev"; \
+	         echo "ℹ no upstream set; using fallback base: origin/dev"; \
+	     else \
+	         echo "Error: no upstream AND origin/dev not found — set upstream or fetch origin first"; exit 1; \
+	     fi; \
+	 fi; \
+	 BASE=$$(git merge-base "$$REF" HEAD); \
+	 BASE_SHORT=$$(git rev-parse --short "$$BASE"); \
+	 BASE_SUBJ=$$(git log -1 --pretty=%s "$$BASE"); \
+	 HEAD_SHORT=$$(git rev-parse --short HEAD); \
+	 echo "── Review base: $$BASE_SHORT \"$$BASE_SUBJ\""; \
+	 echo "── HEAD:        $$HEAD_SHORT (compared against: $$REF)"; \
+	 echo ""; \
+	 echo "── git diff --stat $${BASE_SHORT}..HEAD ───────────────────────"; \
+	 git --no-pager diff --stat "$$BASE..HEAD"; \
+	 echo ""; \
+	 echo "── git diff --name-status $${BASE_SHORT}..HEAD ────────────────"; \
+	 git --no-pager diff --name-status "$$BASE..HEAD"; \
+	 echo ""; \
+	 echo "── git diff --check (whitespace, conflict markers) ────────────"; \
+	 if git --no-pager diff --check "$$BASE..HEAD"; then echo "✅ clean"; else echo "❌ see issues above"; fi
+
 syntax: ## Syntax check both stag and prod
 	@echo "==> Syntax checking Stag..."
 	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/stag
 	@echo "==> Syntax checking Prod..."
 	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/prod
 
-verify: lint syntax vps-manager-syntax detect-secrets test-eda test-filters test-vps-manager dry-run ## Push gate — lint + syntax + secrets + Python tests + dry-run (~30–60 s)
+verify: lint syntax vps-manager-syntax check-claude-links detect-secrets test-eda test-filters test-vps-manager dry-run ## Push gate — lint + syntax + secrets + governance + Python tests + dry-run (~30–60 s)
 
 verify-quick: syntax ## Save-point gate — syntax only (~3 s, before commit)
 
@@ -338,7 +368,8 @@ controller-bootstrap: manifest-sync ## Bootstrap Semaphore project/inventory/tem
 # ── Round 8: audit sink ──────────────────────────────────────────────────────
 controller-audit-up: controller-net ## Start audit sink + Round 9 polling relay
 	$(AUDIT_COMPOSE) up -d --build
-	@echo "==> audit-sink listening at http://127.0.0.1:3310/event (container 3010 → host 3310)"
+	@PORT=$$(grep -E '^AUDIT_PORT=' $(CONTROLLER_ENV) 2>/dev/null | cut -d= -f2); \
+	 echo "==> audit-sink listening at http://127.0.0.1:$${PORT:-3310}/event (container 3010 → host $${PORT:-3310})"
 	@echo "==> audit-relay polling Semaphore /api/events → sink"
 
 controller-audit-down: ## Stop the audit sink (volume preserved)
