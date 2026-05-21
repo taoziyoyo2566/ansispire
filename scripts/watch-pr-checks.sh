@@ -49,28 +49,49 @@ fi
 for ((i=1; i<=MAX_ITER; i++)); do
   result=$(gh pr view "$PR" --json statusCheckRollup 2>/dev/null | python3 -c "
 import json,sys
-# Treat as 'OK' anything GitHub considers a non-failure terminal state.
-# Anything outside this set + with a conclusion set is a failure-equivalent:
-# FAILURE, CANCELLED, TIMED_OUT, ACTION_REQUIRED, STALE, STARTUP_FAILURE.
-OK_CONCLUSIONS = {'SUCCESS', 'SKIPPED', 'NEUTRAL'}
+# statusCheckRollup mixes two entry shapes:
+#   CheckRun       — Actions / Check API; carries 'conclusion' (terminal) and
+#                    'status' (running state). conclusion=None means not done.
+#   StatusContext  — Commit Statuses API / branch-protection external; carries
+#                    'state' instead. state in {PENDING, EXPECTED} = not done;
+#                    {SUCCESS, FAILURE, ERROR} = terminal.
+# OK terminal states across both: SUCCESS, SKIPPED, NEUTRAL (CheckRun-only;
+# StatusContext does not emit SKIPPED/NEUTRAL).
+OK_TERMINAL = {'SUCCESS', 'SKIPPED', 'NEUTRAL'}
+PENDING_STATES = {'PENDING', 'EXPECTED'}
+
+def terminal(c):
+    # Prefer CheckRun's conclusion if set
+    if c.get('conclusion'):
+        return c['conclusion']
+    # Fall back to StatusContext's state, unless still pending
+    s = c.get('state')
+    if s and s not in PENDING_STATES:
+        return s
+    return None
+
+def display(c):
+    return c.get('conclusion') or c.get('state') or c.get('status') or '?'
+
 d=json.load(sys.stdin)
 checks=d.get('statusCheckRollup', [])
 total=len(checks)
 # Empty rollup right after push = workflow runs not yet registered. Treat
-# as 'still pending' — declaring green on total=0 was the iter-2 bug.
+# as 'still pending' — declaring green on total=0 was a prior bug.
 if total == 0:
     print('0/0 done (workflow runs not yet registered)', end='')
     print()
     sys.exit(99)
-done=sum(1 for c in checks if c.get('conclusion'))
-pending=total - done
-failures=[c['name'] for c in checks if c.get('conclusion') and c['conclusion'] not in OK_CONCLUSIONS]
+terms = [terminal(c) for c in checks]
+done = sum(1 for t in terms if t is not None)
+pending = total - done
+failures = [c['name'] for c, t in zip(checks, terms) if t and t not in OK_TERMINAL]
 print(f'{done}/{total} done, {pending} pending, {len(failures)} fail', end='')
 if pending == 0:
     print()
     # Sort: failures first, then by name
-    for c in sorted(checks, key=lambda x: (x.get('conclusion','') in OK_CONCLUSIONS, x['name'])):
-        print(f\"  {(c.get('conclusion') or c['status']):12} {c['name']}\")
+    for c, t in sorted(zip(checks, terms), key=lambda p: (p[1] in OK_TERMINAL, p[0]['name'])):
+        print(f\"  {display(c):14} {c['name']}\")
     sys.exit(0 if not failures else 2)
 print()
 sys.exit(99)

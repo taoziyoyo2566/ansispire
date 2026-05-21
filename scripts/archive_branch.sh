@@ -21,10 +21,11 @@
 #   6. Verify branch is merged into MERGE_TARGET via EITHER:
 #      (a) ancestor check — origin/BRANCH tip is reachable from MERGE_TARGET
 #          (true-merge case, no GitHub round-trip needed), OR
-#      (b) PR cross-check — `gh pr view PR_NUMBER` confirms ALL THREE:
-#          state=MERGED, headRefName=BRANCH, baseRefName=MERGE_TARGET
-#          (squash-merge case; state alone is NOT enough — a merged PR for a
-#          different branch does not authorize deleting this branch).
+#      (b) PR cross-check — `gh pr view PR_NUMBER` confirms ALL FIVE:
+#          state=MERGED, headRefName=BRANCH, baseRefName=MERGE_TARGET,
+#          headRefOid=origin/BRANCH (no post-merge re-push), and
+#          isCrossRepository=false (no fork PRs). Each check is independent
+#          and surfaces a distinct error.
 #   7. Compute archive tag: archive/<branch-slash-to-dash>-<YYYY-MM-DD>.
 #   8. Refuse to overwrite an existing archive tag (no-clobber).
 #   9. Create annotated tag at origin/BRANCH's tip.
@@ -110,11 +111,16 @@ TIP=$(git rev-parse "origin/$BRANCH")
 # Guard 8: branch is actually merged
 # Two acceptance paths:
 #   (a) tip is an ancestor of target — true-merge fast path, works without `gh`.
-#   (b) GitHub PR check via `gh pr view PR_NUM` — squash-merge path. To prevent
-#       a typo or copy-paste error from archiving the wrong branch, the PR
-#       must satisfy ALL THREE: state=MERGED, headRefName=BRANCH, baseRefName
-#       =TARGET. State alone is NOT enough — a merged PR for a different branch
-#       does not authorize deleting THIS branch.
+#   (b) GitHub PR check via `gh pr view PR_NUM` — squash-merge path. The PR
+#       must satisfy ALL FIVE conditions:
+#         state            == MERGED
+#         headRefName      == BRANCH    (PR is for THIS branch by name)
+#         baseRefName      == TARGET    (PR landed on the right target)
+#         headRefOid       == TIP       (current ref points to the exact commit
+#                                        that was merged — protects against
+#                                        post-merge re-push / branch reuse)
+#         isCrossRepository == false    (fork PRs: source branch lives in
+#                                        another repo; archive does not apply)
 # Anything else: refuse.
 if git merge-base --is-ancestor "$TIP" "origin/$TARGET" 2>/dev/null; then
   echo "── '$BRANCH' is merged into '$TARGET' (true merge ancestry)"
@@ -125,17 +131,23 @@ else
     exit 1
   fi
   pr_info=$(gh pr view "$PR_NUM" \
-              --json state,headRefName,baseRefName \
-              -q '[.state, .headRefName, .baseRefName] | @tsv' 2>/dev/null || true)
+              --json state,headRefName,baseRefName,headRefOid,isCrossRepository \
+              -q '[.state, .headRefName, .baseRefName, .headRefOid, (.isCrossRepository|tostring)] | @tsv' \
+              2>/dev/null || true)
   if [[ -z "$pr_info" ]]; then
     echo "Error: 'gh pr view $PR_NUM' returned no data" >&2
     echo "       PR may not exist, gh may be unauthed, or network failed" >&2
     exit 1
   fi
-  IFS=$'\t' read -r pr_state pr_head pr_base <<<"$pr_info"
+  IFS=$'\t' read -r pr_state pr_head pr_base pr_head_oid pr_cross_repo <<<"$pr_info"
   if [[ "$pr_state" != "MERGED" ]]; then
     echo "Error: PR #$PR_NUM state is '${pr_state:-unknown}' (expected MERGED)" >&2
     echo "       ancestor check also failed: tip is not an ancestor of origin/$TARGET" >&2
+    exit 1
+  fi
+  if [[ "$pr_cross_repo" == "true" ]]; then
+    echo "Error: PR #$PR_NUM is from a fork (isCrossRepository=true)" >&2
+    echo "       source branch lives in another repo; archive does not apply" >&2
     exit 1
   fi
   if [[ "$pr_head" != "$BRANCH" ]]; then
@@ -148,7 +160,14 @@ else
     echo "       refusing to archive: archive metadata would be wrong" >&2
     exit 1
   fi
-  echo "── '$BRANCH' merged via squash (PR #$PR_NUM: state=MERGED, head=$pr_head, base=$pr_base)"
+  if [[ "$pr_head_oid" != "$TIP" ]]; then
+    echo "Error: origin/$BRANCH tip ($TIP)" >&2
+    echo "       does not match PR #$PR_NUM merged head ($pr_head_oid)" >&2
+    echo "       branch has commits added after merge — refusing to archive" >&2
+    echo "       unmerged work as if it were part of the merged history" >&2
+    exit 1
+  fi
+  echo "── '$BRANCH' merged via squash (PR #$PR_NUM: state=MERGED, head=$pr_head, base=$pr_base, tip matches merged head)"
 fi
 
 # Guard 9: Compute and validate archive tag
