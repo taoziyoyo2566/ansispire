@@ -18,8 +18,11 @@
 #   3. Reject if working tree is dirty.
 #   4. Reject if currently checked out on BRANCH.
 #   5. Fetch + verify origin/MERGE_TARGET and origin/BRANCH both exist.
-#   6. Verify origin/BRANCH's tip is an ancestor of origin/MERGE_TARGET
-#      (i.e. the branch is genuinely merged — not just an open PR).
+#   6. Verify branch is merged into MERGE_TARGET via EITHER:
+#      (a) ancestor check — origin/BRANCH tip is reachable from MERGE_TARGET
+#          (true-merge case, no GitHub round-trip needed), OR
+#      (b) PR state check — `gh pr view PR_NUMBER` returns MERGED
+#          (squash-merge case, where (a) is by-design false).
 #   7. Compute archive tag: archive/<branch-slash-to-dash>-<YYYY-MM-DD>.
 #   8. Refuse to overwrite an existing archive tag (no-clobber).
 #   9. Create annotated tag at origin/BRANCH's tip.
@@ -103,29 +106,29 @@ fi
 TIP=$(git rev-parse "origin/$BRANCH")
 
 # Guard 8: branch is actually merged
-# Note: with squash-merge, BRANCH's tip is NOT an ancestor of TARGET (squash
-# creates a new commit). Detect by checking either (a) ancestor relationship
-# (true-merge) or (b) every patch-id reachable from BRANCH is also reachable
-# from TARGET (squash-merge case).
+# Two acceptance paths:
+#   (a) tip is an ancestor of target — true-merge fast path, works without `gh`.
+#   (b) `gh pr view PR_NUM --json state` returns MERGED — squash-merge path.
+#       (Squash produces a new commit on target whose patch-id ≠ any branch
+#       commit's patch-id, so git-only walks cannot detect it. Trust the PR
+#       state from GitHub instead, which is the authoritative signal.)
+# Anything else: refuse with both checks named.
 if git merge-base --is-ancestor "$TIP" "origin/$TARGET" 2>/dev/null; then
   echo "── '$BRANCH' is merged into '$TARGET' (true merge ancestry)"
 else
-  # Squash-merge fallback: confirm every commit on BRANCH-since-base has its
-  # patch present on TARGET. If any commit is missing, refuse — the user's
-  # branch may not actually be merged.
-  base=$(git merge-base "$TIP" "origin/$TARGET" 2>/dev/null || true)
-  if [[ -z "$base" ]]; then
-    echo "Error: no common ancestor between '$BRANCH' and '$TARGET' — not in the same history?" >&2
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "Error: '$BRANCH' tip is not an ancestor of '$TARGET' and 'gh' CLI is unavailable" >&2
+    echo "       cannot verify squash-merge state without GitHub PR lookup" >&2
     exit 1
   fi
-  # cherry shows '-' for commits already in TARGET, '+' for commits not yet there
-  missing=$(git cherry "origin/$TARGET" "$TIP" "$base" | grep -c '^+' || true)
-  if [[ "$missing" -ne 0 ]]; then
-    echo "Error: '$BRANCH' has $missing commit(s) not present in '$TARGET' — branch is not fully merged" >&2
-    echo "Run: git cherry origin/$TARGET origin/$BRANCH" >&2
+  pr_state=$(gh pr view "$PR_NUM" --json state -q .state 2>/dev/null || true)
+  if [[ "$pr_state" != "MERGED" ]]; then
+    echo "Error: '$BRANCH' is not merged into '$TARGET'" >&2
+    echo "       ancestor check: tip is not an ancestor of origin/$TARGET" >&2
+    echo "       PR #$PR_NUM state: ${pr_state:-unknown} (expected MERGED)" >&2
     exit 1
   fi
-  echo "── '$BRANCH' content is in '$TARGET' (squash-merge detected)"
+  echo "── '$BRANCH' merged via squash (PR #$PR_NUM state=MERGED)"
 fi
 
 # Guard 9: Compute and validate archive tag
