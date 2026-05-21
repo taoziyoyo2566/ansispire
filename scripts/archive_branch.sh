@@ -88,10 +88,30 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 1
 fi
 
-# Guard 5: Not currently on the branch
-current=$(git rev-parse --abbrev-ref HEAD)
-if [[ "$current" == "$BRANCH" ]]; then
-  echo "Error: currently on '$BRANCH'. Switch to '$TARGET' (or any other branch) first." >&2
+# Guard 5: Branch is not checked out in ANY worktree (this one or others).
+#
+# `git branch -d/-D` refuses when a branch is checked out in another worktree,
+# but `git update-ref -d` (used in Step 4 for atomic semantics) bypasses that
+# protection. Deleting refs/heads/<BRANCH> while another worktree has it
+# checked out leaves that worktree in a broken "No commits yet on <BRANCH>"
+# state — possibly with uncommitted work that becomes hard to recover.
+#
+# Scan all worktrees via `git worktree list --porcelain`. Refuse if any
+# worktree (including the current one) has refs/heads/$BRANCH checked out.
+worktree_blocker=""
+while IFS= read -r line; do
+  case "$line" in
+    "worktree "*) wt_path="${line#worktree }" ;;
+    "branch refs/heads/$BRANCH")
+      worktree_blocker="$wt_path"
+      break
+      ;;
+    "") wt_path="" ;;
+  esac
+done < <(git worktree list --porcelain)
+if [[ -n "$worktree_blocker" ]]; then
+  echo "Error: '$BRANCH' is checked out in worktree: $worktree_blocker" >&2
+  echo "       Switch that worktree to a different branch (or remove it) before archiving." >&2
   exit 1
 fi
 
