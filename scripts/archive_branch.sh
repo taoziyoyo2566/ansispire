@@ -21,8 +21,10 @@
 #   6. Verify branch is merged into MERGE_TARGET via EITHER:
 #      (a) ancestor check — origin/BRANCH tip is reachable from MERGE_TARGET
 #          (true-merge case, no GitHub round-trip needed), OR
-#      (b) PR state check — `gh pr view PR_NUMBER` returns MERGED
-#          (squash-merge case, where (a) is by-design false).
+#      (b) PR cross-check — `gh pr view PR_NUMBER` confirms ALL THREE:
+#          state=MERGED, headRefName=BRANCH, baseRefName=MERGE_TARGET
+#          (squash-merge case; state alone is NOT enough — a merged PR for a
+#          different branch does not authorize deleting this branch).
 #   7. Compute archive tag: archive/<branch-slash-to-dash>-<YYYY-MM-DD>.
 #   8. Refuse to overwrite an existing archive tag (no-clobber).
 #   9. Create annotated tag at origin/BRANCH's tip.
@@ -108,11 +110,12 @@ TIP=$(git rev-parse "origin/$BRANCH")
 # Guard 8: branch is actually merged
 # Two acceptance paths:
 #   (a) tip is an ancestor of target — true-merge fast path, works without `gh`.
-#   (b) `gh pr view PR_NUM --json state` returns MERGED — squash-merge path.
-#       (Squash produces a new commit on target whose patch-id ≠ any branch
-#       commit's patch-id, so git-only walks cannot detect it. Trust the PR
-#       state from GitHub instead, which is the authoritative signal.)
-# Anything else: refuse with both checks named.
+#   (b) GitHub PR check via `gh pr view PR_NUM` — squash-merge path. To prevent
+#       a typo or copy-paste error from archiving the wrong branch, the PR
+#       must satisfy ALL THREE: state=MERGED, headRefName=BRANCH, baseRefName
+#       =TARGET. State alone is NOT enough — a merged PR for a different branch
+#       does not authorize deleting THIS branch.
+# Anything else: refuse.
 if git merge-base --is-ancestor "$TIP" "origin/$TARGET" 2>/dev/null; then
   echo "── '$BRANCH' is merged into '$TARGET' (true merge ancestry)"
 else
@@ -121,14 +124,31 @@ else
     echo "       cannot verify squash-merge state without GitHub PR lookup" >&2
     exit 1
   fi
-  pr_state=$(gh pr view "$PR_NUM" --json state -q .state 2>/dev/null || true)
-  if [[ "$pr_state" != "MERGED" ]]; then
-    echo "Error: '$BRANCH' is not merged into '$TARGET'" >&2
-    echo "       ancestor check: tip is not an ancestor of origin/$TARGET" >&2
-    echo "       PR #$PR_NUM state: ${pr_state:-unknown} (expected MERGED)" >&2
+  pr_info=$(gh pr view "$PR_NUM" \
+              --json state,headRefName,baseRefName \
+              -q '[.state, .headRefName, .baseRefName] | @tsv' 2>/dev/null || true)
+  if [[ -z "$pr_info" ]]; then
+    echo "Error: 'gh pr view $PR_NUM' returned no data" >&2
+    echo "       PR may not exist, gh may be unauthed, or network failed" >&2
     exit 1
   fi
-  echo "── '$BRANCH' merged via squash (PR #$PR_NUM state=MERGED)"
+  IFS=$'\t' read -r pr_state pr_head pr_base <<<"$pr_info"
+  if [[ "$pr_state" != "MERGED" ]]; then
+    echo "Error: PR #$PR_NUM state is '${pr_state:-unknown}' (expected MERGED)" >&2
+    echo "       ancestor check also failed: tip is not an ancestor of origin/$TARGET" >&2
+    exit 1
+  fi
+  if [[ "$pr_head" != "$BRANCH" ]]; then
+    echo "Error: PR #$PR_NUM head branch is '$pr_head', not '$BRANCH'" >&2
+    echo "       refusing to archive '$BRANCH' based on a PR for a different branch" >&2
+    exit 1
+  fi
+  if [[ "$pr_base" != "$TARGET" ]]; then
+    echo "Error: PR #$PR_NUM merged into '$pr_base', not '$TARGET'" >&2
+    echo "       refusing to archive: archive metadata would be wrong" >&2
+    exit 1
+  fi
+  echo "── '$BRANCH' merged via squash (PR #$PR_NUM: state=MERGED, head=$pr_head, base=$pr_base)"
 fi
 
 # Guard 9: Compute and validate archive tag
