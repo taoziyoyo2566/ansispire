@@ -25,3 +25,9 @@ vps_runner:
   managed_port: 1156
   managed_user: ansible
   status: pending           # flips to "active" after first successful onboard
+  # bootstrap_user: root    # optional; wizard writes these on first add-host
+  # bootstrap_port: 22      # default 22; overridden by wizard collection
+  # bootstrap_key: null     # set by wizard on key-branch failure; carries the
+                            # temp key path so `onboard --first-time` retry
+                            # auto-injects without re-paste. null/absent after
+                            # successful onboard.

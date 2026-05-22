@@ -98,14 +98,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "--bootstrap-port", type=int,
         help="bootstrap port override (defaults to vps_runner.bootstrap_port)",
     )
-    p_onboard.add_argument(
-        "--ask-pass", action="store_true",
-        help="prompt for SSH password (use for first-time onboard before key install)",
-    )
-    p_onboard.add_argument(
-        "--ask-become-pass", action="store_true",
-        help="prompt for sudo password (use when sudo NOPASSWD not yet configured)",
-    )
 
     # modify
     p_modify = subparsers.add_parser(
@@ -254,11 +246,6 @@ def _cmd_onboard(args: argparse.Namespace) -> int:
             f"==> first-time mode: connecting as {boot_user}@{boot_port} "
             f"(host_vars target = {data.get('ansible_user')}@{data.get('ansible_port')})"
         )
-    if args.ask_pass:
-        cmdline_parts.append("--ask-pass")
-    if args.ask_become_pass:
-        cmdline_parts.append("--ask-become-pass")
-
     print(f"==> vps-runner onboard alias={alias} env={args.env}")
     try:
         summary = core.run_playbook(

@@ -95,8 +95,9 @@ python -m plugins.vps_runner.cli list --env dev
 # 方式 C（最省事，Round 6 起所有日常子命令都有 Make wrapper）
 make vps-list                                      # 等价 list
 make vps-audit ALIAS=hk-d12                        # 等价 audit --limit
-make vps-add-host ALIAS=de-d12-1 IP=203.0.113.42  # 等价 add-host
-make vps-onboard ALIAS=de-d12-1                    # 等价 onboard --first-time --ask-pass --ask-become-pass
+make vps-add-host ALIAS=de-d12-1 IP=203.0.113.42  # 等价 add-host (flag mode)
+make vps-add-host                                  # 等价 add-host (wizard 模式 — R11)
+make vps-reonboard ALIAS=de-d12-1                  # 等价 onboard (key-only re-onboard; 首次接入用 wizard)
 make vps-modify ALIAS=hk-d12 ARGS='--add-package=htop'  # 等价 modify
 make vps-remove ALIAS=hk-d12                       # 等价 remove --yes --cleanup-remote
 ```
@@ -127,29 +128,70 @@ python -m plugins.vps_runner.cli list --env dev --format json
                  # 在同一目录 hosts.yml 手动加 `  <alias>:` 行
 ```
 
-**Wizard 模式**（无参数）：
+**Wizard 模式**（无参数，**R11 重写**——首次接入唯一推荐入口）：
 
 ```bash
 make vps-add-host                          # 等价 python -m plugins.vps_runner.cli add-host --env dev
 ```
 
-依次提示 4 个字段（端口/用户带默认，回车接受）：
+依次提示 8 个字段（默认值回车接受）：
 
 ```text
-Alias [必填]:              de-d12-1
-IP / hostname [必填]:      203.0.113.42
-Managed SSH port [1156]:    ↩
-Managed SSH user [ansible]: ↩
-==> created inventory/vps_runner/dev/host_vars/de-d12-1.yml
-==> added 'de-d12-1' to inventory/vps_runner/dev/hosts.yml
-继续 onboard de-d12-1? [Y/n]:
+Alias [必填]:                          de-d12-1
+IP / hostname [必填]:                  203.0.113.42
+User (bootstrap) [root]:                ↩
+认证方式: (p) 密码 / (k) 密钥 [p]:       k     ← 选 k 走密钥分支，选 p 走密码分支
+Private key (PEM …自动结束):            -----BEGIN OPENSSH PRIVATE KEY-----
+                                       …
+                                       -----END OPENSSH PRIVATE KEY-----
+Port (bootstrap) [22]:                  ↩
+Managed user [ansible]:                 ↩
+Managed port [1156]:                    ↩
+==> created host_vars/de-d12-1.yml
+==> added 'de-d12-1' to hosts.yml
+==> wrote temp bootstrap key: runtime/keys/vps_runner/de-d12-1.key
+==> first-time mode: connecting as root@22 with temp key ...
+==> vps-runner onboard alias=de-d12-1 env=dev
+...   (real ansible-runner output) ...
+==> verifying standard automation key against ansible@1156 ... ✓
+==> cleaned up temp key
+==> host_vars/de-d12-1.yml updated (status=active, bootstrap_key cleared)
+==> wrote local SSH alias: ~/.ssh/config.d/de-d12-1.conf
 ```
 
-- 回车接受 `Y` → 立即进入 `onboard --first-time --ask-pass --ask-become-pass` 流程（与 §3.3 相同）。
-- 输 `n` → 仅生成 inventory 条目，下次手动 `make vps-onboard ALIAS=de-d12-1`。
-- 中途按 Ctrl-C 或 stdin EOF → 优雅退出 rc=130，已写入的字段保留（重跑 wizard 会拒绝 alias 重复，强制改名）。
+**字段语义**：
 
-**非 TTY 拒绝**：当 stdin 不是终端（pipe / here-doc / CI），wizard 模式立刻退出 rc=2 并提示用 flag 模式，避免阻塞。
+- bootstrap `User` / `Port`：首次连接的用户和端口（默认 `root@22`）；onboard 完成后这条通道关闭（防火墙 + sshd 配置）。
+- **认证方式**：`p` 密码 → wizard 用 `getpass` 收一次密码（不回显，不写盘，通过 `ansible_runner` 的 `passwords=` 字典注入）；`k` 密钥 → 粘贴 PEM 私钥全文，wizard 自动以 `-----END … PRIVATE KEY-----` 行识别结束，写到 `runtime/keys/vps_runner/<alias>.key`（0600，gitignored），onboard 用完即删（密钥分支 happy path）。
+- bootstrap user 非 root：额外问一次 sudo 密码（默认复用 SSH 密码 / 留空尝试 NOPASSWD）。
+- managed `User` / `Port`：onboard 完成后的稳定态（默认 `ansible@1156`）。
+
+**密钥分支生命周期**：
+
+1. wizard 收 PEM → 写 `runtime/keys/vps_runner/<alias>.key`（0600）
+2. onboard 跑（用临时 key 连 bootstrap channel；装好标准自动化公钥 `ansispire_ed25519.pub` 到 managed user）
+3. 后置验证：ansible 用标准自动化密钥 ping managed user → 通即清理临时 key
+4. **失败保留**：onboard 或 verify 失败时，临时 key 不删，`vps_runner.bootstrap_key` 字段记录路径；下次 `onboard --first-time` 自动读这条 hint 注入 extravars 重试
+
+**预检失败**：wizard 启动时检查 `~/.ssh/ansispire_ed25519` / `.pub` 和 `~/.ssh/id_ed25519.pub` 三把密钥都在；任一缺失立刻 rc=3 退出并提示对应的 `ssh-keygen` 命令。
+
+**同名 alias 已存在**（4 选项菜单）：
+
+```
+==> 检测到 alias 'de-d12-1' 已存在:
+  IP:          203.0.113.42
+  Bootstrap:   root@22
+  Managed:     ansible@1156
+  Status:      active  (last_run: onboard)
+
+请选择处理方式:
+  1) 跳过并结束                              [默认]
+  2) 使用新的 alias 继续
+  3) 验证现有配置        ← schema + ssh probe + ansible ping，成功则免变更；失败则提示覆盖
+  4) 强制覆盖现有配置 (use when current is broken)
+```
+
+**非 TTY 拒绝**：stdin 不是终端（pipe / here-doc / CI），wizard 模式立刻退出 rc=2 并提示用 flag 模式。
 
 **Flag 模式**（一键 scaffold，等价 Round 6 行为）：
 
@@ -209,22 +251,23 @@ Host results:
   ✓ hk-d13           ok
 ```
 
-### 3.3 `onboard` — 首次接入或重新应用
+### 3.3 `onboard` — 重新应用（key-only re-onboard）
+
+> **首次接入走 wizard（§3.1）**：`make vps-add-host` 或 `python -m plugins.vps_runner.cli add-host --env dev` —— 由 wizard 收集 bootstrap 凭据并自动完成首次 onboard。`onboard` 子命令本身**只支持密钥认证**（R11 起 `--ask-pass` / `--ask-become-pass` flag 已移除——它们经 ansible-runner 不可用且首次接入路径已被 wizard 接管）。
 
 ```bash
 # 已配置好 ansible 公钥 + sudo NOPASSWD 的「重新 onboard」（最常见）
 python -m plugins.vps_runner.cli onboard hy-hk-u24 --env dev
 
-# 首次接入（节点还在 root@22 + sudo 需密码状态）
-python -m plugins.vps_runner.cli onboard hy-hk-u24 --env dev \
-    --first-time --ask-pass --ask-become-pass
+# 重跑 wizard 首次失败后的 first-time（auto-injects bootstrap_key 从 host_vars）
+python -m plugins.vps_runner.cli onboard hy-hk-u24 --env dev --first-time
 ```
 
-**前置**：`host_vars/<alias>.yml` 必须已存在（操作员手动创建——见 §4 流程）。
+**前置**：`host_vars/<alias>.yml` 必须已存在（wizard 在 add-host 阶段写入）；标准自动化密钥 `~/.ssh/ansispire_ed25519` 已能登上 managed user。
 
-**`--first-time` 语义**：临时把 `ansible_user` / `ansible_port` 用 extravars 覆盖为 `vps_runner.bootstrap_user@bootstrap_port`（默认 `root@22`）。**只影响这一次运行**——host_vars 中的 `ansible_user/port` 保持「目标态」。
+**`--first-time` 语义**：临时把 `ansible_user` / `ansible_port` 用 extravars 覆盖为 `vps_runner.bootstrap_user@bootstrap_port`（wizard 在 add-host 阶段写入；默认 `root@22`）。如果上一次 wizard 失败留下 `vps_runner.bootstrap_key`，本次重跑会自动注入该路径作为 `ansible_ssh_private_key_file`，**无需 `--extra-vars`**。**只影响这一次运行**——host_vars 中的 `ansible_user/port` 保持「目标态」。
 
-**`--ask-pass` / `--ask-become-pass`**：交互式输入 SSH / sudo 密码。`onboard` 成功后这两者通常都不再需要（密钥 + NOPASSWD 已就位）。
+**`make vps-reonboard`**：等价 `python -m plugins.vps_runner.cli onboard <alias> --env <env>`（不带 `--first-time`，纯密钥重跑）。
 
 **幂等**：成功后写回 `vps_runner.status: active` + `vps_runner.last_run`。再次跑相同命令是安全的。
 
@@ -262,42 +305,38 @@ python -m plugins.vps_runner.cli remove hy-hk-u24 --env dev --yes --cleanup-remo
 
 ## 4. 首次 Onboard 完整流程
 
-### 步骤 1：创建 `host_vars/<alias>.yml`
+**R11 起首次接入唯一推荐入口 = wizard**。下面把 wizard 的 8 字段流程 + 临时密钥生命周期串成一遍。
+
+### 步骤 0：前置检查
+
+操作员本机必须存在三把密钥（wizard 启动会强制检查；缺失 rc=3 + 提示 ssh-keygen 命令）：
 
 ```bash
-# 参照已有节点为模板
-cp inventory/vps_runner/dev/host_vars/hy-hk-u24.yml \
-   inventory/vps_runner/dev/host_vars/<new-alias>.yml
-$EDITOR inventory/vps_runner/dev/host_vars/<new-alias>.yml
+ls -la ~/.ssh/ansispire_ed25519 ~/.ssh/ansispire_ed25519.pub ~/.ssh/id_ed25519.pub
+# 若任一缺失，先跑：
+ssh-keygen -t ed25519 -f ~/.ssh/ansispire_ed25519 -N ''
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519       -N ''
 ```
 
-**关键字段（onboard 前必填）**：
-- `ansible_host`：节点 IP
-- `ansible_port`：onboard 后的**目标**端口（必须 != 22，建议 1024-65535）
-- `ansible_user`：目标用户（onboard 会创建）
-- `vps_runner.bootstrap_port` / `bootstrap_user`：当前**实际**端口/用户（首次通常 `22` / `root`）
-- `vps_runner.managed_port` / `managed_user`：与 `ansible_port` / `ansible_user` 保持一致
-- `vps_runner.identity_file`：操作员私钥路径
+并且操作员**手上要有**首次能登上目标 VPS 的凭据（密码或可粘贴的私钥），目标用户拥有 root 或 NOPASSWD-sudo 权限。
 
-### 步骤 2：把 alias 加入 `hosts.yml`
-
-```yaml
-all:
-  children:
-    vps_targets:
-      hosts:
-        hy-hk-u24:    # 已有
-        <new-alias>:  # 新增
-```
-
-### 步骤 3：跑 onboard
+### 步骤 1：启动 wizard
 
 ```bash
-python -m plugins.vps_runner.cli onboard <new-alias> --env dev \
-    --first-time --ask-pass --ask-become-pass
+make vps-add-host         # 或 .venv/bin/python -m plugins.vps_runner.cli add-host --env dev
 ```
 
-输入 root 的 SSH 密码 + sudo 密码。playbook 会：
+### 步骤 2：按提示填 8 字段
+
+见 §3.1 wizard 详细字段说明。关键点：
+
+- 密钥分支：粘贴 PEM 全文（多行；`-----END … PRIVATE KEY-----` 行自动结束输入）
+- 密码分支：getpass 不回显，仅内存使用，不写盘
+- bootstrap user 非 root：额外问 sudo 密码
+
+### 步骤 3：onboard 自动跑（wizard 内置）
+
+playbook 会：
 1. 装 base packages + unattended-upgrades
 2. 创建 managed user，授权 SSH key，配置 sudo NOPASSWD（默认）
 3. 写 sshd drop-in（迁端口、禁 root、禁密码、禁 kbd-interactive）
@@ -334,7 +373,7 @@ runtime/logs/vps_runner/<run_id>/
 
 | 症状 | 可能原因 | 排查 |
 |---|---|---|
-| `Permission denied (publickey)` | 公钥没在远端 / 私钥路径错 / sudo NOPASSWD 未生效 | 检查 `vps_runner.identity_file`；首次 onboard 加 `--ask-pass --ask-become-pass` |
+| `Permission denied (publickey)` | wizard 密钥分支：粘贴的私钥与远端 authorized_keys 不配；wizard 密码分支：密码错；onboard 重跑：自动化标准密钥 ansispire_ed25519 没装到 managed user | 首次接入走 wizard，确认目标用户能凭粘贴的密钥/密码登入；onboard 重跑前 `ssh -i ~/.ssh/ansispire_ed25519 <managed_user>@<host> -p <managed_port>` 验证手工连通 |
 | `host_vars not found` | 你没创建 `host_vars/<alias>.yml` | 见 §4 步骤 1 |
 | onboard 中途失败但 ssh 已迁端口 | 部分配置已落，节点处于半配状态 | 修改 `vps_runner.bootstrap_port: <new>` + `bootstrap_user: deploy`，重跑 `onboard` 续刷 |
 | `ssh.managed_port must be a non-22 high port` assert 失败 | host_vars 里 `managed_port: 22` 或 `< 1024` | 改 host_vars，重跑 |
@@ -360,12 +399,15 @@ python -m plugins.vps_runner.cli list --env dev
 python -m plugins.vps_runner.cli audit --env dev
 python -m plugins.vps_runner.cli audit --env dev --limit hy-hk-u24
 
-# 首次 onboard
-python -m plugins.vps_runner.cli onboard <alias> --env dev \
-    --first-time --ask-pass --ask-become-pass
+# 首次接入（wizard 唯一入口；密钥或密码都支持）
+python -m plugins.vps_runner.cli add-host --env dev
 
-# 重新 onboard（idempotent refresh）
+# 重新 onboard（idempotent refresh，纯密钥）
 python -m plugins.vps_runner.cli onboard <alias> --env dev
+# 等价: make vps-reonboard ALIAS=<alias>
+
+# wizard 首次失败后的 retry（自动读 host_vars.vps_runner.bootstrap_key 注入临时密钥）
+python -m plugins.vps_runner.cli onboard <alias> --env dev --first-time
 
 # 改包 / 防火墙 / fail2ban
 python -m plugins.vps_runner.cli modify <alias> --env dev \

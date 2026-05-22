@@ -20,7 +20,7 @@
         test-filters test-vps-runner test-vps-runner-integration \
         detect-secrets \
         vps-runner-syntax \
-        vps-list vps-audit vps-onboard vps-modify vps-remove vps-add-host \
+        vps-list vps-audit vps-reonboard vps-modify vps-remove vps-add-host \
         hub-deploy hub-deploy-check \
         target-deploy target-deploy-check target-ping \
         check-claude-links review-local
@@ -206,10 +206,9 @@ vps-add-host: ## three input modes — wizard (no args), flag (ALIAS+IP), templa
 	  $(if $(MANAGED_PORT),--port $(MANAGED_PORT)) \
 	  $(if $(MANAGED_USER),--user $(MANAGED_USER))
 
-vps-onboard: ## first-time onboard; ALIAS=<name> [ENV=dev]; prompts for SSH + sudo password
-	@test -n "$(ALIAS)" || { echo "Usage: make vps-onboard ALIAS=<alias> [ENV=dev]"; exit 2; }
-	$(BIN)python3 -m plugins.vps_runner.cli onboard $(ALIAS) --env $(or $(ENV),dev) \
-	  --first-time --ask-pass --ask-become-pass
+vps-reonboard: ## idempotent re-onboard (key auth only; standard automation key required); ALIAS=<name> [ENV=dev]
+	@test -n "$(ALIAS)" || { echo "Usage: make vps-reonboard ALIAS=<alias> [ENV=dev]"; exit 2; }
+	$(BIN)python3 -m plugins.vps_runner.cli onboard $(ALIAS) --env $(or $(ENV),dev)
 
 vps-modify: ## ad-hoc change; ALIAS=<name> ARGS='--add-package=htop --add-port=8080' [ENV=dev]
 	@test -n "$(ALIAS)" -a -n "$(ARGS)" || { echo "Usage: make vps-modify ALIAS=<alias> ARGS='<modify flags>' [ENV=dev]"; exit 2; }
