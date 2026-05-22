@@ -37,6 +37,7 @@ except ImportError as exc:  # pragma: no cover
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_ROOT = PROJECT_ROOT / "inventory" / "vps_runner"
 ARTIFACT_ROOT = PROJECT_ROOT / "runtime" / "logs" / "vps_runner"
+ANSIBLE_LOCAL_TEMP = PROJECT_ROOT / ".ansible" / "tmp"
 PLAYBOOK_DIR = Path(__file__).resolve().parent / "playbooks"
 SSH_CONFIG_TEMPLATE = PLAYBOOK_DIR / "templates" / "ssh_config_entry.j2"
 DEFAULT_SSH_CONFIG_DIR = Path("~/.ssh/config.d").expanduser()
@@ -337,6 +338,9 @@ def _build_runner_envvars() -> dict[str, str]:
       (Makefile-independent — see codex review P1.4).
     - Carry ANSIBLE_CONFIG + the project's collections/roles paths so
       ansible-playbook resolves to the correct config and content.
+    - Pin ANSIBLE_LOCAL_TEMP to a project-local dir so the plugin works
+      when ~/.ansible/tmp is missing/read-only (mirrors Makefile so the
+      plugin is invariant to the operator's HOME state).
     - Forward only a small allowlist of innocuous locale/HOME vars (see
       _ENVVAR_WHITELIST); do NOT pass arbitrary caller env (P1.3).
 
@@ -347,11 +351,13 @@ def _build_runner_envvars() -> dict[str, str]:
     path = os.pathsep.join(
         [str(venv_bin), "/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/bin"]
     )
+    ANSIBLE_LOCAL_TEMP.mkdir(parents=True, exist_ok=True)
     env: dict[str, str] = {
         "PATH": path,
         "ANSIBLE_CONFIG": str(PROJECT_ROOT / "ansible.cfg"),
         "ANSIBLE_COLLECTIONS_PATH": str(PROJECT_ROOT / "collections"),
         "ANSIBLE_ROLES_PATH": str(PROJECT_ROOT / "roles"),
+        "ANSIBLE_LOCAL_TEMP": str(ANSIBLE_LOCAL_TEMP),
     }
     for key in _ENVVAR_WHITELIST:
         if key in os.environ:

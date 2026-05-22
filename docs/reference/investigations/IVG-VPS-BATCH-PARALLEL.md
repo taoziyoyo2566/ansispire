@@ -42,7 +42,7 @@ all:
 - **风险评估**: 并发写入 `vps_inventory.yml` 或 SSH 配置文件可能导致竞态冲突，必须在状态回写阶段引入进程内锁或顺序回写。
 
 ## 6. 结论与建议 (Conclusion)
-- **行动方案**: 
+- **行动方案**:
     1. 修改 `vps_manager.py` 的 `process_paths` 逻辑以支持分组。
     2. 实现 `build_ansible_inventory` 的批量模式。
     3. 编写临时的 Callback Reporter 插件用于状态采集。

@@ -145,9 +145,9 @@ Managed SSH user [ansible]: ↩
 继续 onboard de-d12-1? [Y/n]:
 ```
 
-回车接受 `Y` → 立即进入 `onboard --first-time --ask-pass --ask-become-pass` 流程（与 §3.3 相同）。  
-输 `n` → 仅生成 inventory 条目，下次手动 `make vps-onboard ALIAS=de-d12-1`。  
-中途按 Ctrl-C 或 stdin EOF → 优雅退出 rc=130，已写入的字段保留（重跑 wizard 会拒绝 alias 重复，强制改名）。
+- 回车接受 `Y` → 立即进入 `onboard --first-time --ask-pass --ask-become-pass` 流程（与 §3.3 相同）。
+- 输 `n` → 仅生成 inventory 条目，下次手动 `make vps-onboard ALIAS=de-d12-1`。
+- 中途按 Ctrl-C 或 stdin EOF → 优雅退出 rc=130，已写入的字段保留（重跑 wizard 会拒绝 alias 重复，强制改名）。
 
 **非 TTY 拒绝**：当 stdin 不是终端（pipe / here-doc / CI），wizard 模式立刻退出 rc=2 并提示用 flag 模式，避免阻塞。
 
