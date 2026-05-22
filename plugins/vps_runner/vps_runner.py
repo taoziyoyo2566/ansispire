@@ -15,6 +15,7 @@ Full spec: docs/reference/feature-map/vps-runner.md.
 from __future__ import annotations
 
 import contextlib
+import getpass
 import os
 import re
 import sys
@@ -38,11 +39,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_ROOT = PROJECT_ROOT / "inventory" / "vps_runner"
 ARTIFACT_ROOT = PROJECT_ROOT / "runtime" / "logs" / "vps_runner"
 ANSIBLE_LOCAL_TEMP = PROJECT_ROOT / ".ansible" / "tmp"
+TEMP_KEY_DIR = PROJECT_ROOT / "runtime" / "keys" / "vps_runner"
 PLAYBOOK_DIR = Path(__file__).resolve().parent / "playbooks"
 SSH_CONFIG_TEMPLATE = PLAYBOOK_DIR / "templates" / "ssh_config_entry.j2"
 DEFAULT_SSH_CONFIG_DIR = Path("~/.ssh/config.d").expanduser()
 DEFAULT_SSH_MAIN_CONFIG = Path("~/.ssh/config").expanduser()
 DEFAULT_PERSONAL_IDENTITY_FILE = Path("~/.ssh/id_ed25519").expanduser()
+DEFAULT_PERSONAL_PUBLIC_KEY = Path("~/.ssh/id_ed25519.pub").expanduser()
+DEFAULT_AUTOMATION_PRIVATE_KEY = Path("~/.ssh/ansispire_ed25519").expanduser()
+DEFAULT_AUTOMATION_PUBLIC_KEY = Path("~/.ssh/ansispire_ed25519.pub").expanduser()
 
 DEFAULT_FORKS = 20
 DEFAULT_ROTATE_ARTIFACTS = 10
@@ -487,6 +492,7 @@ def run_playbook(
     forks: int = DEFAULT_FORKS,
     quiet: bool = False,
     cmdline: str | None = None,
+    passwords: dict[str, str] | None = None,
 ) -> RunSummary:
     """Invoke an ansible-runner playbook against the vps_runner inventory.
 
@@ -529,6 +535,12 @@ def run_playbook(
     )
     if cmdline:
         runner_kwargs["cmdline"] = cmdline
+    if passwords:
+        # ansible-runner intercepts subprocess stdout against these regex
+        # patterns and injects the matched password into stdin. Bypasses
+        # the TTY requirement of ansible-playbook's bare --ask-pass prompt.
+        # Passwords do NOT enter artifact envvars / command files.
+        runner_kwargs["passwords"] = passwords
     with _scrubbed_environ(envvars):
         runner = ansible_runner.run(**runner_kwargs)
 
@@ -605,28 +617,116 @@ def _first_event_msg(
 _INCLUDE_RE = re.compile(r"^\s*Include\s+(.+)$", re.IGNORECASE)
 
 
+_PEM_BEGIN_RE = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
+_PEM_END_RE = re.compile(r"-----END [A-Z0-9 ]*PRIVATE KEY-----")
+
+
+def wizard_entry_check() -> tuple[bool, list[str]]:
+    """Verify the two standard keypairs are present (operator + automation).
+
+    Returns (ok, missing_paths). Wizard refuses to start when any of:
+      - ~/.ssh/ansispire_ed25519     (automation private)
+      - ~/.ssh/ansispire_ed25519.pub (automation public)
+      - ~/.ssh/id_ed25519.pub        (operator public — needed by onboard.yml
+                                       personal_keys[0] to register operator
+                                       login during onboard)
+    is missing. Operator generates them with ssh-keygen once; wizard never
+    creates keys on the operator's behalf (R11 plan-2026-05-22b §2.1 Q1).
+    """
+    expected = (
+        DEFAULT_AUTOMATION_PRIVATE_KEY,
+        DEFAULT_AUTOMATION_PUBLIC_KEY,
+        DEFAULT_PERSONAL_PUBLIC_KEY,
+    )
+    missing = [str(p) for p in expected if not p.exists()]
+    return (not missing), missing
+
+
+def _validate_private_key_text(text: str) -> None:
+    """Sanity-check pasted PEM: must contain BEGIN + END markers."""
+    if not _PEM_BEGIN_RE.search(text):
+        raise VpsRunnerError(
+            "pasted text does not contain '-----BEGIN ... PRIVATE KEY-----' marker"
+        )
+    if not _PEM_END_RE.search(text):
+        raise VpsRunnerError(
+            "pasted text does not contain '-----END ... PRIVATE KEY-----' marker"
+        )
+
+
+def _collect_private_key_text() -> str:
+    """Read multi-line PEM from stdin until the -----END line.
+
+    Lines are accumulated; collection stops at the first line matching
+    `-----END ... PRIVATE KEY-----`. CRLF is normalized to LF; trailing
+    newline ensured. Raises VpsRunnerError if markers are missing.
+    """
+    print(
+        "Private key (PEM, ends automatically at -----END ... PRIVATE KEY----- line):"
+    )
+    lines: list[str] = []
+    while True:
+        line = input()
+        lines.append(line)
+        if _PEM_END_RE.search(line):
+            break
+    text = "\n".join(lines).replace("\r\n", "\n")
+    if not text.endswith("\n"):
+        text += "\n"
+    _validate_private_key_text(text)
+    return text
+
+
 def prompt_new_host(
     env: str, *, defaults: dict[str, Any] | None = None
 ) -> dict[str, Any] | None:
-    """Interactive wizard for add-host: collect 4 essential fields.
+    """Interactive wizard for add-host (R11 redesign).
 
-    Returns dict {alias, ip, port, user} ready for core.add_host(...).
-    Returns None on abort: non-TTY stdin, EOFError, or KeyboardInterrupt.
-    The caller decides the rc (typically 2 for no-TTY, 130 for user abort).
+    Field order (per user spec 2026-05-22):
+      1. alias
+      2. ip
+      3. user           (bootstrap_user; default root)
+      4. auth_method    (p=password / k=key; default p)
+      5. ssh_password OR private_key_text
+      5b. sudo_password (only when user != root)
+      6. port           (bootstrap_port; default 22)
+      7. managed_user   (default ansible)
+      8. managed_port   (default 1156; ≠22)
+
+    Returns expanded dict with keys: alias, ip, user, port, managed_user,
+    managed_port, auth_method, ssh_password, sudo_password, private_key_text.
+    Returns None on abort (non-TTY, EOFError, KeyboardInterrupt, entry-check
+    failure). Same-alias detection in T1 returns None with a current-state
+    message; T3 will replace this with the 4-option menu.
     """
     if not sys.stdin.isatty():
         sys.stderr.write(
-            "vps-runner: wizard requires a TTY; use flag mode instead:\n"
-            f"  make vps-add-host ALIAS=<alias> IP=<ip> "
-            f"[MANAGED_PORT=1156] [MANAGED_USER=ansible] ENV={env}\n"
+            "vps-runner: wizard requires a TTY.\n"
+            "  Flag mode (already-onboarded automation key required):\n"
+            f"  python -m plugins.vps_runner.cli add-host <alias> "
+            f"--ip <ip> --env {env}\n"
+        )
+        return None
+
+    ok, missing = wizard_entry_check()
+    if not ok:
+        sys.stderr.write(
+            "vps-runner wizard prerequisite missing:\n"
+            + "".join(f"  - {p}\n" for p in missing)
+            + "\nGenerate them once with:\n"
+            "  ssh-keygen -t ed25519 -f ~/.ssh/ansispire_ed25519 -N ''\n"
+            "  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519       -N ''\n"
         )
         return None
 
     defaults = defaults or {}
-    port_default = int(defaults.get("port", 1156))
-    user_default = str(defaults.get("user", "ansible"))
+    bootstrap_user_default = str(defaults.get("bootstrap_user", "root"))
+    bootstrap_port_default = int(defaults.get("bootstrap_port", 22))
+    managed_user_default = str(defaults.get("managed_user", "ansible"))
+    managed_port_default = int(defaults.get("managed_port", 1156))
 
     try:
+        # ---- 1. alias ----
         existing = set(list_aliases(env))
         while True:
             alias = input("Alias [必填]: ").strip()
@@ -636,10 +736,15 @@ def prompt_new_host(
                 print(f"  ! {exc}")
                 continue
             if alias in existing:
-                print(f"  ! alias '{alias}' already exists in env={env}; pick another")
+                # T1 stub: just refuse. T3 will implement the 4-option menu.
+                print(
+                    f"  ! alias '{alias}' already exists in env={env}; "
+                    f"pick another (T3 will offer a 4-option menu)"
+                )
                 continue
             break
 
+        # ---- 2. ip ----
         while True:
             ip = input("IP / hostname [必填]: ").strip()
             try:
@@ -649,34 +754,122 @@ def prompt_new_host(
                 continue
             break
 
+        # ---- 3. bootstrap user ----
         while True:
-            raw = input(f"Managed SSH port [{port_default}]: ").strip() or str(port_default)
-            try:
-                port = int(raw)
-            except ValueError:
-                print("  ! port must be an integer")
-                continue
-            if port == 22:
-                print("  ! port=22 not allowed for managed_port (use a non-22 high port)")
-                continue
-            if not (1024 <= port <= 65535):
-                print("  ! port must be 1024..65535")
-                continue
-            break
-
-        while True:
-            user = input(f"Managed SSH user [{user_default}]: ").strip() or user_default
+            user = input(
+                f"User (bootstrap) [{bootstrap_user_default}]: "
+            ).strip() or bootstrap_user_default
             try:
                 _validate_ssh_user(user)
             except VpsRunnerError as exc:
                 print(f"  ! {exc}")
                 continue
             break
+
+        # ---- 4. auth method ----
+        while True:
+            raw = input("认证方式: (p) 密码 / (k) 密钥 [p]: ").strip().lower() or "p"
+            if raw in ("p", "password", "pw"):
+                auth_method = "p"
+                break
+            if raw in ("k", "key"):
+                auth_method = "k"
+                break
+            print("  ! choose 'p' (password) or 'k' (key)")
+
+        # ---- 5. auth content ----
+        ssh_password: str | None = None
+        private_key_text: str | None = None
+        if auth_method == "p":
+            while True:
+                ssh_password = getpass.getpass(
+                    f"SSH password for {user}@{ip}: "
+                )
+                if ssh_password:
+                    break
+                print("  ! password must be non-empty")
+        else:
+            while True:
+                try:
+                    private_key_text = _collect_private_key_text()
+                    break
+                except VpsRunnerError as exc:
+                    print(f"  ! {exc}; paste again from -----BEGIN line")
+
+        # ---- 5b. sudo password (only when bootstrap user != root) ----
+        sudo_password: str | None = None
+        if user != "root":
+            if auth_method == "p":
+                raw_sudo = getpass.getpass(
+                    "Sudo password (留空 = 同 SSH 密码): "
+                )
+                sudo_password = raw_sudo or ssh_password
+            else:
+                raw_sudo = getpass.getpass(
+                    "Sudo password (留空 = 尝试 NOPASSWD): "
+                )
+                sudo_password = raw_sudo or None
+
+        # ---- 6. bootstrap port ----
+        while True:
+            raw = input(
+                f"Port (bootstrap) [{bootstrap_port_default}]: "
+            ).strip() or str(bootstrap_port_default)
+            try:
+                port = int(raw)
+            except ValueError:
+                print("  ! port must be an integer")
+                continue
+            if not (1 <= port <= 65535):
+                print("  ! port must be 1..65535")
+                continue
+            break
+
+        # ---- 7. managed user ----
+        while True:
+            managed_user = input(
+                f"Managed user [{managed_user_default}]: "
+            ).strip() or managed_user_default
+            try:
+                _validate_ssh_user(managed_user)
+            except VpsRunnerError as exc:
+                print(f"  ! {exc}")
+                continue
+            break
+
+        # ---- 8. managed port ----
+        while True:
+            raw = input(
+                f"Managed port [{managed_port_default}]: "
+            ).strip() or str(managed_port_default)
+            try:
+                managed_port = int(raw)
+            except ValueError:
+                print("  ! port must be an integer")
+                continue
+            if managed_port == 22:
+                print("  ! managed_port=22 not allowed (use a non-22 high port)")
+                continue
+            if not (1024 <= managed_port <= 65535):
+                print("  ! managed_port must be 1024..65535")
+                continue
+            break
     except (EOFError, KeyboardInterrupt):
         sys.stderr.write("\n(wizard aborted)\n")
         return None
 
-    return {"alias": alias, "ip": ip, "port": port, "user": user}
+    return {
+        "alias": alias,
+        "ip": ip,
+        "user": user,                      # bootstrap_user
+        "port": port,                      # bootstrap_port
+        "managed_user": managed_user,
+        "managed_port": managed_port,
+        "auth_method": auth_method,        # "p" or "k"
+        "ssh_password": ssh_password,      # set only if auth_method == "p"
+        "sudo_password": sudo_password,    # set only if user != "root"
+        "private_key_text": private_key_text,  # set only if auth_method == "k"
+    }
 
 
 def write_ssh_config(

@@ -405,7 +405,8 @@ def test_add_host_cli_dispatch(fake_inventory, capsys):
     out = capsys.readouterr().out
     assert "created" in out
     assert "delta" in out
-    assert "Next: vps-runner onboard delta" in out
+    # R11 changed flag-mode hint to the full python -m form
+    assert "onboard delta --env dev --first-time" in out
     data = yaml.safe_load(core.host_vars_path("dev", "delta").read_text())
     assert data["ansible_port"] == 2222
     assert data["ansible_user"] == "deploy"
@@ -794,34 +795,105 @@ def test_check_include_directive_returns_false_when_absent(tmp_path):
     assert core.check_include_directive(missing) is False
 
 
-# --- T8 — wizard collects 4 fields with defaults
-def test_prompt_new_host_collects_4_fields(fake_inventory, monkeypatch):
-    monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
-    inputs = iter(["test-wiz", "192.0.2.99", "", ""])  # accept default port + user
-    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
-    result = core.prompt_new_host("dev")
-    assert result == {
-        "alias": "test-wiz",
-        "ip": "192.0.2.99",
-        "port": 1156,
-        "user": "ansible",
-    }
+@pytest.fixture
+def wizard_entry_ok(monkeypatch, tmp_path):
+    """Stub the wizard's entry-check so tests don't depend on the operator's
+    real ~/.ssh contents. Creates 3 zero-byte placeholder files in tmp_path."""
+    auto_priv = tmp_path / "ansispire_ed25519"
+    auto_pub = tmp_path / "ansispire_ed25519.pub"
+    pers_pub = tmp_path / "id_ed25519.pub"
+    for p in (auto_priv, auto_pub, pers_pub):
+        p.write_text("placeholder", encoding="utf-8")
+    monkeypatch.setattr(core, "DEFAULT_AUTOMATION_PRIVATE_KEY", auto_priv)
+    monkeypatch.setattr(core, "DEFAULT_AUTOMATION_PUBLIC_KEY", auto_pub)
+    monkeypatch.setattr(core, "DEFAULT_PERSONAL_PUBLIC_KEY", pers_pub)
 
 
-# --- T9 — port validation: 22 rejected → reprompt → accept 1156
-def test_prompt_new_host_validation_retry_on_bad_port(fake_inventory, monkeypatch, capsys):
+# --- T8 (R11) — wizard collects expanded field set with defaults; key branch ----
+def test_prompt_new_host_collects_full_fields_key_branch(
+    fake_inventory, wizard_entry_ok, monkeypatch
+):
     monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
-    # alias, ip, port(22 reject), port(1156 ok), user(default)
-    inputs = iter(["test-wiz", "192.0.2.99", "22", "1156", ""])
+    pem = (
+        "-----BEGIN OPENSSH PRIVATE KEY-----\n"
+        "b3BlbnNzaC1rZXktdjEAAAAA\n"
+        "-----END OPENSSH PRIVATE KEY-----"
+    )
+    # order: alias / ip / bootstrap_user (default) / auth (default p→use 'k') /
+    #        PEM line 1 / line 2 / line 3 / bootstrap_port (default) /
+    #        managed_user (default) / managed_port (default)
+    inputs = iter([
+        "test-wiz", "192.0.2.99", "",
+        "k",
+        "-----BEGIN OPENSSH PRIVATE KEY-----",
+        "b3BlbnNzaC1rZXktdjEAAAAA",
+        "-----END OPENSSH PRIVATE KEY-----",
+        "", "", "",
+    ])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
     result = core.prompt_new_host("dev")
-    assert result["port"] == 1156
+    assert result["alias"] == "test-wiz"
+    assert result["ip"] == "192.0.2.99"
+    assert result["user"] == "root"
+    assert result["port"] == 22
+    assert result["managed_user"] == "ansible"
+    assert result["managed_port"] == 1156
+    assert result["auth_method"] == "k"
+    assert result["ssh_password"] is None
+    assert result["sudo_password"] is None  # bootstrap user = root → skipped
+    assert "-----BEGIN" in result["private_key_text"]
+    assert "-----END" in result["private_key_text"]
+
+
+# --- T8b (R11) — password branch with non-root user (sudo password collected) ----
+def test_prompt_new_host_password_branch_nonroot_collects_sudo(
+    fake_inventory, wizard_entry_ok, monkeypatch
+):
+    monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
+    inputs = iter([
+        "test-pw", "192.0.2.40",
+        "ubuntu",       # non-root bootstrap user
+        "p",            # password branch
+        "", "", "",     # port (default 22), managed_user (default), managed_port (default)
+    ])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    pw_iter = iter(["ssh-secret", ""])  # SSH pw, sudo pw (blank → reuse SSH)
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": next(pw_iter))
+    result = core.prompt_new_host("dev")
+    assert result["auth_method"] == "p"
+    assert result["ssh_password"] == "ssh-secret"
+    assert result["sudo_password"] == "ssh-secret"  # blank → fallback to SSH pw
+    assert result["user"] == "ubuntu"
+    assert result["private_key_text"] is None
+
+
+# --- T9 (R11) — managed_port validation: 22 rejected → reprompt → accept 1156 ----
+def test_prompt_new_host_validation_retry_on_bad_managed_port(
+    fake_inventory, wizard_entry_ok, monkeypatch, capsys
+):
+    monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
+    inputs = iter([
+        "test-wiz", "192.0.2.99", "",
+        "k",
+        "-----BEGIN OPENSSH PRIVATE KEY-----",
+        "abc",
+        "-----END OPENSSH PRIVATE KEY-----",
+        "",        # bootstrap port (default 22)
+        "",        # managed_user (default ansible)
+        "22",      # managed_port: bad
+        "1156",    # managed_port: ok
+    ])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    result = core.prompt_new_host("dev")
+    assert result["managed_port"] == 1156
     out = capsys.readouterr().out
-    assert "port=22 not allowed" in out
+    assert "managed_port=22 not allowed" in out
 
 
 # --- T10 — KeyboardInterrupt → graceful None
-def test_prompt_new_host_keyboard_interrupt_returns_none(fake_inventory, monkeypatch):
+def test_prompt_new_host_keyboard_interrupt_returns_none(
+    fake_inventory, wizard_entry_ok, monkeypatch
+):
     monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
 
     def boom(prompt=""):
@@ -831,15 +903,35 @@ def test_prompt_new_host_keyboard_interrupt_returns_none(fake_inventory, monkeyp
     assert core.prompt_new_host("dev") is None
 
 
-# --- T11 — add-host CLI wizard mode writes host_vars then offers onboard
-def test_add_host_cli_wizard_mode_writes_host_vars_then_offers_onboard(
-    fake_inventory, monkeypatch, capsys
+# --- T10b (R11) — entry-check rejection when standard keys are missing ----
+def test_prompt_new_host_entry_check_missing_keys(
+    fake_inventory, monkeypatch, tmp_path, capsys
 ):
     monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
-    # CLI also checks sys.stdin.isatty via cli module → same monkeypatch hits it.
+    monkeypatch.setattr(core, "DEFAULT_AUTOMATION_PRIVATE_KEY", tmp_path / "no-such")
+    monkeypatch.setattr(core, "DEFAULT_AUTOMATION_PUBLIC_KEY", tmp_path / "no-such.pub")
+    monkeypatch.setattr(core, "DEFAULT_PERSONAL_PUBLIC_KEY", tmp_path / "no-id.pub")
+    result = core.prompt_new_host("dev")
+    assert result is None
+    err = capsys.readouterr().err
+    assert "prerequisite missing" in err
+    assert "ssh-keygen" in err
+
+
+# --- T11 (R11) — add-host CLI wizard mode (key branch): inventory + bootstrap fields written
+def test_add_host_cli_wizard_mode_key_branch_writes_inventory(
+    fake_inventory, wizard_entry_ok, monkeypatch, capsys
+):
+    monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
     monkeypatch.setattr(cli.sys, "stdin", _FakeStdin())
-    # alias, ip, port(default), user(default), onboard-prompt (n)
-    inputs = iter(["test-wiz", "192.0.2.99", "", "", "n"])
+    inputs = iter([
+        "test-wiz", "192.0.2.99", "",     # alias / ip / bootstrap_user (root default)
+        "k",                              # key branch
+        "-----BEGIN OPENSSH PRIVATE KEY-----",
+        "abc",
+        "-----END OPENSSH PRIVATE KEY-----",
+        "", "", "",                        # bootstrap port / managed_user / managed_port (all defaults)
+    ])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
 
     rc = cli.main(["add-host", "--env", "dev"])
@@ -847,16 +939,18 @@ def test_add_host_cli_wizard_mode_writes_host_vars_then_offers_onboard(
     out = capsys.readouterr().out
     assert "created" in out
     assert "test-wiz" in out
-    # host_vars file written
     data = yaml.safe_load(core.host_vars_path("dev", "test-wiz").read_text())
     assert data["ansible_host"] == "192.0.2.99"
-    assert data["ansible_port"] == 1156
-    assert data["ansible_user"] == "ansible"
-    # Did NOT proceed to onboard (we answered 'n')
-    assert "==> vps-runner onboard alias=test-wiz" not in out
+    assert data["ansible_port"] == 1156      # managed
+    assert data["ansible_user"] == "ansible" # managed
+    # R11: wizard persists bootstrap creds into host_vars
+    assert data["vps_runner"]["bootstrap_user"] == "root"
+    assert data["vps_runner"]["bootstrap_port"] == 22
+    # T1: key branch doesn't auto-onboard yet (T2 wires it)
+    assert "T2 尚未实施" in out
 
 
-# --- T12 — flag mode unchanged from R6 (backward-compat regression)
+# --- T12 — flag mode preserves R6 inventory-only contract (R11 only changes hint text)
 def test_add_host_cli_flag_mode_unchanged_from_r6(fake_inventory, capsys):
     rc = cli.main([
         "add-host", "delta-r6",
@@ -867,7 +961,8 @@ def test_add_host_cli_flag_mode_unchanged_from_r6(fake_inventory, capsys):
     ])
     assert rc == 0
     out = capsys.readouterr().out
-    assert "Next: vps-runner onboard delta-r6" in out
+    # R11 changed the post-add hint; inventory contract unchanged
+    assert "onboard delta-r6 --env dev --first-time" in out
     data = yaml.safe_load(core.host_vars_path("dev", "delta-r6").read_text())
     assert data["ansible_port"] == 2222
 

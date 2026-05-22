@@ -352,30 +352,135 @@ def _cmd_modify(args: argparse.Namespace) -> int:
 
 
 def _cmd_add_host(args: argparse.Namespace) -> int:
-    # R7: alias-absent → interactive wizard; alias-present → flag mode (R6).
+    """R11: alias-absent → interactive wizard with full bootstrap creds collection
+    (auth method + password or key + bootstrap user/port + managed user/port);
+    alias-present → flag mode keeps the R6 contract (managed-port-only inventory
+    scaffolding; operator runs onboard separately).
+    """
     wizard_mode = args.alias is None
-    if wizard_mode:
-        if not sys.stdin.isatty():
-            sys.stderr.write(
-                "vps-runner: wizard mode requires a TTY.\n"
-                f"  Flag mode: make vps-add-host ALIAS=<alias> IP=<ip> "
-                f"[MANAGED_PORT=1156] [MANAGED_USER=ansible] ENV={args.env}\n"
-            )
-            return 2
-        collected = core.prompt_new_host(args.env)
-        if collected is None:
-            return 130
-        alias, ip, port, user = (
-            collected["alias"], collected["ip"], collected["port"], collected["user"],
-        )
-    else:
-        if not args.ip:
-            sys.stderr.write(
-                "vps-runner: flag mode requires --ip <addr> when alias is given\n"
-            )
-            return 64
-        alias, ip, port, user = args.alias, args.ip, args.port, args.user
+    if not wizard_mode:
+        return _cmd_add_host_flag_mode(args)
 
+    # ---- wizard mode (R11) ----
+    if not sys.stdin.isatty():
+        sys.stderr.write(
+            "vps-runner: wizard mode requires a TTY.\n"
+            f"  Flag mode: python -m plugins.vps_runner.cli add-host <alias> "
+            f"--ip <ip> --env {args.env}\n"
+        )
+        return 2
+    collected = core.prompt_new_host(args.env)
+    if collected is None:
+        return 130
+
+    alias = collected["alias"]
+    ip = collected["ip"]
+    bootstrap_user = collected["user"]
+    bootstrap_port = collected["port"]
+    managed_user = collected["managed_user"]
+    managed_port = collected["managed_port"]
+    auth_method = collected["auth_method"]
+    ssh_password = collected["ssh_password"]
+    sudo_password = collected["sudo_password"]
+    private_key_text = collected["private_key_text"]
+
+    # ---- write inventory ----
+    try:
+        path = core.add_host(
+            args.env, alias,
+            ip=ip, port=managed_port, user=managed_user, status=args.status,
+        )
+    except core.VpsRunnerError as exc:
+        sys.stderr.write(f"vps-runner: {exc}\n")
+        return 2
+
+    # Wizard collected bootstrap user/port too — persist into host_vars so
+    # subsequent `onboard --first-time` retries don't need flag overrides.
+    try:
+        data = core.read_host_vars(args.env, alias)
+        vr = data.setdefault("vps_runner", {})
+        vr["bootstrap_user"] = bootstrap_user
+        vr["bootstrap_port"] = bootstrap_port
+        core.write_host_vars(args.env, alias, data)
+    except core.VpsRunnerError as exc:
+        sys.stderr.write(f"vps-runner: bootstrap fields persist failed: {exc}\n")
+        return 2
+
+    print(f"==> created {path}")
+    print(f"==> added '{alias}' to inventory/vps_runner/{args.env}/hosts.yml")
+
+    # ---- run onboard ----
+    if auth_method == "k":
+        # T1 stub: key branch collects PEM but doesn't yet write a temp key file
+        # or auto-onboard. T2 will wire `runtime/keys/vps_runner/<alias>.key`
+        # extravars injection + post-onboard verify + cleanup. For now, just
+        # tell the operator how to proceed.
+        print(
+            f"\n==> 密钥分支: inventory 已写入 (bootstrap={bootstrap_user}@{bootstrap_port}).\n"
+            "    T2 尚未实施 (临时密钥落盘 + onboard 注入)。当前临时方案：\n"
+            f"    1) 把粘贴的私钥另存到 ~/.ssh/ 某文件 (chmod 0600)；\n"
+            f"    2) ssh-copy-id -i ~/.ssh/ansispire_ed25519.pub "
+            f"{bootstrap_user}@{ip} -p {bootstrap_port}\n"
+            f"    3) python -m plugins.vps_runner.cli onboard {alias} "
+            f"--env {args.env} --first-time\n"
+        )
+        # Discard the pasted key text — never persist in T1.
+        _ = private_key_text
+        return 0
+
+    # ---- password branch: full automatic onboard via passwords dict ----
+    extravars: dict[str, Any] = {
+        "ansible_user": bootstrap_user,
+        "ansible_port": int(bootstrap_port),
+    }
+    cmdline_parts = ["--ask-pass"]
+    passwords: dict[str, str] = {
+        r"^SSH password:\s*$": ssh_password or "",
+    }
+    if bootstrap_user != "root":
+        cmdline_parts.append("--ask-become-pass")
+        passwords[r"^BECOME password.*:\s*$"] = sudo_password or ssh_password or ""
+
+    print(
+        f"==> first-time mode: connecting as {bootstrap_user}@{bootstrap_port} "
+        f"(host_vars target = {managed_user}@{managed_port})"
+    )
+    print(f"==> vps-runner onboard alias={alias} env={args.env}")
+    try:
+        summary = core.run_playbook(
+            action="onboard", env=args.env, playbook="onboard.yml",
+            limit=alias, extravars=extravars,
+            cmdline=" ".join(cmdline_parts),
+            passwords=passwords,
+        )
+    except core.VpsRunnerError as exc:
+        sys.stderr.write(f"vps-runner: {exc}\n")
+        return 2
+
+    _print_summary(summary)
+    if summary.status == "successful":
+        core.record_run(args.env, alias, summary, set_status="active")
+        print(f"==> host_vars/{alias}.yml updated (status=active)")
+        _write_local_ssh_alias(args.env, alias)
+        return 0
+    core.record_run(args.env, alias, summary)
+    print(
+        f"\n==> onboard 失败。inventory 已保留；修复后可重试：\n"
+        f"    python -m plugins.vps_runner.cli onboard {alias} "
+        f"--env {args.env} --first-time\n"
+        f"    （bootstrap user/port 已写入 host_vars，无需 --bootstrap-* flag）"
+    )
+    return 1
+
+
+def _cmd_add_host_flag_mode(args: argparse.Namespace) -> int:
+    """R6 contract: alias + --ip given → write inventory only, no onboard."""
+    if not args.ip:
+        sys.stderr.write(
+            "vps-runner: flag mode requires --ip <addr> when alias is given\n"
+        )
+        return 64
+    alias, ip, port, user = args.alias, args.ip, args.port, args.user
     try:
         path = core.add_host(
             args.env, alias,
@@ -386,26 +491,10 @@ def _cmd_add_host(args: argparse.Namespace) -> int:
         return 2
     print(f"==> created {path}")
     print(f"==> added '{alias}' to inventory/vps_runner/{args.env}/hosts.yml")
-
-    if wizard_mode:
-        try:
-            answer = input(f"继续 onboard {alias}? [Y/n]: ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            answer = "n"
-        if answer in ("", "y", "yes"):
-            onboard_args = argparse.Namespace(
-                alias=alias, env=args.env,
-                first_time=True,
-                bootstrap_user=None, bootstrap_port=None,
-                ask_pass=True, ask_become_pass=True,
-            )
-            return _cmd_onboard(onboard_args)
-
     print(
-        f"\nNext: vps-runner onboard {alias} --env {args.env} "
-        f"--first-time --ask-pass\n"
-        f"  (add --ask-become-pass if the bootstrap user's sudo requires a password)"
+        f"\nNext (after ansispire_ed25519.pub installed on target):\n"
+        f"  python -m plugins.vps_runner.cli onboard {alias} "
+        f"--env {args.env} --first-time\n"
     )
     return 0
 
