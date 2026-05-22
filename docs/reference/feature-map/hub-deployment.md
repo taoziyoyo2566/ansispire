@@ -29,11 +29,16 @@ Path A is the production deployment path; Path B is the developer's iteration lo
 ## Engineering mandates
 
 - **All-in-One**: control + audit + reactor co-locate on the same host. (Future: TASK-003 Controller HA.)
-- **State separation**: the `.eda_token` lives at `/var/lib/ansispire/state/.eda_token` on the hub — outside the rsync target dir, so `rsync --delete` cannot wipe it across deploys.
+- **State separation**: stateful files live at `/var/lib/ansispire/state/` on the hub — outside the rsync target dir, so `rsync --delete` cannot wipe them across deploys:
+  - `.eda_token` — Semaphore M2M API token consumed by the reactor.
+  - `.security_keys` — JSON `{access_key_encryption, cookie_hash, cookie_encryption}` minted on first deploy and rendered into `.env`; **deleting it makes every stored Semaphore AccessKey undecryptable and invalidates every active session** — restore from backup, do not re-mint.
 - **Rsync hygiene**: 21 exclude patterns enforced (`roles/ansispire_hub/tasks/main.yml`) across 4 categories: local-artefacts, secrets, stateful files, docs. Verify each `--check` run with `grep -E "\.env|\.secrets|\.demo_|users\.yml|\.eda_token"`.
+- **Rsync preflight (post-Round-7)**: before `Sync Code`, the role probes `rsync --version` on both the Ansible controller (`delegate_to: localhost`) and the target host. A missing binary fails-fast with an actionable `fail_msg` pointing at `apt`/`brew`/`apk` / `make hub-baseline` — replacing `ansible.posix.synchronize`'s opaque "rsync error code 12" / generic "command not found" surface. Uses `command: rsync --version` rather than path-stat so macOS Homebrew (`/usr/local/bin/rsync`, `/opt/homebrew/bin/rsync`) and non-FHS layouts work without hard-coding.
 - **OS-family gating**: `infra_baseline` accepts Debian/Ubuntu (Tier 1); RHEL/Alpine paths exist as explicit-fail placeholders pending TASK-007 (multi-OS target fleet).
 - **Inventory integrity**: every group referenced by `[<env>:children]` must be defined in the same inventory source — Ansible 2.20+ rejects forward references silently.
-- **No UI provisioning**: every Semaphore resource (project / template / inventory / user) must come from `bootstrap.yml`. The UI is for inspection and one-off vault key entry only.
+- **No UI provisioning**: every Semaphore resource (project / template / inventory / user) must come from `bootstrap.yml`. The UI is for inspection and one-off vault key entry only. Full ownership map per resource type: [`docs/governance/iac-vs-ui-boundary.md`](../../governance/iac-vs-ui-boundary.md).
+- **Admin password idempotent enforcement (post-WU-6)**: the role first probes `/api/auth/login` with the current `vault_semaphore_admin_password`; only when the probe returns a non-success status (∉ {200, 204}) does it run `semaphore user change-by-login`. Re-deploying with an unchanged password reports `changed=0` (matching Ansible's idempotency contract). The previous WU-2 implementation ran `change-by-login` on every deploy regardless of drift, reporting `changed=1` every time — wrong signal.
+- **API contract preflight (post-WU-4)**: [`bootstrap_preflight.yml`](../../../controller/semaphore/bootstrap_preflight.yml) is imported at the top of `bootstrap.yml`. Schema mode (default, ~2 s) verifies auth + top-level GETs return arrays with id/name fields; full mode (`make test-api-contract`, ~30–60 s) walks all 5 project-scoped GETs + token mint on a throwaway project. CI runs the full mode in matrix `[pinned, latest]` (latest is `continue-on-error` — early warning of upstream drift). Skippable per-run with `-e skip_preflight=true`.
 
 ## Deployment paths summary
 

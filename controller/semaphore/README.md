@@ -1,7 +1,7 @@
 # Semaphore Control Plane — Local Deployment
 
-Semaphore is an open-source Ansible UI control plane (Go single-process + BoltDB/Postgres).
-This directory provides a minimal learning deployment: Docker Compose + BoltDB backend, using about **200 MB RAM**.
+Semaphore is an open-source Ansible UI control plane (Go single-process + SQLite / MySQL / Postgres).
+This directory provides a minimal learning deployment: Docker Compose + SQLite backend, using about **200 MB RAM**.
 
 > Chinese reference snapshot: `../../docs/reference-cn/snapshot-2026-04-14/controller/semaphore/README.zh.md`
 
@@ -35,8 +35,9 @@ docker compose --env-file .env up -d
 # 4. Wait for the healthcheck to pass (about 30 seconds)
 docker compose ps
 
-# 5. Open http://localhost:3000 in a browser
+# 5. Open http://localhost:3300 in a browser
 #    Log in with SEMAPHORE_ADMIN / SEMAPHORE_ADMIN_PASSWORD from .env
+#    (Host port 3300 → container 3000; default lives in config/manifest.yml)
 ```
 
 ---
@@ -46,9 +47,12 @@ docker compose ps
 After the first login, run `bootstrap.yml` to automatically create a minimal working project, inventory, and job template:
 
 ```bash
-# From the repo root
+# From the repo root (preferred — uses manifest port + .env credentials)
+make controller-bootstrap
+
+# Or invoked directly (semaphore_url is derived from config/manifest.yml,
+# so no -e for the port is needed):
 ansible-playbook controller/semaphore/bootstrap.yml \
-  -e semaphore_url=http://localhost:3000 \
   -e semaphore_user=admin \
   -e "semaphore_password=$(grep SEMAPHORE_ADMIN_PASSWORD controller/semaphore/.env | cut -d= -f2)"
 ```
@@ -83,7 +87,7 @@ docker compose down -v
 
 ## Data Backup
 
-Semaphore state is stored in the Docker volume `semaphore-data` (BoltDB file).
+Semaphore state is stored in the Docker volume `semaphore-data` (`database.sqlite` plus uploaded vault keys + tmp).
 
 ```bash
 # Backup
@@ -111,17 +115,18 @@ docker run --rm \
 
 ## FAQ
 
-**Q: Why BoltDB instead of Postgres?**
-A: This is a learning setup. BoltDB is a pure Go key-value store that allows Semaphore to run with **zero external dependencies** and minimal memory overhead (~200MB). For production scaling or high availability, you should switch to Postgres by changing `SEMAPHORE_DB_DIALECT` in `docker-compose.yml`.
+**Q: Why SQLite instead of MySQL/Postgres?**
+A: This is a learning setup. SQLite is the upstream-recommended default for Semaphore v2.18+ (BoltDB is deprecated): the control plane runs with **zero external dependencies** and minimal memory overhead (~200MB). For production scale or high availability, switch by setting `SEMAPHORE_DB_DIALECT` (`mysql` / `postgres`) in `docker-compose.yml` + the matching connection envs.
 
-**Q: Port 3000 already in use?**
-A: Change `SEMAPHORE_PORT` in `.env` (for example `3001`).
+**Q: Port 3300 already in use?**
+A: The host port comes from `config/manifest.yml` (key `ansispire_ports.semaphore_host`); change it there and re-run `make manifest-sync` (or `make controller-up` which auto-syncs). The container side stays at upstream-default 3000.
 
 **Q: Forgot the admin password?**
 A: Reset it from inside the container:
 ```bash
 docker compose exec semaphore semaphore user change-by-login --login admin --password <new>
 ```
+On Path A (hub deploy), the `ansispire_hub` role enforces the vault-stored password on every run, so rotating `vault_semaphore_admin_password` and re-deploying is the IaC path; the in-container `change-by-login` is a Path B / break-glass tool.
 
 **Q: How do I upgrade to AWX?**
 A: See "Upgrade Path" in the parent `controller/README.md`.

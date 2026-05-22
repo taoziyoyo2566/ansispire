@@ -16,11 +16,14 @@
         controller-loop-smoke \
         test-eda test-eda-unit test-eda-contract test-eda-component \
         test-eda-relay-unit test-eda-sink-unit test-eda-e2e \
+        test-rules-schema test-api-contract \
         test-filters test-vps-runner test-vps-runner-integration \
         detect-secrets \
         vps-runner-syntax \
         vps-list vps-audit vps-onboard vps-modify vps-remove vps-add-host \
-        hub-deploy hub-deploy-check
+        hub-deploy hub-deploy-check \
+        target-deploy target-deploy-check target-ping \
+        check-claude-links review-local
 
 # Control-plane compose command wrapper
 CONTROLLER_DIR := controller/semaphore
@@ -80,13 +83,42 @@ yamllint: ## Run yamllint
 ansible-lint: ## Run ansible-lint
 	$(BIN)ansible-lint --profile production
 
+check-claude-links: ## Lint repo-tracked CLAUDE.md for memory-namespace wikilinks
+	@bash scripts/check_claude_md_links.sh
+
+review-local: ## Local "what am I about to push" — diff stat / files / whitespace check vs upstream (or origin/dev fallback)
+	@REF=$$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || true); \
+	 if [ -z "$$REF" ]; then \
+	     if git rev-parse --verify --quiet origin/dev >/dev/null; then \
+	         REF="origin/dev"; \
+	         echo "ℹ no upstream set; using fallback base: origin/dev"; \
+	     else \
+	         echo "Error: no upstream AND origin/dev not found — set upstream or fetch origin first"; exit 1; \
+	     fi; \
+	 fi; \
+	 BASE=$$(git merge-base "$$REF" HEAD); \
+	 BASE_SHORT=$$(git rev-parse --short "$$BASE"); \
+	 BASE_SUBJ=$$(git log -1 --pretty=%s "$$BASE"); \
+	 HEAD_SHORT=$$(git rev-parse --short HEAD); \
+	 echo "── Review base: $$BASE_SHORT \"$$BASE_SUBJ\""; \
+	 echo "── HEAD:        $$HEAD_SHORT (compared against: $$REF)"; \
+	 echo ""; \
+	 echo "── git diff --stat $${BASE_SHORT}..HEAD ───────────────────────"; \
+	 git --no-pager diff --stat "$$BASE..HEAD"; \
+	 echo ""; \
+	 echo "── git diff --name-status $${BASE_SHORT}..HEAD ────────────────"; \
+	 git --no-pager diff --name-status "$$BASE..HEAD"; \
+	 echo ""; \
+	 echo "── git diff --check (whitespace, conflict markers) ────────────"; \
+	 if git --no-pager diff --check "$$BASE..HEAD"; then echo "✅ clean"; else echo "❌ see issues above"; fi
+
 syntax: ## Syntax check both stag and prod
 	@echo "==> Syntax checking Stag..."
 	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/stag
 	@echo "==> Syntax checking Prod..."
 	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/prod
 
-verify: lint syntax vps-runner-syntax detect-secrets test-eda test-filters test-vps-runner dry-run ## Push gate — lint + syntax + secrets + Python tests + dry-run (~30–60 s)
+verify: lint syntax vps-runner-syntax check-claude-links detect-secrets test-eda test-filters test-vps-runner dry-run ## Push gate — lint + syntax + secrets + governance + Python tests + dry-run (~30–60 s)
 
 verify-quick: syntax ## Save-point gate — syntax only (~3 s, before commit)
 
@@ -119,10 +151,21 @@ test-eda-relay-unit: ## L1 — relay.py cursor/fetch/tick (urllib mocked)
 test-eda-sink-unit: ## L1 — sink.py HTTP handler (socket/wfile mocked)
 	$(BIN)python3 controller/audit/test_sink.py
 
-test-eda: test-eda-unit test-eda-contract test-eda-component test-eda-relay-unit test-eda-sink-unit ## All EDA tests (L1+L2+L3); no docker
+test-eda: test-eda-unit test-eda-contract test-eda-component test-eda-relay-unit test-eda-sink-unit test-rules-schema ## All EDA tests (L1+L2+L3); no docker
 
 test-eda-e2e: ## L4 — disposable end-to-end (real docker; ~60–90s; NOT in `make verify`)
 	@bash controller/audit/e2e/run.sh
+
+test-api-contract: ## L4 — Semaphore API contract preflight (real docker; ~30–60s; tag override: SEMAPHORE_IMAGE_TAG=...)
+	@bash controller/semaphore/preflight/run.sh
+
+test-rules-schema: ## L1 — extensions/eda/rules.json structural validation against rules.schema.json
+	@$(BIN)python3 -c "import json, sys; from jsonschema import validate, Draft7Validator; \
+		s = json.load(open('extensions/eda/rules.schema.json')); \
+		Draft7Validator.check_schema(s); \
+		r = json.load(open('extensions/eda/rules.json')); \
+		validate(instance=r, schema=s); \
+		print('OK extensions/eda/rules.json valid against rules.schema.json')"
 
 test-filters: ## L1 — filter_plugins/custom_filters.py (pure functions, no Ansible)
 	$(BIN)python3 controller/audit/test_filters.py
@@ -212,6 +255,49 @@ hub-deploy-check: ## Dry-run hub deploy (--check --diff; same HUB_NODE= selectio
 	@test -f $(VAULT_PASSWORD_FILE) || { echo "Missing $(VAULT_PASSWORD_FILE); create it (chmod 600) or pass VAULT_PASSWORD_FILE=..."; exit 1; }
 	$(HUB_ANSIBLE) --check --diff
 
+# ── Target deploy — apply infra_baseline to managed VPS (TASK-007). ───────────
+#   make target-deploy TARGET_NODE=debian          → --limit targets_debian
+#   make target-deploy TARGET_NODE=rhel            → --limit targets_rhel
+#   make target-deploy TARGET_NODE=all             → no --limit (entire targets group)
+#   make target-deploy TARGET_NODE=rocky9          → --limit rocky9 (single alias)
+#   make target-deploy TARGET_NODE=rocky9 ANSIBLE_USER=root   → fresh-host bootstrap
+#                                                              before role creates
+#                                                              the `ansible` user
+
+TARGET_INVENTORY := inventory/hosts.ini
+TARGET_PLAYBOOK  := playbooks/deploy_target.yml
+TARGET_NODE      ?= all
+ANSIBLE_USER     ?=
+
+ifeq ($(TARGET_NODE),debian)
+  TARGET_LIMIT := --limit targets_debian
+else ifeq ($(TARGET_NODE),rhel)
+  TARGET_LIMIT := --limit targets_rhel
+else ifeq ($(TARGET_NODE),all)
+  TARGET_LIMIT :=
+else
+  # Treat anything else as a single-host alias; ansible will fail clearly
+  # if the alias doesn't exist in inventory.
+  TARGET_LIMIT := --limit $(TARGET_NODE)
+endif
+
+ifneq ($(ANSIBLE_USER),)
+  TARGET_USER_OVERRIDE := -e ansible_user=$(ANSIBLE_USER)
+else
+  TARGET_USER_OVERRIDE :=
+endif
+
+TARGET_ANSIBLE := $(BIN)ansible-playbook $(TARGET_PLAYBOOK) -i $(TARGET_INVENTORY) $(TARGET_LIMIT) $(TARGET_USER_OVERRIDE)
+
+target-deploy: ## Apply infra_baseline to managed targets (TARGET_NODE=debian|rhel|all|<alias>; ANSIBLE_USER=root for fresh-host bootstrap)
+	$(TARGET_ANSIBLE) --diff
+
+target-deploy-check: ## Dry-run target deploy (--check --diff; same TARGET_NODE= + ANSIBLE_USER= selection)
+	$(TARGET_ANSIBLE) --check --diff
+
+target-ping: ## Quick connectivity check to all managed targets (no role applied)
+	$(BIN)ansible-playbook playbooks/ping_targets.yml -i $(TARGET_INVENTORY)
+
 deploy-dev-check: ## Dry-run Dev deploy (--check --diff)
 	$(BIN)ansible-playbook playbooks/site.yml -i inventory/dev --check --diff
 
@@ -278,8 +364,9 @@ controller-bootstrap: manifest-sync ## Bootstrap Semaphore project/inventory/tem
 
 # ── Round 8: audit sink ──────────────────────────────────────────────────────
 controller-audit-up: controller-net ## Start audit sink + Round 9 polling relay
-	$(AUDIT_COMPOSE) up -d
-	@echo "==> audit-sink listening at http://127.0.0.1:3010/event"
+	$(AUDIT_COMPOSE) up -d --build
+	@PORT=$$(grep -E '^AUDIT_PORT=' $(CONTROLLER_ENV) 2>/dev/null | cut -d= -f2); \
+	 echo "==> audit-sink listening at http://127.0.0.1:$${PORT:-3310}/event (container 3010 → host $${PORT:-3310})"
 	@echo "==> audit-relay polling Semaphore /api/events → sink"
 
 controller-audit-down: ## Stop the audit sink (volume preserved)

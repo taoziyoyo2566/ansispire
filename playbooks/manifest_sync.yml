@@ -6,7 +6,8 @@
 #   SEMAPHORE_PORT=...
 #   SEMAPHORE_IMAGE_TAG=...
 #   AUDIT_PORT=...
-#   AUDIT_IMAGE_TAG=...
+#   AUDIT_IMAGE_TAG=...            (our baked images: ansispire/audit-*)
+#   AUDIT_PYTHON_BASE_TAG=...      (Docker Hub python:VERSION base)
 #   # END manifest (managed by manifest-sync — do not edit)
 #
 # Anything outside the markers (admin password, timezone, etc.) is preserved.
@@ -59,6 +60,7 @@
         - AUDIT_PORT
         - SEMAPHORE_IMAGE_TAG
         - AUDIT_IMAGE_TAG
+        - AUDIT_PYTHON_BASE_TAG
       when: _needs_migration
 
     - name: Remove legacy ports-sync marker block (one-time migration)
@@ -76,7 +78,8 @@
           SEMAPHORE_PORT={{ ansispire_ports.semaphore_host }}
           SEMAPHORE_IMAGE_TAG={{ ansispire_versions.semaphore }}
           AUDIT_PORT={{ ansispire_ports.audit_sink_host }}
-          AUDIT_IMAGE_TAG={{ ansispire_versions.audit_python }}
+          AUDIT_IMAGE_TAG={{ ansispire_versions.audit_baked }}
+          AUDIT_PYTHON_BASE_TAG={{ ansispire_versions.audit_python }}
         mode: '0600'
         create: false
 
@@ -92,7 +95,7 @@
 
     - name: Show resulting manifest lines
       ansible.builtin.command:
-        cmd: "grep -E '^(SEMAPHORE_(PORT|IMAGE_TAG)|AUDIT_(PORT|IMAGE_TAG)|# (BEGIN|END) manifest)' {{ env_path }}"
+        cmd: "grep -E '^(SEMAPHORE_(PORT|IMAGE_TAG)|AUDIT_(PORT|IMAGE_TAG|PYTHON_BASE_TAG)|# (BEGIN|END) manifest)' {{ env_path }}"
       register: _manifest_lines
       changed_when: false
 

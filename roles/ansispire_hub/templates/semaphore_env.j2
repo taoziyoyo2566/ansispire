@@ -9,3 +9,6 @@ SEMAPHORE_ADMIN_NAME=Ansispire Administrator
 SEMAPHORE_ADMIN_EMAIL={{ ansispire_hub_admin_email }}
 SEMAPHORE_ADMIN_PASSWORD={{ ansispire_hub_admin_password }}
 TZ={{ system_timezone | default('UTC') }}
+SEMAPHORE_ACCESS_KEY_ENCRYPTION={{ ansispire_hub_security_keys.access_key_encryption }}
+SEMAPHORE_COOKIE_HASH={{ ansispire_hub_security_keys.cookie_hash }}
+SEMAPHORE_COOKIE_ENCRYPTION={{ ansispire_hub_security_keys.cookie_encryption }}

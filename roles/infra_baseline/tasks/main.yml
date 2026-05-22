@@ -1,21 +1,21 @@
 # roles/infra_baseline/tasks/main.yml
 #
-# OS-family branching: today only the Debian family path is implemented
-# (Debian / Ubuntu). RHEL family (Rocky, Alma) and Alpine paths are stubbed
-# for the next stage when targets_{rhel,alpine} VPS come online. Each
-# family-specific block is gated by ansible_facts['os_family'] so the role
-# is safe to assign to a heterogeneous fleet — unsupported OS just no-ops
-# its block instead of failing on `apt:` / `apt_repository:`.
+# OS-family branching: Debian (Debian / Ubuntu) implemented inline in the
+# Debian block below; RHEL family (Rocky / AlmaLinux / RHEL 9+) implemented
+# via include_tasks: redhat.yml; Alpine remains a fail-stub until TASK-007.B.
 #
-# Family-agnostic tasks (Python assert, user/group, sudoers, authorized key)
-# live at the bottom and run on every host.
+# Task order rationale (TASK-007 D8): the Python ≥3.10 assert runs AFTER the
+# per-family blocks — RHEL 9 ships Python 3.9, and redhat.yml installs 3.11
+# + pivots ansible_python_interpreter before the assert. Debian/Ubuntu pass
+# the assert either order since they already ship Python ≥3.12.
+#
+# Docker service start (`systemd: name=docker state=started`) lives INSIDE
+# each per-family block so the OS-specific service manager can be used
+# (Alpine will use OpenRC via ansible.builtin.service in TASK-007.B).
+#
+# Family-agnostic tail (group / user / sudo / authorized_key) runs on every
+# host regardless of family.
 ---
-- name: Baseline | Assert Python version meets minimum requirements
-  ansible.builtin.assert:
-    that:
-      - ansible_facts['python_version'] is version(infra_baseline_python_min_version, '>=')
-    fail_msg: "Python version {{ ansible_facts['python_version'] }} is too old. Min required: {{ infra_baseline_python_min_version }}"
-
 # ── Debian family (Debian, Ubuntu) ──────────────────────────────────────
 - name: Baseline | Debian-family setup
   when: ansible_facts['os_family'] == "Debian"
@@ -57,17 +57,18 @@
           - docker-compose-plugin
         state: present
 
-# ── RHEL family (Rocky, Alma, RHEL) — STUB for next stage ───────────────
-- name: Baseline | RHEL-family setup (NOT IMPLEMENTED)
-  when: ansible_facts['os_family'] == "RedHat"
-  ansible.builtin.fail:
-    msg: >-
-      RHEL-family infra_baseline is not implemented yet. This stub exists
-      so {{ inventory_hostname }} doesn't silently skip baseline. Implement
-      dnf-based docker install in roles/infra_baseline/tasks/redhat.yml and
-      include_tasks here, then drop this fail.
+    - name: Baseline | (Debian) Ensure Docker service is running and enabled
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: true
 
-# ── Alpine — STUB for next stage ────────────────────────────────────────
+# ── RHEL family (Rocky, AlmaLinux, RHEL 9+) ─────────────────────────────
+- name: Baseline | RHEL-family setup
+  ansible.builtin.include_tasks: redhat.yml
+  when: ansible_facts['os_family'] == "RedHat"
+
+# ── Alpine — STUB until TASK-007.B (no Alpine host provisioned 2026-05) ─
 - name: Baseline | Alpine setup (NOT IMPLEMENTED)
   when: ansible_facts['os_family'] == "Alpine"
   ansible.builtin.fail:
@@ -75,14 +76,16 @@
       Alpine infra_baseline is not implemented yet. This stub exists so
       {{ inventory_hostname }} doesn't silently skip baseline. Implement
       apk-based docker install in roles/infra_baseline/tasks/alpine.yml and
-      include_tasks here, then drop this fail.
+      replace this fail with `include_tasks: alpine.yml` (TASK-007.B).
 
-# ── Service + user (family-agnostic; run after package install) ─────────
-- name: Baseline | Ensure Docker service is running and enabled
-  ansible.builtin.systemd:
-    name: docker
-    state: started
-    enabled: true
+# ── Family-agnostic tail (run on every host after per-family blocks) ────
+# Python version assert MUST run after per-family blocks so redhat.yml gets
+# a chance to install python3.11 + pivot interpreter (D8).
+- name: Baseline | Assert Python version meets minimum requirements
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['python_version'] is version(infra_baseline_python_min_version, '>=')
+    fail_msg: "Python version {{ ansible_facts['python_version'] }} is too old. Min required: {{ infra_baseline_python_min_version }}"
 
 - name: Baseline | Create management group
   ansible.builtin.group:
@@ -93,7 +96,7 @@
   ansible.builtin.user:
     name: "{{ infra_baseline_mgr_user }}"
     group: "{{ infra_baseline_mgr_user }}"
-    groups: sudo
+    groups: "{{ infra_baseline_mgr_admin_group }}"
     append: true
     shell: "{{ infra_baseline_mgr_shell }}"
     state: present

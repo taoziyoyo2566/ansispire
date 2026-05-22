@@ -16,7 +16,7 @@
 | **`database`** | ✅ 完整 | MySQL 安装 + `my.cnf` 模板（`ansible_managed` 包 `comment` filter）+ root 密码幂等设置 (`check_implicit_admin: true`) + 库/用户创建 + 备份脚本（可选） |
 | **`ansispire_hub`** | ✅ 完整 | Hub 部署：rsync 代码到 `/opt/ansispire/`（21 项 exclude）+ 渲染 `.env`（端口/镜像/admin）+ 启 Semaphore docker stack + EDA token mint/复用（state 在 `/var/lib/ansispire/state/`） |
 | **`ansispire_audit`** | ✅ 完整 | 审计链路部署：relay / sink / reactor 容器栈到 hub |
-| **`infra_baseline`** | ⚠ 部分 | Debian 路径已实现（Docker repo + 管理用户 + sudoers + ssh key + 可选 swap）；**RHEL/Alpine 路径为 Fail Stub**（待 TASK-007 真实化） |
+| **`infra_baseline`** | ✅ Debian + RHEL | Debian 路径（Docker repo + 管理用户 + sudoers + ssh key + 可选 swap）；**RHEL 路径**（TASK-007 round 1，2026-05-19）：dnf docker repo + python3.11 pivot + SELinux container_manage_cgroup + wheel 组；**Alpine 路径仍为 fail stub**（TASK-007.B）。详见 [`multi-os-fleet.md`](multi-os-fleet.md) |
 | **`geerlingguy.docker`** | ✅ Vendor | 第三方角色，含本项目特定补丁（FQCN / octal 修复，见 `docs/governance/vendor-patches.md`） |
 
 ---
@@ -27,6 +27,8 @@
 | :--- | :--- | :--- |
 | `site.yml` | **全栈** | 主入口：`common (all) → webserver (webservers) → database (dbservers)` |
 | `deploy_hub.yml` | **控制面** | Hub 部署：`infra_baseline → ansispire_hub → ansispire_audit` |
+| `deploy_target.yml` | **数据面** | TASK-007 Target 部署：仅 `infra_baseline` 应用到 `[targets:children]`（4 VPS, Debian+RHEL） |
+| `ping_targets.yml` | **数据面** | TASK-007 全 fleet 连通性探针，对应 Semaphore "Ping all targets" 模板 |
 | `manifest_sync.yml` | **工具** | SSOT 同步：把 `config/manifest.yml` 渲染到 `controller/semaphore/.env` 的 managed block |
 | `rolling_update.yml` | **运维** | 滚动更新（`serial: 1` 模式） |
 | `remediation/disk_cleanup.yml` | **自愈** | ✅ EDA：磁盘清理（实战可用，Debian 路径） |
@@ -51,9 +53,10 @@
 ### 3.1 Semaphore Web UI (`controller/semaphore/`)
 - **功能**：基于 Docker Compose 的可视化管理界面（默认 host 端口 3320）
 - **自动化**：`bootstrap.yml` 实现零点击创建 Project / Inventory / Environment / Job 模板 / RBAC
+- **API 契约保护 (post-WU-4)**：`bootstrap_preflight.yml` 在 `bootstrap.yml` 顶部 `import_playbook`。schema mode（默认 ~2 s）验证 `/api/auth/login` + `/api/projects` + `/api/users` 的字段形状；full mode（`make test-api-contract`，~30–60 s）在临时 `__preflight__` 项目上走完所有 5 个 project-scoped GETs + token mint。CI 矩阵 `[pinned, latest]` 跑 full mode，`latest` 配 `continue-on-error` —— 上游 schema 漂移作为预警，不阻断主合并。`-e skip_preflight=true` 可逐次跳过（仅用于刻意探测未 bootstrap 的实例的测试）
 
 ### 3.2 审计与自愈链路 (`controller/audit/`)
-- **`sink.py`** — Python 轻量 HTTP 接收器（host 端口 3330），将 Semaphore webhook POST 固化为追加型 `events.jsonl`
+- **`sink.py`** — Python 轻量 HTTP 接收器（host 端口 3310，container 内 3010；`AUDIT_PORT` 可覆盖），将 Semaphore webhook POST 固化为追加型 `events.jsonl`
 - **`relay.py`** — Python，cursor-based 分页拉 Semaphore tasks → POST 到 sink；重启可续传（heartbeat 60 s）
 - **`reactor.py` (v2.3)** — Python，tail `events.jsonl`，匹配 `rules.json`，触发自愈：
   - Bearer Token 身份验证（无明文 admin）
@@ -99,8 +102,12 @@
 | `inventory/dynamic/` | 动态 inventory 占位 | — 未启用 |
 
 **Target Taxonomy**（`inventory/prod/hosts.ini` 与 `inventory/hosts.ini`）：
-- **管理节点组**：`[hub_local]`（工作站）/ `[hub_remote]`（远端 VPS）/ `[hub:children]`（联合）
-- **被管节点占位组**：`[targets_debian]` / `[targets_rhel]` / `[targets_alpine]` —— 等 TASK-007 接入真实 VPS
+- **管理节点组**：`[hub_local]`（工作站）/ `[hub_remote]`（远端 VPS — ⚠ 当前 `ans-hk01` 引用的 IP 已被 OS 重装抹掉，待清理）/ `[hub:children]`（联合）
+- **被管节点组**（TASK-007 round 1 已接入，2026-05-19）：
+  - `[targets_debian]` = d13 (Debian 13) + u24 (Ubuntu 24.04)
+  - `[targets_rhel]` = rocky9 (Rocky 9.7) + alma9 (AlmaLinux 9.7)
+  - `[targets_alpine]` = 空（TASK-007.B 占位）
+  - `[targets:children]` + `[targets:vars]` —— 详见 [`multi-os-fleet.md`](multi-os-fleet.md)
 
 ---
 
@@ -117,11 +124,14 @@
 
 完整治理见 [`docs/governance/testing-governance.md`](../../governance/testing-governance.md)（含 §9 测试卫生）+ [`docs/governance/test-plan.md`](../../governance/test-plan.md)（surface × quality 矩阵 + 9 G 缺口）。
 
-- **L1–L3（pytest，`controller/audit/test_*.py`）**：28 cases
+- **L1–L3（pytest，`controller/audit/test_*.py`）**：28 cases + 1 schema gate
   - L1 reactor unit 14 / L2 rules contract 9 / L3 reactor component 5
-  - 入口：`make test-eda`（< 1 s）
+  - L1 schema gate `test-rules-schema`：`extensions/eda/rules.json` ↔ `extensions/eda/rules.schema.json`（Draft-07，inline `jsonschema.validate`）
+  - 入口：`make test-eda`（< 1 s）— 已含 schema gate
 - **L4（disposable e2e）**：`controller/audit/e2e/run.sh` 真 docker 栈
   - 入口：`make test-eda-e2e`（~60 s）
+- **L4（API contract）**：`controller/semaphore/preflight/run.sh` 真 docker 栈，纯 Semaphore（无 audit stack）
+  - 入口：`make test-api-contract`（~30–60 s）；CI 矩阵 `[pinned, latest]`
 - **L5（Molecule）**：4 场景跨 Ubuntu 22.04 + Debian 12
   - `common` / `database` / `webserver` / `full-stack`，各 8 阶段 destroy → … → destroy
   - 入口：`make molecule-all` 串行（CI matrix 并行）
@@ -140,6 +150,7 @@
 | **质量闸口** | `verify-quick` / `verify` / `verify-full` | commit / push / release 三档（~3 s / ~30–60 s / ~10–20 min） |
 | **部署** | `deploy-{dev,stag,prod}` + `-check` | 按环境部署，`-check` 是 dry-run |
 | **Hub 部署** | `hub-deploy [HUB_NODE=local|remote|all]` + `hub-deploy-check` | Path A 入口 |
+| **Target 部署** | `target-deploy [TARGET_NODE=debian\|rhel\|all\|<alias>] [ANSIBLE_USER=root]` + `target-deploy-check` + `target-ping` | TASK-007 managed fleet 入口；ANSIBLE_USER 是 fresh-host bootstrap knob |
 | **Controller 生命周期** | `controller-{up,down,logs,reset,bootstrap}` | Path B 入口 |
 | **审计链路** | `controller-audit-{up,down,tail,stats}` | sink + relay 容器管理 |
 | **测试** | `test-eda*` 三 L 拆分 / `test-eda-e2e` / `molecule-all` / `vps-manager-syntax` / smoke 系列 | 见 §7 |
@@ -163,7 +174,7 @@
 - 失败安全：dry-run 对全栈兼容（check-mode safety）
 
 ### 不能做什么 ❌ / 半完成 ⚠
-- ❌ **RHEL/Rocky/Alpine 真实部署**（`infra_baseline` 占位 fail，待 TASK-007）
+- ✅ **Rocky/AlmaLinux 9 真实部署**（TASK-007 round 1，2026-05-19）；❌ Alpine 仍 fail stub（TASK-007.B）
 - ❌ **数据库真 failover**（playbook placeholder + EDA rule disabled，待 TASK-008）
 - ❌ **Prometheus 监控集成**（待 TASK-002）
 - ❌ **Multi-node Semaphore HA + DB 升级 SQLite→PG**（待 TASK-003）

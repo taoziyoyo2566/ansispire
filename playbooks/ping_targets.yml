@@ -1,0 +1,33 @@
+# playbooks/ping_targets.yml
+# Usage: ansible-playbook playbooks/ping_targets.yml -i inventory/hosts.ini
+#
+# Minimal connectivity check across the managed fleet. Used by the Semaphore
+# "Ping all targets" Job Template (declared in controller/semaphore/bootstrap.yml,
+# TASK-007 Phase 3 WU-E) as an operator-facing one-click verification that all
+# 4 VPS targets are reachable from the hub.
+#
+# Output: each host emits "pong" plus a one-line summary of its OS + Docker.
+---
+- name: Ping all managed targets
+  hosts: targets
+  gather_facts: true
+  any_errors_fatal: false  # one unreachable host should not mask the others
+
+  tasks:
+    - name: Ping target
+      ansible.builtin.ping:
+
+    - name: Probe Docker daemon (informational; skip if missing)
+      ansible.builtin.command: docker version --format '{{ "{{" }}.Server.Version{{ "}}" }}'
+      register: _docker_ping
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Summary per host
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} reachable —
+          {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }} /
+          Docker {{ _docker_ping.stdout | default('(not installed)') if _docker_ping.rc | default(1) == 0
+                    else '(not installed)' }}
