@@ -139,7 +139,7 @@
   - 断言规格：[`docs/reference/test-specs/molecule-{common,webserver,database,full-stack}.md`](../test-specs/)
 - **CI**（`.github/workflows/ci.yml`）：6 job —— `yamllint` → `{ansible-lint, syntax-check}` → `{dry-run, molecule matrix}`，外加独立 `detect-secrets`；触发 push `dev|master|hotfix/*` + PR `dev|stg|master`；Dependabot 周维度提依赖升级 PR
 - **测试卫生**：失败的 L4/L5 必须先清 ephemeral state（`~/.ansible/tmp/molecule.*`）+ leave-running stack 才能复测——见 testing-governance.md §9
-- **VPS Runner**：`make test-vps-runner` 跑 33 个 unit 测试（pure helpers + CLI dispatch，mock ansible-runner；含 Round 6 的 12 个 `add_host` 覆盖）；`make test-vps-runner-integration` 跑 3 个 integration 测试（真调 ansible-runner 打 TEST-NET-1 + P1.3 envvars allowlist canary + P1.4 PATH 自足 regression guard，~33 s）；`make vps-runner-syntax` 覆盖 onboard/modify/remove/audit 四个 playbook。Round 6 起 6 个日常 ops Make wrapper（`vps-list / vps-audit / vps-add-host / vps-onboard / vps-modify / vps-remove`）取代裸 `python -m plugins.vps_runner.cli ...`。
+- **VPS Runner**：`make test-vps-runner` 跑 121 个 unit 测试（pure helpers + CLI dispatch + R9 验证器 + R10 list_hosts chokepoint + R11 wizard 8 字段 / 临时密钥生命周期 / 同名 alias 4 选项菜单 / passwords-dict 注入）；`make test-vps-runner-integration` 跑 3 个 integration 测试（真调 ansible-runner 打 TEST-NET-1 + P1.3 envvars allowlist canary + P1.4 PATH 自足 regression guard，~33 s）；`make vps-runner-syntax` 覆盖 onboard/modify/remove/audit 四个 playbook。R11 起首次接入唯一推荐入口是 wizard（`make vps-add-host` 无参数），Make wrapper：`vps-list / vps-audit / vps-add-host / vps-reonboard / vps-modify / vps-remove`（注：`vps-onboard` 在 R11 弃用——其 `--ask-pass --ask-become-pass` 经 ansible-runner 死锁；首次走 wizard，重 onboard 走 `vps-reonboard`）。
 
 ---
 
