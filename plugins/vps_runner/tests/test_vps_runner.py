@@ -8,6 +8,7 @@ never touch the real inventory/vps_runner/ files.
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sys
@@ -493,6 +494,280 @@ def test_integration_run_playbook_without_path(tmp_path, monkeypatch):
         f"expected at least one host in stats; got empty set → "
         f"ansible-runner likely failed before reaching the SSH attempt"
     )
+
+
+# ---------------------------------------------------------------------------
+# Round 7 — wizard + local SSH alias write (T1–T15)
+# ---------------------------------------------------------------------------
+
+
+class _FakeStdin:
+    """Pretends to be a TTY for isatty() checks. prompt_new_host uses input()
+    independently, which we mock via builtins.input — not by reading stdin."""
+
+    def isatty(self):
+        return True
+
+
+def _ssh_dir(tmp_path: Path) -> Path:
+    return tmp_path / "ssh" / "config.d"
+
+
+def _main_ssh(tmp_path: Path) -> Path:
+    return tmp_path / "ssh" / "config"
+
+
+# --- T1 — write_ssh_config renders template, IdentityFile is operator key, 0600
+def test_write_ssh_config_renders_template(tmp_path):
+    out = core.write_ssh_config(
+        "host-a",
+        hostname="192.0.2.10",
+        port=1156,
+        user="ansible",
+        ssh_config_dir=_ssh_dir(tmp_path),
+    )
+    assert out == _ssh_dir(tmp_path) / "host-a.conf"
+    text = out.read_text(encoding="utf-8")
+    assert "Host host-a" in text
+    assert "HostName 192.0.2.10" in text
+    assert "Port 1156" in text
+    assert "User ansible" in text
+    # IdentityFile defaults to the OPERATOR key (~/.ssh/id_ed25519), not the
+    # automation key (~/.ssh/ansispire_ed25519). Two-key separation.
+    assert "id_ed25519" in text
+    assert "ansispire_ed25519" not in text
+    assert "IdentitiesOnly yes" in text
+    # chmod 0o600
+    assert oct(out.stat().st_mode)[-3:] == "600"
+
+
+# --- T2 — idempotent overwrite (re-render produces identical content)
+def test_write_ssh_config_idempotent_overwrite(tmp_path):
+    kwargs = dict(
+        hostname="192.0.2.20", port=1156, user="ansible",
+        ssh_config_dir=_ssh_dir(tmp_path),
+    )
+    first = core.write_ssh_config("host-b", **kwargs)
+    a = first.read_text(encoding="utf-8")
+    second = core.write_ssh_config("host-b", **kwargs)
+    b = second.read_text(encoding="utf-8")
+    assert a == b
+    # File was overwritten, not appended.
+    assert b.count("Host host-b") == 1
+
+
+# --- T3 — creates dir with mode 0700 when missing
+def test_write_ssh_config_creates_dir_with_mode_0700(tmp_path):
+    ssh_d = _ssh_dir(tmp_path)
+    assert not ssh_d.exists()
+    core.write_ssh_config(
+        "host-c", hostname="192.0.2.30", port=1156, user="ansible",
+        ssh_config_dir=ssh_d,
+    )
+    assert ssh_d.is_dir()
+    assert oct(ssh_d.stat().st_mode)[-3:] == "700"
+
+
+# --- T4 — delete returns True when file existed
+def test_delete_ssh_config_removes_file(tmp_path):
+    ssh_d = _ssh_dir(tmp_path)
+    core.write_ssh_config(
+        "host-d", hostname="192.0.2.40", port=1156, user="ansible",
+        ssh_config_dir=ssh_d,
+    )
+    target = ssh_d / "host-d.conf"
+    assert target.exists()
+    assert core.delete_ssh_config("host-d", ssh_config_dir=ssh_d) is True
+    assert not target.exists()
+
+
+# --- T5 — delete is idempotent when file absent
+def test_delete_ssh_config_idempotent_when_missing(tmp_path):
+    ssh_d = _ssh_dir(tmp_path)
+    ssh_d.mkdir(parents=True)
+    assert core.delete_ssh_config("ghost", ssh_config_dir=ssh_d) is False
+
+
+# --- T6 — Include directive detection (active line → True)
+def test_check_include_directive_detects_present(tmp_path):
+    cfg = _main_ssh(tmp_path)
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    cfg.write_text(
+        "Host github.com\n  HostName github.com\n\n"
+        "Include config.d/*\n",
+        encoding="utf-8",
+    )
+    assert core.check_include_directive(cfg) is True
+
+
+# --- T7 — absent/commented/missing → False
+def test_check_include_directive_returns_false_when_absent(tmp_path):
+    # (a) absent
+    cfg = _main_ssh(tmp_path)
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    cfg.write_text("Host github.com\n  HostName github.com\n", encoding="utf-8")
+    assert core.check_include_directive(cfg) is False
+    # (b) commented out
+    cfg.write_text("# Include config.d/*\n", encoding="utf-8")
+    assert core.check_include_directive(cfg) is False
+    # (c) main config missing
+    missing = tmp_path / "no-such-config"
+    assert core.check_include_directive(missing) is False
+
+
+# --- T8 — wizard collects 4 fields with defaults
+def test_prompt_new_host_collects_4_fields(fake_inventory, monkeypatch):
+    monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
+    inputs = iter(["test-wiz", "192.0.2.99", "", ""])  # accept default port + user
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    result = core.prompt_new_host("dev")
+    assert result == {
+        "alias": "test-wiz",
+        "ip": "192.0.2.99",
+        "port": 1156,
+        "user": "ansible",
+    }
+
+
+# --- T9 — port validation: 22 rejected → reprompt → accept 1156
+def test_prompt_new_host_validation_retry_on_bad_port(fake_inventory, monkeypatch, capsys):
+    monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
+    # alias, ip, port(22 reject), port(1156 ok), user(default)
+    inputs = iter(["test-wiz", "192.0.2.99", "22", "1156", ""])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    result = core.prompt_new_host("dev")
+    assert result["port"] == 1156
+    out = capsys.readouterr().out
+    assert "port=22 not allowed" in out
+
+
+# --- T10 — KeyboardInterrupt → graceful None
+def test_prompt_new_host_keyboard_interrupt_returns_none(fake_inventory, monkeypatch):
+    monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
+
+    def boom(prompt=""):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("builtins.input", boom)
+    assert core.prompt_new_host("dev") is None
+
+
+# --- T11 — add-host CLI wizard mode writes host_vars then offers onboard
+def test_add_host_cli_wizard_mode_writes_host_vars_then_offers_onboard(
+    fake_inventory, monkeypatch, capsys
+):
+    monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
+    # CLI also checks sys.stdin.isatty via cli module → same monkeypatch hits it.
+    monkeypatch.setattr(cli.sys, "stdin", _FakeStdin())
+    # alias, ip, port(default), user(default), onboard-prompt (n)
+    inputs = iter(["test-wiz", "192.0.2.99", "", "", "n"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+
+    rc = cli.main(["add-host", "--env", "dev"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "created" in out
+    assert "test-wiz" in out
+    # host_vars file written
+    data = yaml.safe_load(core.host_vars_path("dev", "test-wiz").read_text())
+    assert data["ansible_host"] == "192.0.2.99"
+    assert data["ansible_port"] == 1156
+    assert data["ansible_user"] == "ansible"
+    # Did NOT proceed to onboard (we answered 'n')
+    assert "==> vps-runner onboard alias=test-wiz" not in out
+
+
+# --- T12 — flag mode unchanged from R6 (backward-compat regression)
+def test_add_host_cli_flag_mode_unchanged_from_r6(fake_inventory, capsys):
+    rc = cli.main([
+        "add-host", "delta-r6",
+        "--ip", "192.0.2.50",
+        "--env", "dev",
+        "--port", "2222",
+        "--user", "deploy",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Next: vps-runner onboard delta-r6" in out
+    data = yaml.safe_load(core.host_vars_path("dev", "delta-r6").read_text())
+    assert data["ansible_port"] == 2222
+
+
+# --- T13 — onboard writes SSH config on success (operator key)
+def test_onboard_cli_writes_ssh_config_on_success(fake_inventory, tmp_path, monkeypatch, capsys):
+    ssh_d = _ssh_dir(tmp_path)
+    monkeypatch.setattr(core, "DEFAULT_SSH_CONFIG_DIR", ssh_d)
+    # Make Include directive check pass cheaply by pointing at a tmp file with the line.
+    main_cfg = _main_ssh(tmp_path)
+    main_cfg.parent.mkdir(parents=True, exist_ok=True)
+    main_cfg.write_text("Include config.d/*\n", encoding="utf-8")
+    monkeypatch.setattr(core, "DEFAULT_SSH_MAIN_CONFIG", main_cfg)
+
+    def fake_run(**kwargs):
+        return core.RunSummary(
+            run_id="vps-runner-20260522T000000Z-dev-onboard",
+            action="onboard", env="dev", status="successful", rc=0,
+            artifact_dir="/tmp/none", hosts=[],
+        )
+
+    with patch.object(core, "run_playbook", side_effect=fake_run):
+        rc = cli.main(["onboard", "alpha", "--env", "dev"])
+    assert rc == 0
+    target = ssh_d / "alpha.conf"
+    assert target.exists()
+    text = target.read_text(encoding="utf-8")
+    assert "Host alpha" in text
+    assert "HostName 192.0.2.1" in text  # from fake_inventory
+    assert "id_ed25519" in text
+    assert "ansispire_ed25519" not in text
+    out = capsys.readouterr().out
+    assert "wrote local SSH alias" in out
+
+
+# --- T14 — onboard does NOT write SSH config on failure
+def test_onboard_cli_does_not_write_ssh_config_on_failure(
+    fake_inventory, tmp_path, monkeypatch
+):
+    ssh_d = _ssh_dir(tmp_path)
+    monkeypatch.setattr(core, "DEFAULT_SSH_CONFIG_DIR", ssh_d)
+
+    def fake_run(**kwargs):
+        return core.RunSummary(
+            run_id="vps-runner-20260522T000000Z-dev-onboard",
+            action="onboard", env="dev", status="failed", rc=2,
+            artifact_dir="/tmp/none", hosts=[],
+        )
+
+    with patch.object(core, "run_playbook", side_effect=fake_run):
+        rc = cli.main(["onboard", "alpha", "--env", "dev"])
+    assert rc == 1
+    assert not (ssh_d / "alpha.conf").exists()
+
+
+# --- T15 — remove deletes SSH config regardless of cleanup_remote
+def test_remove_cli_deletes_ssh_config_regardless_of_cleanup_remote(
+    fake_inventory, tmp_path, monkeypatch, capsys
+):
+    ssh_d = _ssh_dir(tmp_path)
+    monkeypatch.setattr(core, "DEFAULT_SSH_CONFIG_DIR", ssh_d)
+    # Seed an SSH alias file we expect to be deleted alongside alpha's inventory.
+    core.write_ssh_config(
+        "alpha", hostname="192.0.2.1", port=1156, user="deploy",
+        ssh_config_dir=ssh_d,
+    )
+    assert (ssh_d / "alpha.conf").exists()
+
+    rc = cli.main(["remove", "alpha", "--env", "dev", "--yes"])
+    assert rc == 0
+    assert not (ssh_d / "alpha.conf").exists()
+    out = capsys.readouterr().out
+    assert "removed ~/.ssh/config.d/alpha.conf" in out
+
+
+# ---------------------------------------------------------------------------
+# Integration tests (unchanged from R6 — real ansible-runner against
+# unreachable docs-only IPs).
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration

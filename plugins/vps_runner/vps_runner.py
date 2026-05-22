@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -490,6 +491,189 @@ def _first_event_msg(
     except Exception:  # noqa: BLE001 — fallback to empty msg
         pass
     return ""
+
+
+# ---------------------------------------------------------------------------
+# Round 7 — interactive wizard + per-alias local SSH config (operator key)
+# ---------------------------------------------------------------------------
+#
+# These helpers operate purely on the operator's local files (~/.ssh/config.d/
+# and ~/.ssh/config). They are independent from the Ansible execution path
+# (run_playbook above), which continues to use the automation key
+# (vps_runner_defaults.identity_file in group_vars/vps_targets.yml).
+# Per plan-2026-05-22.md §2.2 — two-key model.
+
+
+_INCLUDE_RE = re.compile(r"^\s*Include\s+(.+)$", re.IGNORECASE)
+
+
+def prompt_new_host(
+    env: str, *, defaults: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
+    """Interactive wizard for add-host: collect 4 essential fields.
+
+    Returns dict {alias, ip, port, user} ready for core.add_host(...).
+    Returns None on abort: non-TTY stdin, EOFError, or KeyboardInterrupt.
+    The caller decides the rc (typically 2 for no-TTY, 130 for user abort).
+    """
+    if not sys.stdin.isatty():
+        sys.stderr.write(
+            "vps-runner: wizard requires a TTY; use flag mode instead:\n"
+            f"  make vps-add-host ALIAS=<alias> IP=<ip> "
+            f"[MANAGED_PORT=1156] [MANAGED_USER=ansible] ENV={env}\n"
+        )
+        return None
+
+    defaults = defaults or {}
+    port_default = int(defaults.get("port", 1156))
+    user_default = str(defaults.get("user", "ansible"))
+
+    try:
+        existing = set(list_aliases(env))
+        while True:
+            alias = input("Alias [必填]: ").strip()
+            if not alias:
+                print("  ! alias must be non-empty")
+                continue
+            if alias in existing:
+                print(f"  ! alias '{alias}' already exists in env={env}; pick another")
+                continue
+            break
+
+        while True:
+            ip = input("IP / hostname [必填]: ").strip()
+            if not ip:
+                print("  ! IP / hostname must be non-empty")
+                continue
+            break
+
+        while True:
+            raw = input(f"Managed SSH port [{port_default}]: ").strip() or str(port_default)
+            try:
+                port = int(raw)
+            except ValueError:
+                print("  ! port must be an integer")
+                continue
+            if port == 22:
+                print("  ! port=22 not allowed for managed_port (use a non-22 high port)")
+                continue
+            if not (1024 <= port <= 65535):
+                print("  ! port must be 1024..65535")
+                continue
+            break
+
+        user = input(f"Managed SSH user [{user_default}]: ").strip() or user_default
+        if not user:
+            user = user_default
+    except (EOFError, KeyboardInterrupt):
+        sys.stderr.write("\n(wizard aborted)\n")
+        return None
+
+    return {"alias": alias, "ip": ip, "port": port, "user": user}
+
+
+def write_ssh_config(
+    alias: str,
+    *,
+    hostname: str,
+    port: int,
+    user: str,
+    identity_file: Path | None = None,
+    ssh_config_dir: Path | None = None,
+) -> Path:
+    """Render ssh_config_entry.j2 → <ssh_config_dir>/<alias>.conf (0600).
+
+    Idempotent overwrite: file content is determined by inputs; re-running
+    onboard reconverges. Creates ssh_config_dir if missing (mode 0o700 on
+    creation; existing dir is not retightened).
+
+    Defaults are resolved at call time (None sentinels) so tests can
+    monkeypatch DEFAULT_PERSONAL_IDENTITY_FILE / DEFAULT_SSH_CONFIG_DIR.
+    """
+    if identity_file is None:
+        identity_file = DEFAULT_PERSONAL_IDENTITY_FILE
+    if ssh_config_dir is None:
+        ssh_config_dir = DEFAULT_SSH_CONFIG_DIR
+
+    try:
+        import jinja2  # type: ignore
+    except ImportError as exc:  # pragma: no cover
+        raise VpsRunnerError(
+            "jinja2 is required for write_ssh_config. "
+            "Run: pip install -r requirements.txt"
+        ) from exc
+
+    if not SSH_CONFIG_TEMPLATE.exists():
+        raise VpsRunnerError(
+            f"ssh config template missing: {SSH_CONFIG_TEMPLATE}"
+        )
+
+    ssh_config_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    template = jinja2.Template(
+        SSH_CONFIG_TEMPLATE.read_text(encoding="utf-8")
+    )
+    content = template.render(
+        server={
+            "alias": alias,
+            "host": hostname,
+            "managed_port": port,
+            "managed_user": user,
+            "identity_file": str(identity_file),
+        }
+    )
+
+    target = ssh_config_dir / f"{alias}.conf"
+    target.write_text(content, encoding="utf-8")
+    target.chmod(0o600)
+    return target
+
+
+def delete_ssh_config(
+    alias: str, ssh_config_dir: Path | None = None
+) -> bool:
+    """Delete <ssh_config_dir>/<alias>.conf if present.
+
+    Returns True iff the file existed and was removed; False otherwise
+    (missing file, or unlink failed). Never raises.
+    """
+    if ssh_config_dir is None:
+        ssh_config_dir = DEFAULT_SSH_CONFIG_DIR
+    target = ssh_config_dir / f"{alias}.conf"
+    if not target.exists():
+        return False
+    try:
+        target.unlink()
+    except OSError:
+        return False
+    return True
+
+
+def check_include_directive(
+    ssh_config_path: Path | None = None,
+) -> bool:
+    """True iff ssh_config_path contains an active `Include …config.d/…` line.
+
+    Returns False when the file is missing, unreadable, or only commented
+    Include lines exist. Never raises.
+    """
+    if ssh_config_path is None:
+        ssh_config_path = DEFAULT_SSH_MAIN_CONFIG
+    if not ssh_config_path.exists():
+        return False
+    try:
+        text = ssh_config_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    for line in text.splitlines():
+        if line.lstrip().startswith("#"):
+            continue
+        match = _INCLUDE_RE.match(line)
+        if not match:
+            continue
+        for token in match.group(1).strip().split():
+            if "config.d/" in token:
+                return True
+    return False
 
 
 def get_repo_root() -> Path:

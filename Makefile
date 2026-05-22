@@ -192,10 +192,17 @@ vps-list: ## list managed VPS in env (ENV=dev default)
 vps-audit: ## health-probe; ALIAS optional (omit = whole fleet); ENV=dev default
 	$(BIN)python3 -m plugins.vps_runner.cli audit --env $(or $(ENV),dev) $(if $(ALIAS),--limit $(ALIAS))
 
-vps-add-host: ## create new inventory entry; ALIAS=<name> IP=<ip> [MANAGED_PORT=1156] [MANAGED_USER=ansible] [ENV=dev]
-	@test -n "$(ALIAS)" -a -n "$(IP)" || { echo "Usage: make vps-add-host ALIAS=<alias> IP=<ip> [MANAGED_PORT=1156] [MANAGED_USER=ansible] [ENV=dev]"; exit 2; }
-	$(BIN)python3 -m plugins.vps_runner.cli add-host $(ALIAS) --ip $(IP) \
+vps-add-host: ## three input modes — wizard (no args), flag (ALIAS+IP), template-manual (cp examples/host_vars.yml.template)
+	@if [ -n "$(ALIAS)" ] && [ -z "$(IP)" ]; then \
+	  echo "Usage: pass both ALIAS=<alias> IP=<ip> (flag mode) OR neither (wizard mode)"; exit 2; \
+	fi
+	@if [ -z "$(ALIAS)" ] && [ -n "$(IP)" ]; then \
+	  echo "Usage: pass both ALIAS=<alias> IP=<ip> (flag mode) OR neither (wizard mode)"; exit 2; \
+	fi
+	$(BIN)python3 -m plugins.vps_runner.cli add-host \
+	  $(if $(ALIAS),$(ALIAS)) \
 	  --env $(or $(ENV),dev) \
+	  $(if $(IP),--ip $(IP)) \
 	  $(if $(MANAGED_PORT),--port $(MANAGED_PORT)) \
 	  $(if $(MANAGED_USER),--user $(MANAGED_USER))
 

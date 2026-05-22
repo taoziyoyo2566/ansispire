@@ -21,7 +21,7 @@ The plugin was built to replace a prior anti-Ansible implementation (subprocess 
 | Action | Remote | Scope |
 |---|---:|---|
 | `list` | no | Display managed hosts in the given env (alias / connection / status / last_action / updated_at). Pure local YAML read. |
-| `add-host` | no | Create `host_vars/<alias>.yml` (slim format) + add alias to `hosts.yml` under `vps_targets:`. Validates uniqueness + port range. **Pure local YAML write; no Ansible.** Restored in Round 6 (was a regression vs legacy vps-manager's `new` command). |
+| `add-host` | no | Create `host_vars/<alias>.yml` (slim format) + add alias to `hosts.yml` under `vps_targets:`. Validates uniqueness + port range. **Pure local YAML write; no Ansible.** Round 7 三种入口：①wizard (no arg, 4 prompts, optionally chains onboard) ②flag (R6 path, `--ip` required) ③template-manual (`examples/host_vars.yml.template`). |
 | `audit` | yes | Per-host probe: ping, uptime, disk usage, memory, OS facts. Read-only and idempotent. |
 | `onboard` | yes | Apply `onboard.yml` to one alias. With `--first-time --ask-pass --ask-become-pass`, bootstraps from `root@22`-style state into managed user + non-22 SSH port + UFW + fail2ban. Idempotent re-onboard supported. **Docker install/config is deferred — see Open / Pending.** |
 | `modify` | yes | Apply `modify.yml` with a `vps_changes` extravar: packages (install/remove), UFW TCP allows/removes, fail2ban toggle, network_tuning. Each section optional. |
@@ -88,6 +88,14 @@ CLI subcommand
   → RunSummary(run_id, action, env, status, rc, artifact_dir, hosts=[HostResult(...)])
   → CLI prints summary; on success calls record_run() to update host_vars
 ```
+
+### Post-onboard side effect (Round 7)
+
+After `onboard` reports `successful`, the CLI also writes `~/.ssh/config.d/<alias>.conf` (operator-side per-alias SSH config rendered from `playbooks/templates/ssh_config_entry.j2`). The file uses `IdentityFile=~/.ssh/id_ed25519` (operator key) — **independent** from Ansible's automation key (`~/.ssh/ansispire_ed25519`, configured in `group_vars/vps_targets.yml::vps_runner_defaults.identity_file`). The two key paths are non-overlapping by design: Ansible never reads the operator key, the operator SSH config never references the automation key.
+
+If `~/.ssh/config` has no `Include …config.d/…` line, the CLI prints a one-shot warning (does not modify the user's main config). Write failure is non-fatal — onboard's overall status is unchanged.
+
+`remove` deletes `~/.ssh/config.d/<alias>.conf` regardless of `--cleanup-remote` (local SSH alias is meaningless without inventory).
 
 ### Hardening choices (codex r1 + W-R18)
 - `project_dir=PROJECT_ROOT` + relative `playbook=` path → predictable resolution; no reliance on ansible-runner's default `private_data_dir/project`.

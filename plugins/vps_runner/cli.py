@@ -133,14 +133,23 @@ def _build_parser() -> argparse.ArgumentParser:
         help="enable or disable fail2ban",
     )
 
-    # add-host
+    # add-host (R7: alias is optional; absent → wizard mode)
     p_add = subparsers.add_parser(
         "add-host",
-        help="create a new managed-VPS inventory entry (host_vars + hosts.yml)",
+        help=(
+            "create a new managed-VPS inventory entry. "
+            "With ALIAS+IP → flag mode (R6); without args → interactive wizard."
+        ),
     )
     _add_env_arg(p_add)
-    p_add.add_argument("alias", help="short alias for the new host (e.g. de-d12-1)")
-    p_add.add_argument("--ip", required=True, help="ansible_host (IP or DNS name)")
+    p_add.add_argument(
+        "alias", nargs="?", default=None,
+        help="short alias for the new host (omit → enter wizard mode)",
+    )
+    p_add.add_argument(
+        "--ip", default=None,
+        help="ansible_host (IP or DNS name); required in flag mode",
+    )
     p_add.add_argument(
         "--port", type=int, default=1156,
         help="managed SSH port (default: 1156; must be 1024-65535, not 22)",
@@ -257,9 +266,42 @@ def _cmd_onboard(args: argparse.Namespace) -> int:
     if summary.status == "successful":
         core.record_run(args.env, alias, summary, set_status="active")
         print(f"==> host_vars/{alias}.yml updated (status=active)")
+        _write_local_ssh_alias(args.env, alias)
         return 0
     core.record_run(args.env, alias, summary)
     return 1
+
+
+def _write_local_ssh_alias(env: str, alias: str) -> None:
+    """Post-onboard side-effect: render ssh_config_entry.j2 to
+    ~/.ssh/config.d/<alias>.conf using the operator key (DEFAULT_PERSONAL_
+    IDENTITY_FILE = ~/.ssh/id_ed25519). Failures are non-fatal — onboard
+    already succeeded; SSH alias is convenience.
+    """
+    try:
+        data = core.read_host_vars(env, alias)
+        vr = data.get("vps_runner") or {}
+        port = int(vr.get("managed_port") or data.get("ansible_port") or 1156)
+        user = vr.get("managed_user") or data.get("ansible_user") or "ansible"
+        host = data.get("ansible_host") or ""
+        if not host:
+            sys.stderr.write(
+                f"vps-runner: skipping SSH alias write — host_vars/{alias}.yml "
+                f"has no ansible_host\n"
+            )
+            return
+        ssh_path = core.write_ssh_config(
+            alias, hostname=host, port=port, user=user,
+        )
+        print(f"==> wrote local SSH alias: {ssh_path}")
+        if not core.check_include_directive():
+            print(
+                "==> note: ~/.ssh/config has no active `Include …config.d/…` line.\n"
+                f"    Add this one-liner once so `ssh {alias}` resolves:\n"
+                "        Include config.d/*"
+            )
+    except (core.VpsRunnerError, OSError) as exc:
+        sys.stderr.write(f"vps-runner: SSH alias write skipped: {exc}\n")
 
 
 def _cmd_modify(args: argparse.Namespace) -> int:
@@ -310,18 +352,58 @@ def _cmd_modify(args: argparse.Namespace) -> int:
 
 
 def _cmd_add_host(args: argparse.Namespace) -> int:
+    # R7: alias-absent → interactive wizard; alias-present → flag mode (R6).
+    wizard_mode = args.alias is None
+    if wizard_mode:
+        if not sys.stdin.isatty():
+            sys.stderr.write(
+                "vps-runner: wizard mode requires a TTY.\n"
+                f"  Flag mode: make vps-add-host ALIAS=<alias> IP=<ip> "
+                f"[MANAGED_PORT=1156] [MANAGED_USER=ansible] ENV={args.env}\n"
+            )
+            return 2
+        collected = core.prompt_new_host(args.env)
+        if collected is None:
+            return 130
+        alias, ip, port, user = (
+            collected["alias"], collected["ip"], collected["port"], collected["user"],
+        )
+    else:
+        if not args.ip:
+            sys.stderr.write(
+                "vps-runner: flag mode requires --ip <addr> when alias is given\n"
+            )
+            return 64
+        alias, ip, port, user = args.alias, args.ip, args.port, args.user
+
     try:
         path = core.add_host(
-            args.env, args.alias,
-            ip=args.ip, port=args.port, user=args.user, status=args.status,
+            args.env, alias,
+            ip=ip, port=port, user=user, status=args.status,
         )
     except core.VpsRunnerError as exc:
         sys.stderr.write(f"vps-runner: {exc}\n")
         return 2
     print(f"==> created {path}")
-    print(f"==> added '{args.alias}' to inventory/vps_runner/{args.env}/hosts.yml")
+    print(f"==> added '{alias}' to inventory/vps_runner/{args.env}/hosts.yml")
+
+    if wizard_mode:
+        try:
+            answer = input(f"继续 onboard {alias}? [Y/n]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            answer = "n"
+        if answer in ("", "y", "yes"):
+            onboard_args = argparse.Namespace(
+                alias=alias, env=args.env,
+                first_time=True,
+                bootstrap_user=None, bootstrap_port=None,
+                ask_pass=True, ask_become_pass=True,
+            )
+            return _cmd_onboard(onboard_args)
+
     print(
-        f"\nNext: vps-runner onboard {args.alias} --env {args.env} "
+        f"\nNext: vps-runner onboard {alias} --env {args.env} "
         f"--first-time --ask-pass\n"
         f"  (add --ask-become-pass if the bootstrap user's sudo requires a password)"
     )
@@ -365,6 +447,8 @@ def _cmd_remove(args: argparse.Namespace) -> int:
 
     core.remove_alias_from_hosts(args.env, alias)
     core.delete_host_vars(args.env, alias)
+    if core.delete_ssh_config(alias):
+        print(f"==> removed ~/.ssh/config.d/{alias}.conf")
     print(f"==> {alias} removed from inventory (env={args.env})")
     return 0
 

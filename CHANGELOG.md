@@ -29,6 +29,16 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased]
 
+### VPS Runner: add-host triple-entry + post-onboard SSH alias write (feat/vps-manager-v2 Round 7, 2026-05-22)
+
+Closes 4 gaps in the v2 plugin without architectural changes (G1 orphan `ssh_config_entry.j2` template, G2 broken docs promise about `~/.ssh/config.d/`, G3 no interactive scaffold, G4 no hand-write template).
+
+- **CLI `add-host` — three input modes**: ① wizard (no args) prompts for 4 essential fields (alias / IP / managed_port [1156] / managed_user [ansible]) then optionally chains into `onboard --first-time --ask-pass --ask-become-pass`; ② flag mode (`ALIAS=x IP=y`) unchanged from R6; ③ template-manual via new `plugins/vps_runner/examples/host_vars.yml.template` (slim, 4 user-fillable fields). Wizard refuses non-TTY stdin with rc=2 + flag-mode hint; aborts gracefully on Ctrl-C / EOF with rc=130.
+- **CLI `onboard` — post-success side effect**: after `onboard` reports `successful`, the CLI renders `playbooks/templates/ssh_config_entry.j2` to `~/.ssh/config.d/<alias>.conf` (chmod 0600, dir created with 0700 if missing) using `IdentityFile=~/.ssh/id_ed25519` (operator key). Independent from Ansible's automation key (`~/.ssh/ansispire_ed25519`, configured in `group_vars/vps_targets.yml::vps_runner_defaults.identity_file`). If `~/.ssh/config` lacks `Include …config.d/…`, prints a one-shot warning with the exact line to add (does not modify the user's main config). Write failure is non-fatal — onboard's overall status is unchanged.
+- **CLI `remove`**: always deletes `~/.ssh/config.d/<alias>.conf` (regardless of `--cleanup-remote`) after dropping host_vars. Local SSH alias is meaningless without inventory; clean both together.
+- **Makefile `vps-add-host`**: no-arg invocation now enters wizard mode; partial-flag mode (only `ALIAS=` or only `IP=`) is rejected with usage hint.
+- **Docs**: `docs/operations/vps-runner.md §3.1b` rewritten to cover the three input modes with the two-key separation table. Step 7 of §4 updated to reflect per-alias config files (was `ansispire.conf` single-file, never implemented on v2).
+
 ### Multi-OS target fleet — RHEL family support (TASK-007 round 1, 2026-05-19)
 
 First-class data-plane support for managed VPS across two OS families: Debian (Debian 13 + Ubuntu 24.04) and RHEL (Rocky Linux 9 + AlmaLinux 9). Closes the placeholder fail-stub that `infra_baseline` carried for RHEL since the role's inception. Alpine remains a placeholder for follow-up TASK-007.B.

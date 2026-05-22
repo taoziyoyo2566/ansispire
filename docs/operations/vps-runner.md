@@ -114,17 +114,56 @@ python -m plugins.vps_runner.cli list --env dev --format json
 
 **输出**：alias / host / port / user / status / last_action / updated_at 表格或 JSON。**完全本地读 host_vars 文件，无网络调用**。
 
-### 3.1b `add-host` — 创建新管理节点的 inventory 条目（Round 6 起）
+### 3.1b `add-host` — 创建新管理节点的 inventory 条目（Round 7 起三种入口）
+
+三种入口终点相同（host_vars/&lt;alias&gt;.yml + hosts.yml 加 alias 行 + 可选直接 onboard），按操作习惯任选其一：
+
+```text
+① Wizard:        make vps-add-host                       # 4 字段交互式填
+② Flag:          make vps-add-host ALIAS=x IP=y          # 一键 scaffold
+③ 手写模板:      cp plugins/vps_runner/examples/host_vars.yml.template \
+                   inventory/vps_runner/dev/host_vars/<alias>.yml
+                 # 编辑文件填 ansible_host 等 4 个字段
+                 # 在同一目录 hosts.yml 手动加 `  <alias>:` 行
+```
+
+**Wizard 模式**（无参数）：
+
+```bash
+make vps-add-host                          # 等价 python -m plugins.vps_runner.cli add-host --env dev
+```
+
+依次提示 4 个字段（端口/用户带默认，回车接受）：
+
+```text
+Alias [必填]:              de-d12-1
+IP / hostname [必填]:      203.0.113.42
+Managed SSH port [1156]:    ↩
+Managed SSH user [ansible]: ↩
+==> created inventory/vps_runner/dev/host_vars/de-d12-1.yml
+==> added 'de-d12-1' to inventory/vps_runner/dev/hosts.yml
+继续 onboard de-d12-1? [Y/n]:
+```
+
+回车接受 `Y` → 立即进入 `onboard --first-time --ask-pass --ask-become-pass` 流程（与 §3.3 相同）。  
+输 `n` → 仅生成 inventory 条目，下次手动 `make vps-onboard ALIAS=de-d12-1`。  
+中途按 Ctrl-C 或 stdin EOF → 优雅退出 rc=130，已写入的字段保留（重跑 wizard 会拒绝 alias 重复，强制改名）。
+
+**非 TTY 拒绝**：当 stdin 不是终端（pipe / here-doc / CI），wizard 模式立刻退出 rc=2 并提示用 flag 模式，避免阻塞。
+
+**Flag 模式**（一键 scaffold，等价 Round 6 行为）：
 
 ```bash
 python -m plugins.vps_runner.cli add-host <alias> --ip <IP> \
   [--port 1156] [--user ansible] [--status pending] [--env dev]
 
-# 或 Make wrapper（注意：用 MANAGED_PORT / MANAGED_USER 避免和 shell env 的 USER 撞）
+# 或 Make wrapper（用 MANAGED_PORT / MANAGED_USER 避免和 shell env 的 USER 撞）
 make vps-add-host ALIAS=<alias> IP=<IP> [MANAGED_PORT=1156] [MANAGED_USER=ansible] [ENV=dev]
 ```
 
-**做什么**：根据传入字段在 `inventory/vps_runner/<env>/host_vars/<alias>.yml` 生成 slim 格式文件（只放每机特有覆盖，共享默认从 `group_vars/vps_targets.yml` 继承），同时把 alias 追加到 `hosts.yml` 的 `vps_targets.hosts` 块。**不调 Ansible，无网络操作**。
+**手写模板模式**：直接复制 `plugins/vps_runner/examples/host_vars.yml.template`（slim — 只 4 个用户填字段），编辑后手动在同一目录的 `hosts.yml` 加 alias 行。适合需要预填 status/自定义 vps_runner 字段的场景。
+
+**共同行为**：在 `inventory/vps_runner/<env>/host_vars/<alias>.yml` 生成 slim 文件（只放每机特有覆盖，共享默认从 `group_vars/vps_targets.yml` 继承），同时把 alias 追加到 `hosts.yml` 的 `vps_targets.hosts` 块。**不调 Ansible，无网络操作**。
 
 **字段默认**：`port=1156`、`user=ansible`、`status=pending`（onboard 成功后自动改 `active`）。
 
@@ -132,20 +171,20 @@ make vps-add-host ALIAS=<alias> IP=<IP> [MANAGED_PORT=1156] [MANAGED_USER=ansibl
 - alias 必须未在 `hosts.yml` 出现，且 `host_vars/<alias>.yml` 不存在（防止覆盖）
 - port 必须在 `[1024, 65535]` 且不能是 `22`（与 onboard.yml `pre_tasks` assert 对齐）
 
-**输出**：成功时给下一步提示：
-```
-==> created inventory/vps_runner/dev/host_vars/de-d12-1.yml
-==> added 'de-d12-1' to inventory/vps_runner/dev/hosts.yml
+**SSH 密钥分离**（Round 7 起）：Ansible 自动化和 operator 直连使用两把独立密钥：
 
-Next: vps-runner onboard de-d12-1 --env dev --first-time --ask-pass
-  (add --ask-become-pass if the bootstrap user's sudo requires a password)
-```
+| 用途 | 文件 | 配置位置 |
+|---|---|---|
+| Ansible 自动化连接 managed VPS | `~/.ssh/ansispire_ed25519` | `group_vars/vps_targets.yml::vps_runner_defaults.identity_file` |
+| 你 (operator) 手动 `ssh <alias>` | `~/.ssh/id_ed25519` | `~/.ssh/config.d/<alias>.conf`（onboard 成功后由 CLI 自动写入） |
 
-**典型新机三步流程**：
+两条路径互不交叉：Ansible 永远不读 `id_ed25519`，本地 SSH 配置永远不引用 `ansispire_ed25519`。
+
+**典型新机三步流程**（wizard 模式）：
 ```bash
-make vps-add-host ALIAS=de-d12-1 IP=203.0.113.42
-make vps-onboard ALIAS=de-d12-1               # terminal 输 root 密码
+make vps-add-host                             # 填 4 字段，回车 Y 直接进 onboard
 make vps-audit ALIAS=de-d12-1                 # 验证可达
+ssh de-d12-1                                  # 用 ~/.ssh/config.d/de-d12-1.conf 直连
 ```
 
 ### 3.2 `audit` — 健康探测
@@ -265,7 +304,7 @@ python -m plugins.vps_runner.cli onboard <new-alias> --env dev \
 4. 重载 sshd 并验证新端口连通
 5. 关闭 bootstrap port（若 `vps_runner.close_bootstrap_port_after_success: true`）
 6. 配置 UFW / fail2ban（按 `features.*`）。**docker 当前不在 onboard 范围内**——见 §7 设计沿革。
-7. 写本地 `~/.ssh/config.d/ansispire.conf` 条目供后续直连
+7. onboard 成功后 CLI 写本地 `~/.ssh/config.d/<alias>.conf`（per-alias 文件，`IdentityFile=~/.ssh/id_ed25519`，operator 直连密钥）。若 `~/.ssh/config` 缺 `Include …config.d/…` 行，CLI 会打印一次提示，加一行 `Include config.d/*` 即可一劳永逸。
 
 成功后再跑一次 audit 验收：
 ```bash

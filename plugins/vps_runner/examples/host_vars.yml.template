@@ -1,0 +1,27 @@
+# Slim host_vars template for vps_runner — copy + edit to add a host without
+# the CLI wizard or flag mode (third input mode; see docs/operations/vps-runner.md §3).
+#
+# Usage:
+#   1. cp plugins/vps_runner/examples/host_vars.yml.template \
+#        inventory/vps_runner/<env>/host_vars/<alias>.yml
+#   2. Edit the four fields below.
+#   3. Add `<alias>:` under `all.children.vps_targets.hosts:` in the SAME
+#      env's hosts.yml (sibling file in inventory/vps_runner/<env>/).
+#
+# Equivalent one-step paths:
+#   • `make vps-add-host`                    — interactive wizard (4 prompts)
+#   • `make vps-add-host ALIAS=x IP=y`       — flag mode (scaffolds host_vars + hosts.yml)
+#
+# Optional overrides + CLI-managed state (vps_runner.os, vps_runner.last_run,
+# vps_runner.updated_at, etc.) are NOT listed here — they default from
+# group_vars/vps_targets.yml and are written by the CLI on first onboard.
+
+---
+ansible_host:               # required — IP or DNS, e.g. 89.185.26.211
+ansible_port: 1156          # managed SSH port (post-onboard)
+ansible_user: ansible       # managed SSH user
+
+vps_runner:
+  managed_port: 1156
+  managed_user: ansible
+  status: pending           # flips to "active" after first successful onboard
