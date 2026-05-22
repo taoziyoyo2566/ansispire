@@ -353,6 +353,78 @@ def test_write_ssh_config_rejects_hostname_injection(tmp_path):
         )
 
 
+# --- R11/T2 — temp key helpers ----
+def test_write_temp_key_creates_0600_normalized(monkeypatch, tmp_path):
+    monkeypatch.setattr(core, "TEMP_KEY_DIR", tmp_path / "tempkeys")
+    pem = (
+        "-----BEGIN OPENSSH PRIVATE KEY-----\r\n"
+        "blob\r\n"
+        "-----END OPENSSH PRIVATE KEY-----"  # no trailing newline
+    )
+    out = core.write_temp_key("host-x", pem)
+    assert out == tmp_path / "tempkeys" / "host-x.key"
+    assert oct(out.stat().st_mode)[-3:] == "600"
+    text = out.read_text(encoding="utf-8")
+    # CRLF normalized + trailing newline ensured
+    assert "\r\n" not in text
+    assert text.endswith("\n")
+    assert "-----BEGIN" in text and "-----END" in text
+
+
+def test_write_temp_key_rejects_non_pem(monkeypatch, tmp_path):
+    monkeypatch.setattr(core, "TEMP_KEY_DIR", tmp_path / "tempkeys")
+    with pytest.raises(core.VpsRunnerError, match="BEGIN"):
+        core.write_temp_key("host-y", "this is not a key")
+
+
+def test_write_temp_key_rejects_bad_alias(monkeypatch, tmp_path):
+    monkeypatch.setattr(core, "TEMP_KEY_DIR", tmp_path / "tempkeys")
+    pem = "-----BEGIN OPENSSH PRIVATE KEY-----\nx\n-----END OPENSSH PRIVATE KEY-----"
+    with pytest.raises(core.VpsRunnerError, match="invalid"):
+        core.write_temp_key("../escape", pem)
+
+
+def test_cleanup_temp_key_idempotent(monkeypatch, tmp_path):
+    monkeypatch.setattr(core, "TEMP_KEY_DIR", tmp_path / "tempkeys")
+    pem = "-----BEGIN OPENSSH PRIVATE KEY-----\nx\n-----END OPENSSH PRIVATE KEY-----"
+    core.write_temp_key("zeta", pem)
+    assert core.cleanup_temp_key("zeta") is True
+    assert core.cleanup_temp_key("zeta") is False  # already gone
+
+
+def test_cleanup_temp_key_silent_reject_traversal(monkeypatch, tmp_path):
+    monkeypatch.setattr(core, "TEMP_KEY_DIR", tmp_path / "tempkeys")
+    # malformed alias → silent False (never-raise contract)
+    assert core.cleanup_temp_key("../escape") is False
+
+
+def test_onboard_first_time_auto_injects_bootstrap_key(
+    fake_inventory, monkeypatch, tmp_path
+):
+    """R11 T2 retry path: if vps_runner.bootstrap_key is set, onboard
+    --first-time picks it up and adds ansible_ssh_private_key_file extravar."""
+    # seed host_vars with a bootstrap_key value pointing at a fake temp key
+    fake_key = tmp_path / "alpha-bootstrap.key"
+    fake_key.write_text("dummy", encoding="utf-8")
+    data = core.read_host_vars("dev", "alpha")
+    data.setdefault("vps_runner", {})["bootstrap_key"] = str(fake_key)
+    core.write_host_vars("dev", "alpha", data)
+
+    captured: dict[str, Any] = {}
+
+    def fake_run(**kwargs):
+        captured.update(kwargs)
+        return core.RunSummary(
+            run_id="vps-runner-mock", action="onboard", env="dev",
+            status="failed", rc=4, artifact_dir="/tmp/none", hosts=[],
+        )
+
+    with patch.object(core, "run_playbook", side_effect=fake_run):
+        rc = cli.main(["onboard", "alpha", "--env", "dev", "--first-time"])
+    assert rc == 1
+    assert captured["extravars"]["ansible_ssh_private_key_file"] == str(fake_key)
+
+
 def test_delete_ssh_config_silently_rejects_bad_alias(tmp_path):
     # delete_ssh_config promises never-raise; bad alias → return False
     assert core.delete_ssh_config(
@@ -918,36 +990,88 @@ def test_prompt_new_host_entry_check_missing_keys(
     assert "ssh-keygen" in err
 
 
-# --- T11 (R11) — add-host CLI wizard mode (key branch): inventory + bootstrap fields written
-def test_add_host_cli_wizard_mode_key_branch_writes_inventory(
-    fake_inventory, wizard_entry_ok, monkeypatch, capsys
+# --- T11 (R11/T2) — add-host CLI wizard mode (key branch): full lifecycle ----
+def test_add_host_cli_wizard_mode_key_branch_full_lifecycle(
+    fake_inventory, wizard_entry_ok, monkeypatch, capsys, tmp_path
 ):
     monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
     monkeypatch.setattr(cli.sys, "stdin", _FakeStdin())
+    monkeypatch.setattr(core, "TEMP_KEY_DIR", tmp_path / "tempkeys")
     inputs = iter([
-        "test-wiz", "192.0.2.99", "",     # alias / ip / bootstrap_user (root default)
-        "k",                              # key branch
+        "test-wiz", "192.0.2.99", "",
+        "k",
         "-----BEGIN OPENSSH PRIVATE KEY-----",
         "abc",
         "-----END OPENSSH PRIVATE KEY-----",
-        "", "", "",                        # bootstrap port / managed_user / managed_port (all defaults)
+        "", "", "",
     ])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+
+    # Mock both onboard + verify as successful so cleanup runs
+    def fake_run(**kwargs):
+        return core.RunSummary(
+            run_id=f"vps-runner-mock-dev-{kwargs.get('action', 'onboard')}",
+            action=kwargs.get("action", "onboard"),
+            env="dev",
+            status="successful",
+            rc=0,
+            artifact_dir="/tmp/none",
+            hosts=[],
+        )
+
+    monkeypatch.setattr(core, "run_playbook", fake_run)
 
     rc = cli.main(["add-host", "--env", "dev"])
     assert rc == 0
     out = capsys.readouterr().out
-    assert "created" in out
-    assert "test-wiz" in out
+    assert "wrote temp bootstrap key" in out
+    assert "cleaned up temp key" in out
+    # inventory persisted; bootstrap_key cleared to null on success
     data = yaml.safe_load(core.host_vars_path("dev", "test-wiz").read_text())
     assert data["ansible_host"] == "192.0.2.99"
-    assert data["ansible_port"] == 1156      # managed
-    assert data["ansible_user"] == "ansible" # managed
-    # R11: wizard persists bootstrap creds into host_vars
     assert data["vps_runner"]["bootstrap_user"] == "root"
     assert data["vps_runner"]["bootstrap_port"] == 22
-    # T1: key branch doesn't auto-onboard yet (T2 wires it)
-    assert "T2 尚未实施" in out
+    # bootstrap_key field may exist as None (cleared) or be absent — both OK
+    assert data["vps_runner"].get("bootstrap_key") in (None, )
+    # temp key file cleaned up
+    assert not (tmp_path / "tempkeys" / "test-wiz.key").exists()
+
+
+# --- T11b (R11/T2) — key branch onboard failure path retains temp key + bootstrap_key ----
+def test_add_host_cli_wizard_mode_key_branch_onboard_failure_retains_key(
+    fake_inventory, wizard_entry_ok, monkeypatch, capsys, tmp_path
+):
+    monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
+    monkeypatch.setattr(cli.sys, "stdin", _FakeStdin())
+    monkeypatch.setattr(core, "TEMP_KEY_DIR", tmp_path / "tempkeys")
+    inputs = iter([
+        "fail-wiz", "192.0.2.50", "",
+        "k",
+        "-----BEGIN OPENSSH PRIVATE KEY-----",
+        "abc",
+        "-----END OPENSSH PRIVATE KEY-----",
+        "", "", "",
+    ])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+
+    def fake_run_fail(**kwargs):
+        return core.RunSummary(
+            run_id="vps-runner-mock-dev-onboard",
+            action="onboard", env="dev", status="failed", rc=4,
+            artifact_dir="/tmp/none", hosts=[],
+        )
+
+    monkeypatch.setattr(core, "run_playbook", fake_run_fail)
+
+    rc = cli.main(["add-host", "--env", "dev"])
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "onboard 失败" in out
+    # temp key kept for retry
+    assert (tmp_path / "tempkeys" / "fail-wiz.key").exists()
+    # bootstrap_key persisted into host_vars for retry hint
+    data = yaml.safe_load(core.host_vars_path("dev", "fail-wiz").read_text())
+    assert data["vps_runner"]["bootstrap_key"].endswith("fail-wiz.key")
 
 
 # --- T12 — flag mode preserves R6 inventory-only contract (R11 only changes hint text)

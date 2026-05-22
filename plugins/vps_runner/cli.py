@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import Any, Sequence
 
 from . import vps_runner as core
@@ -242,6 +243,13 @@ def _cmd_onboard(args: argparse.Namespace) -> int:
         boot_port = args.bootstrap_port or vr.get("bootstrap_port", 22)
         extravars["ansible_user"] = boot_user
         extravars["ansible_port"] = int(boot_port)
+        # R11 T2: if a previous wizard run failed mid-onboard and persisted
+        # the temp bootstrap key path, auto-inject it on retry so the operator
+        # doesn't need to re-paste or pass --extra-vars.
+        bootstrap_key = vr.get("bootstrap_key")
+        if bootstrap_key:
+            extravars["ansible_ssh_private_key_file"] = str(bootstrap_key)
+            print(f"==> retry: auto-injecting bootstrap_key={bootstrap_key}")
         print(
             f"==> first-time mode: connecting as {boot_user}@{boot_port} "
             f"(host_vars target = {data.get('ansible_user')}@{data.get('ansible_port')})"
@@ -411,22 +419,12 @@ def _cmd_add_host(args: argparse.Namespace) -> int:
 
     # ---- run onboard ----
     if auth_method == "k":
-        # T1 stub: key branch collects PEM but doesn't yet write a temp key file
-        # or auto-onboard. T2 will wire `runtime/keys/vps_runner/<alias>.key`
-        # extravars injection + post-onboard verify + cleanup. For now, just
-        # tell the operator how to proceed.
-        print(
-            f"\n==> 密钥分支: inventory 已写入 (bootstrap={bootstrap_user}@{bootstrap_port}).\n"
-            "    T2 尚未实施 (临时密钥落盘 + onboard 注入)。当前临时方案：\n"
-            f"    1) 把粘贴的私钥另存到 ~/.ssh/ 某文件 (chmod 0600)；\n"
-            f"    2) ssh-copy-id -i ~/.ssh/ansispire_ed25519.pub "
-            f"{bootstrap_user}@{ip} -p {bootstrap_port}\n"
-            f"    3) python -m plugins.vps_runner.cli onboard {alias} "
-            f"--env {args.env} --first-time\n"
+        return _wizard_onboard_key_branch(
+            args, alias, ip,
+            bootstrap_user=bootstrap_user, bootstrap_port=bootstrap_port,
+            managed_user=managed_user, managed_port=managed_port,
+            private_key_text=private_key_text or "",
         )
-        # Discard the pasted key text — never persist in T1.
-        _ = private_key_text
-        return 0
 
     # ---- password branch: full automatic onboard via passwords dict ----
     extravars: dict[str, Any] = {
@@ -471,6 +469,124 @@ def _cmd_add_host(args: argparse.Namespace) -> int:
         f"    （bootstrap user/port 已写入 host_vars，无需 --bootstrap-* flag）"
     )
     return 1
+
+
+def _wizard_onboard_key_branch(
+    args: argparse.Namespace,
+    alias: str,
+    ip: str,
+    *,
+    bootstrap_user: str,
+    bootstrap_port: int,
+    managed_user: str,
+    managed_port: int,
+    private_key_text: str,
+) -> int:
+    """R11 T2: key-branch onboard lifecycle.
+
+    1. Write pasted PEM to runtime/keys/vps_runner/<alias>.key (0600)
+    2. Run onboard with extravars injecting that path as the SSH key
+    3. On success → verify the standard automation key works → cleanup temp key
+    4. On failure → keep temp key + persist `vps_runner.bootstrap_key` in
+       host_vars so a subsequent `onboard --first-time` retry auto-injects
+       the same path without operator re-paste
+    """
+    try:
+        temp_key_path = core.write_temp_key(alias, private_key_text)
+    except core.VpsRunnerError as exc:
+        sys.stderr.write(f"vps-runner: temp key write failed: {exc}\n")
+        return 2
+    print(f"==> wrote temp bootstrap key: {temp_key_path}")
+
+    extravars: dict[str, Any] = {
+        "ansible_user": bootstrap_user,
+        "ansible_port": int(bootstrap_port),
+        "ansible_ssh_private_key_file": str(temp_key_path),
+    }
+    print(
+        f"==> first-time mode: connecting as {bootstrap_user}@{bootstrap_port} "
+        f"with temp key (host_vars target = {managed_user}@{managed_port})"
+    )
+    print(f"==> vps-runner onboard alias={alias} env={args.env}")
+    try:
+        summary = core.run_playbook(
+            action="onboard", env=args.env, playbook="onboard.yml",
+            limit=alias, extravars=extravars,
+        )
+    except core.VpsRunnerError as exc:
+        sys.stderr.write(f"vps-runner: {exc}\n")
+        _persist_bootstrap_key(args.env, alias, temp_key_path)
+        return 2
+
+    _print_summary(summary)
+    if summary.status != "successful":
+        core.record_run(args.env, alias, summary)
+        _persist_bootstrap_key(args.env, alias, temp_key_path)
+        print(
+            f"\n==> onboard 失败. inventory + temp key 保留. 修复后重试:\n"
+            f"    python -m plugins.vps_runner.cli onboard {alias} "
+            f"--env {args.env} --first-time\n"
+            f"    (bootstrap_user/port/key 已记录到 host_vars，无需 --bootstrap-* 或 --extra-vars)"
+        )
+        return 1
+
+    # ---- onboard succeeded — verify standard automation key now works ----
+    print(f"==> verifying standard automation key against {managed_user}@{managed_port}...")
+    try:
+        verify_summary = core.verify_standard_key(args.env, alias)
+    except core.VpsRunnerError as exc:
+        sys.stderr.write(f"vps-runner: verify call failed: {exc}\n")
+        core.record_run(args.env, alias, summary, set_status="active")
+        _persist_bootstrap_key(args.env, alias, temp_key_path)
+        print(
+            "==> onboard 成功但 verify 没跑成. temp key 保留以备人工检查."
+        )
+        return 1
+    if verify_summary.status != "successful":
+        core.record_run(args.env, alias, summary, set_status="active")
+        _persist_bootstrap_key(args.env, alias, temp_key_path)
+        print(
+            "==> verify failed: ansispire_ed25519 against managed user 不通."
+            " temp key 保留. 人工排查:\n"
+            f"    ssh -i ~/.ssh/ansispire_ed25519 {managed_user}@{ip} "
+            f"-p {managed_port}"
+        )
+        return 1
+
+    # ---- all green — cleanup + finalize ----
+    core.record_run(args.env, alias, summary, set_status="active")
+    if core.cleanup_temp_key(alias):
+        print(f"==> cleaned up temp key {temp_key_path}")
+    _clear_bootstrap_key(args.env, alias)
+    print(f"==> host_vars/{alias}.yml updated (status=active, bootstrap_key cleared)")
+    _write_local_ssh_alias(args.env, alias)
+    return 0
+
+
+def _persist_bootstrap_key(env: str, alias: str, temp_key_path: Path) -> None:
+    """Best-effort: write vps_runner.bootstrap_key into host_vars so a
+    subsequent `onboard --first-time` retry auto-injects the same temp key.
+    Failures are non-fatal (operator can still pass --extra-vars manually)."""
+    try:
+        data = core.read_host_vars(env, alias)
+        data.setdefault("vps_runner", {})["bootstrap_key"] = str(temp_key_path)
+        core.write_host_vars(env, alias, data)
+    except (core.VpsRunnerError, OSError) as exc:
+        sys.stderr.write(
+            f"vps-runner: failed to persist bootstrap_key hint: {exc}\n"
+        )
+
+
+def _clear_bootstrap_key(env: str, alias: str) -> None:
+    """Set vps_runner.bootstrap_key to null (key retained for schema clarity)."""
+    try:
+        data = core.read_host_vars(env, alias)
+        vr = data.get("vps_runner") or {}
+        if "bootstrap_key" in vr:
+            vr["bootstrap_key"] = None
+            core.write_host_vars(env, alias, data)
+    except (core.VpsRunnerError, OSError):
+        pass
 
 
 def _cmd_add_host_flag_mode(args: argparse.Namespace) -> int:

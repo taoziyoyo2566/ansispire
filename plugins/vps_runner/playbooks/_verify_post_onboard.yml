@@ -1,0 +1,27 @@
+---
+# vps_runner — post-onboard verification (R11)
+#
+# Runs a minimal reachability check using the standard automation key
+# (~/.ssh/ansispire_ed25519, injected via extravars by verify_standard_key()).
+# Purpose: after a wizard-driven first-time onboard using a pasted temporary
+# key, prove that the standard key now works so the temporary key can be
+# safely deleted from runtime/keys/vps_runner/.
+#
+# Why a separate playbook rather than reusing audit.yml: audit gathers facts
+# (uptime / disk / memory) which adds 1-2s for no benefit here. This is a
+# 1-task ping — fastest possible signal that mgmt key chain works.
+#
+# Variables consumed:
+#   ansible_ssh_private_key_file  (set by caller via extravars)
+#
+# Connection: onboard has already installed ansispire_ed25519.pub on the
+# managed user; this play connects as the managed user@managed_port (NOT
+# the bootstrap channel).
+
+- name: Vps_runner — post-onboard verify with standard automation key
+  hosts: vps_targets
+  gather_facts: false
+  any_errors_fatal: true
+  tasks:
+    - name: Ping via standard automation key
+      ansible.builtin.ping:

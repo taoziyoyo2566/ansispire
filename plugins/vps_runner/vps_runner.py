@@ -654,6 +654,71 @@ def _validate_private_key_text(text: str) -> None:
         )
 
 
+def write_temp_key(alias: str, private_key_text: str) -> Path:
+    """Write pasted PEM to TEMP_KEY_DIR/<alias>.key (0600).
+
+    Project-local (not ~/.ssh/) so the operator's SSH ecosystem stays untouched.
+    Validator already ensured BEGIN/END markers; we normalize CRLF→LF and
+    ensure trailing newline so ssh-keygen / ansible reads cleanly.
+
+    Returns the target Path. Raises VpsRunnerError on validation miss or
+    containment failure.
+    """
+    _validate_alias(alias)
+    _validate_private_key_text(private_key_text)
+    TEMP_KEY_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    target = TEMP_KEY_DIR / f"{alias}.key"
+    _assert_path_in_dir(target, TEMP_KEY_DIR)
+    normalized = private_key_text.replace("\r\n", "\n")
+    if not normalized.endswith("\n"):
+        normalized += "\n"
+    target.write_text(normalized, encoding="utf-8")
+    target.chmod(0o600)
+    return target
+
+
+def cleanup_temp_key(alias: str) -> bool:
+    """Remove TEMP_KEY_DIR/<alias>.key if present. Returns True iff removed.
+
+    Best-effort: alias is validated, but a path-traversal attempt or OS error
+    returns False instead of raising (mirror of delete_ssh_config contract).
+    """
+    try:
+        _validate_alias(alias)
+    except VpsRunnerError:
+        return False
+    target = TEMP_KEY_DIR / f"{alias}.key"
+    try:
+        _assert_path_in_dir(target, TEMP_KEY_DIR)
+    except VpsRunnerError:
+        return False
+    if not target.exists():
+        return False
+    try:
+        target.unlink()
+    except OSError:
+        return False
+    return True
+
+
+def verify_standard_key(env: str, alias: str, *, quiet: bool = True) -> RunSummary:
+    """Run _verify_post_onboard.yml against `alias` with the standard
+    automation key (~/.ssh/ansispire_ed25519) explicitly injected via
+    extravars. Returns the RunSummary; caller decides what to do with
+    summary.status (typically: == 'successful' → cleanup temp key).
+    """
+    return run_playbook(
+        action="verify",
+        env=env,
+        playbook="_verify_post_onboard.yml",
+        limit=alias,
+        extravars={
+            "ansible_ssh_private_key_file": str(DEFAULT_AUTOMATION_PRIVATE_KEY),
+        },
+        quiet=quiet,
+    )
+
+
 def _collect_private_key_text() -> str:
     """Read multi-line PEM from stdin until the -----END line.
 
