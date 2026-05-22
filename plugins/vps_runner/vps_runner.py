@@ -388,13 +388,16 @@ def list_hosts(env: str) -> list[dict[str, Any]]:
     Reads hosts.yml + host_vars/<alias>.yml directly. Cheap, sync, used
     by `vps-runner list`.
     """
-    inv_dir = inventory_path(env)
+    inventory_path(env)  # surface missing-env / unsupported-env early
     aliases = list_aliases(env)
 
     results: list[dict[str, Any]] = []
-    host_vars_dir = inv_dir / "host_vars"
     for alias in aliases:
-        host_file = host_vars_dir / f"{alias}.yml"
+        # Route through host_vars_path() chokepoint so a malformed alias in
+        # hosts.yml (hand-edit corruption) fails loud instead of silently
+        # reading a file outside host_vars/. Same charset + containment policy
+        # as add_host (see R9 charset rationale).
+        host_file = host_vars_path(env, alias)
         if host_file.exists():
             with host_file.open("r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}

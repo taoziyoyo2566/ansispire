@@ -360,6 +360,39 @@ def test_delete_ssh_config_silently_rejects_bad_alias(tmp_path):
     ) is False
 
 
+def test_list_hosts_fails_loud_on_corrupt_hosts_yml(tmp_path, monkeypatch):
+    """R10 — list_hosts must surface hand-edited inventory corruption.
+
+    If hosts.yml is hand-edited to contain a traversal-style alias
+    (e.g. `../escape:`), the chokepoint validator must raise so the
+    operator sees the corruption immediately, instead of list_hosts
+    silently reading a file outside host_vars/ (the R9 contract gap
+    reviewer surfaced)."""
+    env_dir = tmp_path / "inventory" / "vps_runner" / "dev"
+    (env_dir / "host_vars").mkdir(parents=True)
+    (env_dir / "hosts.yml").write_text(
+        "---\n"
+        "all:\n"
+        "  children:\n"
+        "    vps_targets:\n"
+        "      hosts:\n"
+        "        ../escape:\n"
+        "        legit:\n",
+        encoding="utf-8",
+    )
+    # craft a sibling file that the traversal would target, to prove
+    # the validator catches the intent (not just that the file doesn't exist)
+    (env_dir / "escape.yml").write_text("---\nansible_host: 10.0.0.99\n")
+    (env_dir / "host_vars" / "legit.yml").write_text(
+        "---\nansible_host: 192.0.2.1\n"
+    )
+    monkeypatch.setattr(
+        core, "INVENTORY_ROOT", tmp_path / "inventory" / "vps_runner"
+    )
+    with pytest.raises(core.VpsRunnerError, match="invalid"):
+        core.list_hosts("dev")
+
+
 def test_add_host_cli_dispatch(fake_inventory, capsys):
     rc = cli.main([
         "add-host", "delta",
