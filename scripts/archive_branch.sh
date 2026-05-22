@@ -280,6 +280,14 @@ echo "✅ remote archived atomically: tag '$TAG' created + branch '$BRANCH' dele
 #                                       all local commits are in TIP
 #   - else (ahead or divergent)       → real unpushed work; keep + warn
 if git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null; then
+  # Capture LOCAL tip BEFORE the worktree re-check, so the soft-skip recovery
+  # instruction prints the OID that `update-ref -d` will actually require.
+  # Squash-merge case: local_tip != $TIP (TIP is the remote merged-head OID
+  # the PR landed on, which differs from the local commit by definition for
+  # squash merges). Using $TIP in the recovery command would fail with
+  # "ref is at <local_tip>, not $TIP" in exactly the scenario this script
+  # was built to handle.
+  local_tip=$(git rev-parse "refs/heads/$BRANCH")
   # Re-check worktree blocker right before destructive local action.
   # Guard 5 to here spans `git fetch` + `gh pr view` + tag create + atomic
   # remote push — a window of 5-15s during which a concurrent agent could
@@ -294,12 +302,11 @@ if git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null; then
     echo "  (appeared in the window between Guard 5 and Step 4)" >&2
     echo "  Remote archive already completed atomically; not reversible." >&2
     echo "  Switch that worktree to another branch, then manually run:" >&2
-    echo "    git update-ref -d refs/heads/$BRANCH $TIP" >&2
+    echo "    git update-ref -d refs/heads/$BRANCH $local_tip" >&2
     echo ""
     echo "─── Done. Recover commits anytime via: git show $TAG"
     exit 0
   fi
-  local_tip=$(git rev-parse "refs/heads/$BRANCH")
   if [[ "$local_tip" == "$TIP" ]] || \
      git merge-base --is-ancestor "$local_tip" "$TIP" 2>/dev/null; then
     # local is at-or-behind TIP — all local commits reachable from TIP
