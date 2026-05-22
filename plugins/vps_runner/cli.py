@@ -391,12 +391,14 @@ def _cmd_add_host(args: argparse.Namespace) -> int:
     ssh_password = collected["ssh_password"]
     sudo_password = collected["sudo_password"]
     private_key_text = collected["private_key_text"]
+    overwrite = collected.get("overwrite", False)
 
     # ---- write inventory ----
     try:
         path = core.add_host(
             args.env, alias,
             ip=ip, port=managed_port, user=managed_user, status=args.status,
+            overwrite=overwrite,
         )
     except core.VpsRunnerError as exc:
         sys.stderr.write(f"vps-runner: {exc}\n")

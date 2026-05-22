@@ -398,6 +398,149 @@ def test_cleanup_temp_key_silent_reject_traversal(monkeypatch, tmp_path):
     assert core.cleanup_temp_key("../escape") is False
 
 
+def test_add_host_overwrite_replaces_existing(fake_inventory):
+    # alpha already exists in fake_inventory
+    path = core.add_host(
+        "dev", "alpha",
+        ip="10.1.1.1", port=2222, user="newuser",
+        overwrite=True,
+    )
+    data = yaml.safe_load(path.read_text())
+    assert data["ansible_host"] == "10.1.1.1"
+    assert data["ansible_port"] == 2222
+    assert data["ansible_user"] == "newuser"
+    # hosts.yml still has alpha (only one entry, not duplicated)
+    assert core.list_aliases("dev").count("alpha") == 1
+
+
+def test_add_host_overwrite_works_on_fresh_alias(fake_inventory):
+    # overwrite=True must be safe even when alias doesn't exist yet
+    path = core.add_host(
+        "dev", "freshname",
+        ip="10.2.2.2", port=2222, user="x",
+        overwrite=True,
+    )
+    assert path.exists()
+    assert "freshname" in core.list_aliases("dev")
+
+
+def test_ssh_probe_identity_file_missing(tmp_path):
+    ok, reason = core.ssh_probe(
+        "127.0.0.1", 22, "user", tmp_path / "no-such-key",
+    )
+    assert ok is False
+    assert reason.startswith("identity_file_missing:")
+
+
+def test_verify_existing_schema_fail(fake_inventory):
+    # beta has no host_vars file (orphan from fake_inventory)
+    ok, msg = core.verify_existing("dev", "beta")
+    assert ok is False
+    assert "schema" in msg or "unreadable" in msg
+
+
+def test_alias_collision_menu_option_1_skip(fake_inventory, monkeypatch, capsys):
+    inputs = iter(["1"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    assert core._alias_collision_menu("dev", "alpha") == "skip"
+
+
+def test_alias_collision_menu_option_2_retry(fake_inventory, monkeypatch):
+    inputs = iter(["2"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    assert core._alias_collision_menu("dev", "alpha") == "retry"
+
+
+def test_alias_collision_menu_option_3_verified(fake_inventory, monkeypatch):
+    inputs = iter(["3"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    monkeypatch.setattr(core, "verify_existing", lambda env, alias: (True, "OK"))
+    assert core._alias_collision_menu("dev", "alpha") == "verified"
+
+
+def test_alias_collision_menu_option_3_fail_then_overwrite(fake_inventory, monkeypatch):
+    inputs = iter(["3", "y"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    monkeypatch.setattr(
+        core, "verify_existing",
+        lambda env, alias: (False, "ssh probe failed (permission)"),
+    )
+    assert core._alias_collision_menu("dev", "alpha") == "overwrite"
+
+
+def test_alias_collision_menu_option_3_fail_then_decline(fake_inventory, monkeypatch):
+    inputs = iter(["3", "n"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    monkeypatch.setattr(
+        core, "verify_existing",
+        lambda env, alias: (False, "ssh probe failed (permission)"),
+    )
+    assert core._alias_collision_menu("dev", "alpha") == "skip"
+
+
+def test_alias_collision_menu_option_4_confirmed(fake_inventory, monkeypatch):
+    inputs = iter(["4", "y"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    assert core._alias_collision_menu("dev", "alpha") == "overwrite"
+
+
+def test_alias_collision_menu_option_4_declined(fake_inventory, monkeypatch):
+    inputs = iter(["4", "n"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    assert core._alias_collision_menu("dev", "alpha") == "skip"
+
+
+def test_wizard_same_alias_option_1_returns_none(
+    fake_inventory, wizard_entry_ok, monkeypatch
+):
+    # alpha exists; option 1 → wizard returns None
+    monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
+    inputs = iter(["alpha", "1"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    assert core.prompt_new_host("dev") is None
+
+
+def test_wizard_same_alias_option_2_then_new_alias_proceeds(
+    fake_inventory, wizard_entry_ok, monkeypatch
+):
+    monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
+    inputs = iter([
+        "alpha", "2",          # option 2 → retry alias
+        "freshhost", "192.0.2.99", "",  # alias / ip / bootstrap_user default
+        "k",
+        "-----BEGIN OPENSSH PRIVATE KEY-----",
+        "abc",
+        "-----END OPENSSH PRIVATE KEY-----",
+        "", "", "",
+    ])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    result = core.prompt_new_host("dev")
+    assert result is not None
+    assert result["alias"] == "freshhost"
+    assert result["overwrite"] is False
+
+
+def test_wizard_same_alias_option_4_overwrite_flag_propagates(
+    fake_inventory, wizard_entry_ok, monkeypatch
+):
+    monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
+    inputs = iter([
+        "alpha", "4", "y",        # alias collision + menu opt 4 + confirm
+        "192.0.2.99",             # ip
+        "",                        # bootstrap user (root default)
+        "k",                       # auth method
+        "-----BEGIN OPENSSH PRIVATE KEY-----",
+        "abc",
+        "-----END OPENSSH PRIVATE KEY-----",
+        "", "", "",                # bootstrap port / managed_user / managed_port
+    ])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    result = core.prompt_new_host("dev")
+    assert result is not None
+    assert result["alias"] == "alpha"
+    assert result["overwrite"] is True
+
+
 def test_onboard_first_time_auto_injects_bootstrap_key(
     fake_inventory, monkeypatch, tmp_path
 ):

@@ -18,6 +18,7 @@ import contextlib
 import getpass
 import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -324,6 +325,7 @@ def add_host(
     port: int = 1156,
     user: str = "ansible",
     status: str = "pending",
+    overwrite: bool = False,
 ) -> Path:
     """Create a new managed-VPS inventory entry.
 
@@ -334,6 +336,9 @@ def add_host(
     Validates: alias must not already exist in either hosts.yml or
     host_vars/<alias>.yml; port must be in [1024, 65535] and != 22 (mirrors
     onboard.yml `pre_tasks` assertion to fail at CLI time, not mid-onboard).
+
+    overwrite=True (R11 T3): force-replace existing host_vars + hosts.yml entry.
+    Caller (wizard collision menu option 4) is responsible for confirmation.
 
     Returns the path to the created host_vars file.
     """
@@ -350,13 +355,21 @@ def add_host(
         )
 
     hv_path = host_vars_path(env, alias)
-    if hv_path.exists():
+    if hv_path.exists() and not overwrite:
         raise VpsRunnerError(f"host_vars already exists: {hv_path}")
-    if alias in list_aliases(env):
+    if alias in list_aliases(env) and not overwrite:
         raise VpsRunnerError(
             f"alias '{alias}' already in hosts.yml (orphaned entry; "
             f"clean it first or pick a different alias)"
         )
+    # overwrite path: silently clear existing state so write doesn't append
+    if overwrite:
+        if alias in list_aliases(env):
+            remove_alias_from_hosts(env, alias)
+        if hv_path.exists():
+            hv_path.unlink()
+        # cleanup any lingering temp key from a prior failed wizard run
+        cleanup_temp_key(alias)
 
     data: dict[str, Any] = {
         "ansible_host": ip,
@@ -701,6 +714,83 @@ def cleanup_temp_key(alias: str) -> bool:
     return True
 
 
+def ssh_probe(
+    host: str, port: int, user: str, identity_file: Path,
+    *, timeout: int = 5,
+) -> tuple[bool, str]:
+    """Run `ssh -o BatchMode=yes` against the host using the given key.
+
+    Returns (ok, classified_reason). On failure, reason is a short token from
+    {permission, refused, timeout, hostkey, other} so callers can branch on
+    remediation hints. ok=True iff exit code == 0.
+    """
+    if not identity_file.exists():
+        return False, f"identity_file_missing:{identity_file}"
+    cmd = [
+        "ssh",
+        "-o", "BatchMode=yes",
+        "-o", f"ConnectTimeout={timeout}",
+        "-o", "StrictHostKeyChecking=accept-new",
+        "-i", str(identity_file),
+        "-p", str(port),
+        f"{user}@{host}",
+        "true",
+    ]
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout + 5,
+        )
+    except subprocess.TimeoutExpired:
+        return False, "timeout"
+    except OSError as exc:
+        return False, f"other:{exc}"
+    if result.returncode == 0:
+        return True, ""
+    stderr = (result.stderr or "").lower()
+    if "permission denied" in stderr:
+        return False, "permission"
+    if "connection refused" in stderr:
+        return False, "refused"
+    if "timed out" in stderr or "operation timed out" in stderr:
+        return False, "timeout"
+    if "host key verification failed" in stderr:
+        return False, "hostkey"
+    return False, f"other:{result.returncode}"
+
+
+def verify_existing(env: str, alias: str) -> tuple[bool, str]:
+    """R11 §4.1: verify an existing host_vars entry is still actually usable.
+
+    Three checks (in order):
+      (a) host_vars schema — required fields present and correct types
+      (b) SSH probe via the standard automation key
+      (c) ansible ping via _verify_post_onboard.yml
+
+    Returns (ok, message). Short-circuits on the first failure. Used by the
+    wizard's same-alias menu option 3 to decide whether the existing config
+    is salvageable or warrants overwrite.
+    """
+    try:
+        data = read_host_vars(env, alias)
+    except VpsRunnerError as exc:
+        return False, f"host_vars unreadable: {exc}"
+    required = (("ansible_host", str), ("ansible_port", int), ("ansible_user", str))
+    for key, typ in required:
+        val = data.get(key)
+        if not isinstance(val, typ) or (isinstance(val, str) and not val):
+            return False, f"host_vars schema: missing or wrong-type field '{key}'"
+    ok, reason = ssh_probe(
+        data["ansible_host"], int(data["ansible_port"]),
+        data["ansible_user"], DEFAULT_AUTOMATION_PRIVATE_KEY,
+    )
+    if not ok:
+        return False, f"ssh probe failed ({reason})"
+    summary = verify_standard_key(env, alias)
+    if summary.status != "successful":
+        return False, f"ansible ping failed (rc={summary.rc})"
+    return True, "OK"
+
+
 def verify_standard_key(env: str, alias: str, *, quiet: bool = True) -> RunSummary:
     """Run _verify_post_onboard.yml against `alias` with the standard
     automation key (~/.ssh/ansispire_ed25519) explicitly injected via
@@ -740,6 +830,74 @@ def _collect_private_key_text() -> str:
         text += "\n"
     _validate_private_key_text(text)
     return text
+
+
+def _summarize_existing(env: str, alias: str) -> str:
+    """Render a one-block textual summary of an existing host_vars entry,
+    for the collision menu's preamble."""
+    try:
+        data = read_host_vars(env, alias)
+    except VpsRunnerError as exc:
+        return f"  (host_vars unreadable: {exc})"
+    vr = data.get("vps_runner") or {}
+    last = vr.get("last_run") or {}
+    return (
+        f"  IP:          {data.get('ansible_host', '-')}\n"
+        f"  Bootstrap:   {vr.get('bootstrap_user', '-')}@"
+        f"{vr.get('bootstrap_port', '-')}\n"
+        f"  Managed:     {vr.get('managed_user', data.get('ansible_user', '-'))}@"
+        f"{vr.get('managed_port', data.get('ansible_port', '-'))}\n"
+        f"  Status:      {vr.get('status', 'unknown')}"
+        f"  (last_run: {last.get('action', '无')})"
+    )
+
+
+def _alias_collision_menu(env: str, alias: str) -> str:
+    """4-option menu per plan-2026-05-22b §4. Returns one of:
+      "skip"        — operator chose 1; wizard returns None silently
+      "retry"       — operator chose 2; wizard re-prompts the Alias field
+      "verified"    — operator chose 3 and verify succeeded; wizard returns None
+      "overwrite"   — operator chose 4, OR chose 3 → verify failed → confirmed overwrite
+    """
+    print(f"\n==> 检测到 alias '{alias}' 已存在:\n")
+    print(_summarize_existing(env, alias))
+    while True:
+        print(
+            "\n请选择处理方式:\n"
+            "  1) 跳过并结束                              [默认]\n"
+            "  2) 使用新的 alias 继续\n"
+            "  3) 验证现有配置\n"
+            "  4) 强制覆盖现有配置 (use when current is broken)"
+        )
+        raw = input("选择 [1]: ").strip() or "1"
+        if raw == "1":
+            print("==> 已跳过.")
+            return "skip"
+        if raw == "2":
+            return "retry"
+        if raw == "3":
+            print(f"==> 验证 '{alias}' 现有配置 ...")
+            ok, msg = verify_existing(env, alias)
+            if ok:
+                print(f"==> {msg} — 配置正确，无需变更.")
+                return "verified"
+            print(f"==> 现有配置失效: {msg}")
+            confirm = input("是否覆盖? (y/N): ").strip().lower()
+            if confirm == "y":
+                return "overwrite"
+            print("==> 取消覆盖, 跳过.")
+            return "skip"
+        if raw == "4":
+            print(
+                "==> 警告: 将覆盖 host_vars + hosts.yml + 清理 temp key. "
+                "原有配置会丢失."
+            )
+            confirm = input("继续? (y/N): ").strip().lower()
+            if confirm == "y":
+                return "overwrite"
+            print("==> 取消覆盖, 跳过.")
+            return "skip"
+        print("  ! 请输入 1 / 2 / 3 / 4")
 
 
 def prompt_new_host(
@@ -793,6 +951,7 @@ def prompt_new_host(
     try:
         # ---- 1. alias ----
         existing = set(list_aliases(env))
+        overwrite_existing = False
         while True:
             alias = input("Alias [必填]: ").strip()
             try:
@@ -801,12 +960,16 @@ def prompt_new_host(
                 print(f"  ! {exc}")
                 continue
             if alias in existing:
-                # T1 stub: just refuse. T3 will implement the 4-option menu.
-                print(
-                    f"  ! alias '{alias}' already exists in env={env}; "
-                    f"pick another (T3 will offer a 4-option menu)"
-                )
-                continue
+                action = _alias_collision_menu(env, alias)
+                if action == "skip":
+                    return None
+                if action == "retry":
+                    continue
+                if action == "verified":
+                    return None
+                # action == "overwrite"
+                overwrite_existing = True
+                break
             break
 
         # ---- 2. ip ----
@@ -934,6 +1097,7 @@ def prompt_new_host(
         "ssh_password": ssh_password,      # set only if auth_method == "p"
         "sudo_password": sudo_password,    # set only if user != "root"
         "private_key_text": private_key_text,  # set only if auth_method == "k"
+        "overwrite": overwrite_existing,   # True iff collision-menu option 4
     }
 
 
