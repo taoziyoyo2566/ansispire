@@ -53,9 +53,95 @@ SUPPORTED_ENVS = ("dev", "stag", "prod")
 # so secrets in the caller's process env never reach `runtime/logs/.../command`.
 _ENVVAR_WHITELIST = ("HOME", "LANG", "LC_ALL", "LC_CTYPE", "TERM")
 
+# Input charset policies. Each is the *primary* defense; resolved-path
+# containment checks (see _assert_path_in_dir) are belt-and-braces.
+# - alias: filesystem path component + YAML key + j2 input. Conservative:
+#   alnum + `_-.`, must start alnum (no leading dash → no flag-spoof; no
+#   leading dot → no hidden-file shenanigans). Length ≤63 keeps Ansible
+#   "limit" CLI string + inventory yaml readable.
+# - hostname: SSH HostName value. Reject whitespace / newline / `#` so the
+#   rendered config line can't break out into another directive.
+# - ssh user: POSIX-ish username. Reject anything outside `[A-Za-z_][A-Za-z0-9_-]*`.
+_VALID_ALIAS_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*$")
+_VALID_HOSTNAME_RE = re.compile(r"^[^\s#]+$")
+_VALID_SSH_USER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
+_MAX_ALIAS_LEN = 63
+_MAX_HOSTNAME_LEN = 253
+_MAX_SSH_USER_LEN = 32
+
 
 class VpsRunnerError(Exception):
     """Base plugin error."""
+
+
+def _validate_alias(alias: Any) -> str:
+    """Return alias unchanged iff it matches _VALID_ALIAS_RE and is ≤63 chars.
+
+    Rejects: empty, non-str, traversal (`/`, `\\`, `..`), leading dash / dot,
+    whitespace / newlines (SSH-config injection vector), control chars,
+    over-long values. Raises VpsRunnerError with a single human-readable message.
+    """
+    if not isinstance(alias, str) or not alias:
+        raise VpsRunnerError("alias must be a non-empty string")
+    if len(alias) > _MAX_ALIAS_LEN:
+        raise VpsRunnerError(
+            f"alias too long ({len(alias)} > {_MAX_ALIAS_LEN} chars)"
+        )
+    if not _VALID_ALIAS_RE.match(alias):
+        raise VpsRunnerError(
+            f"alias {alias!r} invalid; allowed charset: letters/digits/_-., "
+            f"must start with letter or digit, ≤{_MAX_ALIAS_LEN} chars"
+        )
+    return alias
+
+
+def _validate_hostname(hostname: Any) -> str:
+    """Return hostname unchanged iff free of whitespace/newlines/`#` and ≤253 chars.
+
+    Accepts IPv4, IPv6 (colons OK), DNS names. Rejects values that could break
+    out of the SSH HostName directive (newline → directive injection; `#` →
+    SSH config comment; whitespace → SSH config field separator).
+    """
+    if not isinstance(hostname, str) or not hostname:
+        raise VpsRunnerError("hostname must be a non-empty string")
+    if len(hostname) > _MAX_HOSTNAME_LEN:
+        raise VpsRunnerError(
+            f"hostname too long ({len(hostname)} > {_MAX_HOSTNAME_LEN} chars)"
+        )
+    if not _VALID_HOSTNAME_RE.match(hostname):
+        raise VpsRunnerError(
+            f"hostname {hostname!r} invalid; reject any whitespace, newline, or '#'"
+        )
+    return hostname
+
+
+def _validate_ssh_user(user: Any) -> str:
+    """Return user unchanged iff matches `[A-Za-z_][A-Za-z0-9_-]*` and ≤32 chars."""
+    if not isinstance(user, str) or not user:
+        raise VpsRunnerError("ssh user must be a non-empty string")
+    if len(user) > _MAX_SSH_USER_LEN:
+        raise VpsRunnerError(
+            f"ssh user too long ({len(user)} > {_MAX_SSH_USER_LEN} chars)"
+        )
+    if not _VALID_SSH_USER_RE.match(user):
+        raise VpsRunnerError(
+            f"ssh user {user!r} invalid; allowed charset: "
+            f"[A-Za-z_][A-Za-z0-9_-]*, ≤{_MAX_SSH_USER_LEN} chars"
+        )
+    return user
+
+
+def _assert_path_in_dir(path: Path, parent: Path) -> None:
+    """Belt-and-braces: after building `path` from possibly-user-controlled
+    alias, assert it resolves under `parent`. Catches any traversal the
+    charset regex missed (symlink edge cases, OS-specific normalizations).
+    """
+    try:
+        path.resolve().relative_to(parent.resolve())
+    except ValueError:
+        raise VpsRunnerError(
+            f"path traversal blocked: {path} not under {parent}"
+        ) from None
 
 
 @dataclass(frozen=True)
@@ -117,7 +203,11 @@ def list_aliases(env: str) -> list[str]:
 
 
 def host_vars_path(env: str, alias: str) -> Path:
-    return inventory_path(env) / "host_vars" / f"{alias}.yml"
+    _validate_alias(alias)
+    parent = inventory_path(env) / "host_vars"
+    target = parent / f"{alias}.yml"
+    _assert_path_in_dir(target, parent)
+    return target
 
 
 def read_host_vars(env: str, alias: str) -> dict[str, Any]:
@@ -242,10 +332,9 @@ def add_host(
 
     Returns the path to the created host_vars file.
     """
-    if not alias or not alias.strip():
-        raise VpsRunnerError("alias must be non-empty")
-    if not ip or not ip.strip():
-        raise VpsRunnerError("ip must be non-empty")
+    _validate_alias(alias)
+    ip = _validate_hostname(ip.strip() if isinstance(ip, str) else ip)
+    user = _validate_ssh_user(user.strip() if isinstance(user, str) else user)
     if port == 22:
         raise VpsRunnerError(
             f"port=22 not allowed for managed_port (use a non-22 high port)"
@@ -286,7 +375,7 @@ def add_host(
 
 def delete_host_vars(env: str, alias: str) -> bool:
     """Delete host_vars/<alias>.yml. Returns True if removed."""
-    path = host_vars_path(env, alias)
+    path = host_vars_path(env, alias)  # validates alias + containment
     if not path.exists():
         return False
     path.unlink()
@@ -538,8 +627,10 @@ def prompt_new_host(
         existing = set(list_aliases(env))
         while True:
             alias = input("Alias [必填]: ").strip()
-            if not alias:
-                print("  ! alias must be non-empty")
+            try:
+                _validate_alias(alias)
+            except VpsRunnerError as exc:
+                print(f"  ! {exc}")
                 continue
             if alias in existing:
                 print(f"  ! alias '{alias}' already exists in env={env}; pick another")
@@ -548,8 +639,10 @@ def prompt_new_host(
 
         while True:
             ip = input("IP / hostname [必填]: ").strip()
-            if not ip:
-                print("  ! IP / hostname must be non-empty")
+            try:
+                _validate_hostname(ip)
+            except VpsRunnerError as exc:
+                print(f"  ! {exc}")
                 continue
             break
 
@@ -568,9 +661,14 @@ def prompt_new_host(
                 continue
             break
 
-        user = input(f"Managed SSH user [{user_default}]: ").strip() or user_default
-        if not user:
-            user = user_default
+        while True:
+            user = input(f"Managed SSH user [{user_default}]: ").strip() or user_default
+            try:
+                _validate_ssh_user(user)
+            except VpsRunnerError as exc:
+                print(f"  ! {exc}")
+                continue
+            break
     except (EOFError, KeyboardInterrupt):
         sys.stderr.write("\n(wizard aborted)\n")
         return None
@@ -609,12 +707,22 @@ def write_ssh_config(
             "Run: pip install -r requirements.txt"
         ) from exc
 
+    _validate_alias(alias)
+    hostname = _validate_hostname(
+        hostname.strip() if isinstance(hostname, str) else hostname
+    )
+    user = _validate_ssh_user(
+        user.strip() if isinstance(user, str) else user
+    )
+
     if not SSH_CONFIG_TEMPLATE.exists():
         raise VpsRunnerError(
             f"ssh config template missing: {SSH_CONFIG_TEMPLATE}"
         )
 
     ssh_config_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    target = ssh_config_dir / f"{alias}.conf"
+    _assert_path_in_dir(target, ssh_config_dir)
     template = jinja2.Template(
         SSH_CONFIG_TEMPLATE.read_text(encoding="utf-8")
     )
@@ -628,7 +736,6 @@ def write_ssh_config(
         }
     )
 
-    target = ssh_config_dir / f"{alias}.conf"
     target.write_text(content, encoding="utf-8")
     target.chmod(0o600)
     return target
@@ -644,7 +751,15 @@ def delete_ssh_config(
     """
     if ssh_config_dir is None:
         ssh_config_dir = DEFAULT_SSH_CONFIG_DIR
+    try:
+        _validate_alias(alias)
+    except VpsRunnerError:
+        return False
     target = ssh_config_dir / f"{alias}.conf"
+    try:
+        _assert_path_in_dir(target, ssh_config_dir)
+    except VpsRunnerError:
+        return False
     if not target.exists():
         return False
     try:

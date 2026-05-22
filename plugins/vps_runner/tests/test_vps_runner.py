@@ -208,10 +208,156 @@ def test_add_host_refuses_out_of_range_port(fake_inventory, bad_port):
 
 
 def test_add_host_refuses_empty_alias_or_ip(fake_inventory):
-    with pytest.raises(core.VpsRunnerError, match="alias must be non-empty"):
+    with pytest.raises(core.VpsRunnerError, match="alias must be a non-empty string"):
         core.add_host("dev", "", ip="192.0.2.42")
-    with pytest.raises(core.VpsRunnerError, match="ip must be non-empty"):
+    with pytest.raises(core.VpsRunnerError, match="hostname must be a non-empty string"):
         core.add_host("dev", "gamma", ip="")
+
+
+# ---------------------------------------------------------------------------
+# F2 — input validators (alias / hostname / ssh user) + path containment
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "bad_alias",
+    [
+        "../foo",          # parent traversal
+        "foo/bar",         # path separator
+        "/abs/path",       # absolute path
+        "..",              # plain traversal
+        ".hidden",         # leading dot
+        "-flag",           # leading dash (CLI-flag spoof)
+        "_under",          # leading underscore (we require alnum-start)
+        "foo bar",         # whitespace
+        "foo\tbar",        # tab
+        "foo\nbar",        # newline (SSH-config injection)
+        "foo#bar",         # `#` outside allowed charset
+        "foo;rm -rf",      # shell metachars
+        "a" * 64,          # over length cap
+    ],
+)
+def test_validate_alias_rejects_bad_input(bad_alias):
+    with pytest.raises(core.VpsRunnerError):
+        core._validate_alias(bad_alias)
+
+
+@pytest.mark.parametrize(
+    "good_alias",
+    [
+        "hy-hk-u24",       # existing fleet
+        "de-d12-1",
+        "test-r7-wizard",
+        "A1",              # minimal
+        "foo.bar",         # FQDN-ish
+        "foo_bar",         # underscore mid-string
+        "a" * 63,          # at length cap
+    ],
+)
+def test_validate_alias_accepts_good_input(good_alias):
+    assert core._validate_alias(good_alias) == good_alias
+
+
+def test_validate_alias_rejects_non_str():
+    with pytest.raises(core.VpsRunnerError, match="non-empty string"):
+        core._validate_alias(None)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "bad_host",
+    [
+        "192.0.2.1\nHost evil",   # newline directive injection
+        "192.0.2.1 # comment",    # whitespace + comment
+        "foo bar",                # whitespace
+        "host#name",              # `#` SSH comment
+        "",                       # empty
+    ],
+)
+def test_validate_hostname_rejects_injection(bad_host):
+    with pytest.raises(core.VpsRunnerError):
+        core._validate_hostname(bad_host)
+
+
+@pytest.mark.parametrize(
+    "good_host",
+    [
+        "192.0.2.1",
+        "203.0.113.42",
+        "vps.example.com",
+        "::1",                    # IPv6 loopback
+        "2001:db8::1",            # IPv6
+    ],
+)
+def test_validate_hostname_accepts_addresses(good_host):
+    assert core._validate_hostname(good_host) == good_host
+
+
+@pytest.mark.parametrize(
+    "bad_user",
+    [
+        "root with space",
+        "user;rm",
+        "-flag",
+        "9starts_digit",          # POSIX: must not start with digit
+        "user\nHost evil",
+        "",
+        "a" * 33,                 # over cap
+    ],
+)
+def test_validate_ssh_user_rejects_bad_input(bad_user):
+    with pytest.raises(core.VpsRunnerError):
+        core._validate_ssh_user(bad_user)
+
+
+@pytest.mark.parametrize(
+    "good_user",
+    ["ansible", "deploy", "_svc", "u1", "ops-bot"],
+)
+def test_validate_ssh_user_accepts_good_input(good_user):
+    assert core._validate_ssh_user(good_user) == good_user
+
+
+def test_add_host_rejects_traversal_alias(fake_inventory):
+    with pytest.raises(core.VpsRunnerError, match="invalid"):
+        core.add_host("dev", "../evil", ip="192.0.2.99")
+    # confirm no file was created outside host_vars
+    assert not (fake_inventory.parent / "evil.yml").exists()
+
+
+def test_add_host_rejects_hostname_injection(fake_inventory):
+    with pytest.raises(core.VpsRunnerError, match="hostname"):
+        core.add_host("dev", "newhost", ip="192.0.2.1\nHost evil")
+
+
+def test_host_vars_path_blocks_traversal(fake_inventory):
+    with pytest.raises(core.VpsRunnerError, match="invalid"):
+        core.host_vars_path("dev", "../escape")
+
+
+def test_write_ssh_config_rejects_traversal_alias(tmp_path):
+    with pytest.raises(core.VpsRunnerError, match="invalid"):
+        core.write_ssh_config(
+            "../escape",
+            hostname="192.0.2.1", port=2222, user="ansible",
+            ssh_config_dir=tmp_path / "ssh" / "config.d",
+        )
+
+
+def test_write_ssh_config_rejects_hostname_injection(tmp_path):
+    with pytest.raises(core.VpsRunnerError, match="hostname"):
+        core.write_ssh_config(
+            "good-alias",
+            hostname="192.0.2.1\n  ProxyCommand /bin/sh",
+            port=2222, user="ansible",
+            ssh_config_dir=tmp_path / "ssh" / "config.d",
+        )
+
+
+def test_delete_ssh_config_silently_rejects_bad_alias(tmp_path):
+    # delete_ssh_config promises never-raise; bad alias → return False
+    assert core.delete_ssh_config(
+        "../config", ssh_config_dir=tmp_path / "ssh" / "config.d"
+    ) is False
 
 
 def test_add_host_cli_dispatch(fake_inventory, capsys):
