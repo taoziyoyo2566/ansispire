@@ -29,6 +29,15 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased]
 
+### VPS Runner: first-time onboard repair + fail2ban closure (feat/vps-manager-v2 Round 12b, 2026-05-23)
+
+- **CLI `onboard --first-time`**: no longer injects Ansible-reserved `ansible_user` / `ansible_port` / `ansible_ssh_private_key_file` as extra-vars. It now passes `vps_first_time_*` marker vars so `onboard.yml` can switch connection facts safely mid-play.
+- **Partial-success recovery**: `--first-time` first probes the managed channel with the standard automation key. If managed SSH already works, the CLI runs managed repair mode instead of retrying a bootstrap port that may already be closed.
+- **Existing alias repair UX**: `add-host` wizard option 3 now runs basic verification and then audit policy checks. It lists non-compliant or non-running items from audit findings, then lets the operator choose managed repair. Choosing not to repair exits cleanly instead of surfacing Make `Error 130`.
+- **Audit policy output**: `audit.yml` now executes inventory-defined `vps_runner_audit_rules` and emits a structured compliance summary; the `audit` CLI prints those findings under `Project policy audit`.
+- **`onboard.yml` state machine**: fact gathering is now explicit and happens after first-time connection selection; managed validation uses `set_fact` + `meta: reset_connection`, so final reconnects use the managed user/port/key.
+- **fail2ban**: sshd jail defaults to `backend = systemd` on systemd hosts, Debian/systemd installs `python3-systemd`, and both onboard + modify toggle-on restart fail2ban, wait for `ActiveState=active`, and verify `fail2ban-client status sshd`.
+
 ### VPS Runner: add-host triple-entry + post-onboard SSH alias write (feat/vps-manager-v2 Round 7, 2026-05-22)
 
 Closes 4 gaps in the v2 plugin without architectural changes (G1 orphan `ssh_config_entry.j2` template, G2 broken docs promise about `~/.ssh/config.d/`, G3 no interactive scaffold, G4 no hand-write template).

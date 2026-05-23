@@ -29,6 +29,72 @@ features:
   ufw: true
   fail2ban: true
 
+# Read-only audit policy. audit.yml executes these declarative rules and
+# compares stdout/rc against the expected fields; it does not hard-code which
+# project policy items are required. Use vps_runner_audit_rules_disabled or
+# vps_runner_audit_rules_extra in host_vars when a target intentionally differs.
+vps_runner_audit_rules:
+  - id: managed_sudo
+    label: Managed sudo
+    command: id -u
+    expected: become succeeds and id -u returns 0
+    expected_stdout: "0"
+
+  - id: sshd_managed_port
+    label: sshd managed port
+    command: sshd -T
+    expected: "port {{ vps_runner.managed_port | default(ansible_port) }}"
+    expected_stdout_regex: "(?m)^port {{ vps_runner.managed_port | default(ansible_port) }}$"
+
+  - id: sshd_root_login
+    label: sshd root login
+    enabled: "{{ security.root_login_disabled | default(true) }}"
+    command: sshd -T
+    expected: PermitRootLogin no
+    expected_stdout_regex: "(?m)^permitrootlogin no$"
+
+  - id: sshd_password_authentication
+    label: sshd password auth
+    enabled: "{{ security.password_login_disabled | default(true) }}"
+    command: sshd -T
+    expected: PasswordAuthentication no
+    expected_stdout_regex: "(?m)^passwordauthentication no$"
+
+  - id: sshd_kbd_interactive
+    label: sshd keyboard-interactive auth
+    enabled: "{{ security.disable_kbd_interactive | default(true) }}"
+    command: sshd -T
+    expected: KbdInteractiveAuthentication no
+    expected_stdout_regex: "(?m)^kbdinteractiveauthentication no$"
+
+  - id: ufw_status
+    label: UFW
+    enabled: "{{ features.ufw | default(true) }}"
+    command: ufw status
+    expected: "Status: active"
+    expected_stdout_contains: "Status: active"
+
+  - id: fail2ban_enabled
+    label: fail2ban enabled
+    enabled: "{{ security.fail2ban_enabled | default(features.fail2ban | default(false)) }}"
+    command: systemctl is-enabled fail2ban
+    expected: enabled
+    expected_stdout: enabled
+
+  - id: fail2ban_active
+    label: fail2ban service
+    enabled: "{{ security.fail2ban_enabled | default(features.fail2ban | default(false)) }}"
+    command: systemctl is-active fail2ban
+    expected: active
+    expected_stdout: active
+
+  - id: fail2ban_sshd_jail
+    label: fail2ban sshd jail
+    enabled: "{{ security.fail2ban_enabled | default(features.fail2ban | default(false)) }}"
+    command: fail2ban-client status sshd
+    expected: fail2ban-client status sshd succeeds
+    expected_rc: 0
+
 # Group-wide vps_runner defaults — combined with per-host `vps_runner` in
 # onboard.yml. Add per-host overrides by setting the same key in host_vars.
 vps_runner_defaults:

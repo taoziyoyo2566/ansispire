@@ -40,6 +40,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_ROOT = PROJECT_ROOT / "inventory" / "vps_runner"
 ARTIFACT_ROOT = PROJECT_ROOT / "runtime" / "logs" / "vps_runner"
 ANSIBLE_LOCAL_TEMP = PROJECT_ROOT / ".ansible" / "tmp"
+ANSIBLE_SSH_CONTROL_PATH_DIR = PROJECT_ROOT / ".ansible" / "cp"
 TEMP_KEY_DIR = PROJECT_ROOT / "runtime" / "keys" / "vps_runner"
 PLAYBOOK_DIR = Path(__file__).resolve().parent / "playbooks"
 SSH_CONFIG_TEMPLATE = PLAYBOOK_DIR / "templates" / "ssh_config_entry.j2"
@@ -448,9 +449,9 @@ def _build_runner_envvars() -> dict[str, str]:
       (Makefile-independent — see codex review P1.4).
     - Carry ANSIBLE_CONFIG + the project's collections/roles paths so
       ansible-playbook resolves to the correct config and content.
-    - Pin ANSIBLE_LOCAL_TEMP to a project-local dir so the plugin works
-      when ~/.ansible/tmp is missing/read-only (mirrors Makefile so the
-      plugin is invariant to the operator's HOME state).
+    - Pin ANSIBLE_LOCAL_TEMP and SSH ControlPath to project-local dirs so the
+      plugin works when ~/.ansible is missing/read-only (mirrors Makefile so
+      the plugin is invariant to the operator's HOME state).
     - Forward only a small allowlist of innocuous locale/HOME vars (see
       _ENVVAR_WHITELIST); do NOT pass arbitrary caller env (P1.3).
 
@@ -462,12 +463,14 @@ def _build_runner_envvars() -> dict[str, str]:
         [str(venv_bin), "/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/bin"]
     )
     ANSIBLE_LOCAL_TEMP.mkdir(parents=True, exist_ok=True)
+    ANSIBLE_SSH_CONTROL_PATH_DIR.mkdir(parents=True, exist_ok=True)
     env: dict[str, str] = {
         "PATH": path,
         "ANSIBLE_CONFIG": str(PROJECT_ROOT / "ansible.cfg"),
         "ANSIBLE_COLLECTIONS_PATH": str(PROJECT_ROOT / "collections"),
         "ANSIBLE_ROLES_PATH": str(PROJECT_ROOT / "roles"),
         "ANSIBLE_LOCAL_TEMP": str(ANSIBLE_LOCAL_TEMP),
+        "ANSIBLE_SSH_CONTROL_PATH_DIR": str(ANSIBLE_SSH_CONTROL_PATH_DIR),
     }
     for key in _ENVVAR_WHITELIST:
         if key in os.environ:
@@ -581,20 +584,63 @@ def _collect_host_results(runner: ansible_runner.Runner) -> list[HostResult]:
 
     results: list[HostResult] = []
     for alias in sorted(all_hosts):
+        events = _collect_host_events(runner, alias)
         if alias in unreachable_hosts:
-            status, msg = "unreachable", _first_event_msg(
-                runner, alias, "runner_on_unreachable"
-            )
+            status = "unreachable"
+            msg = _first_event_msg_from_events(events, "runner_on_unreachable")
         elif alias in failed_hosts:
-            status, msg = "failed", _first_event_msg(
-                runner, alias, "runner_on_failed"
-            )
+            status = "failed"
+            msg = _first_event_msg_from_events(events, "runner_on_failed")
         elif alias in ok_hosts:
             status, msg = "ok", ""
         else:
             status, msg = "skipped", ""
-        results.append(HostResult(alias=alias, status=status, message=msg))
+        results.append(
+            HostResult(alias=alias, status=status, message=msg, events=events)
+        )
     return results
+
+
+def _collect_host_events(
+    runner: ansible_runner.Runner, host: str
+) -> list[dict[str, Any]]:
+    """Return a compact, structured subset of host events.
+
+    We keep task result payloads so audit.yml's debug summary can be consumed
+    by the CLI without scraping stdout. The summary is not persisted to
+    host_vars; record_run() stores only run metadata.
+    """
+    events: list[dict[str, Any]] = []
+    try:
+        for event in runner.host_events(host):
+            data = (event.get("event_data") or {})
+            res = data.get("res")
+            if isinstance(res, dict):
+                events.append(
+                    {
+                        "event": event.get("event"),
+                        "task": data.get("task"),
+                        "res": res,
+                    }
+                )
+    except Exception:  # noqa: BLE001 — best-effort only
+        return events
+    return events
+
+
+def _first_event_msg_from_events(
+    events: list[dict[str, Any]], event_type: str
+) -> str:
+    for event in events:
+        if event.get("event") == event_type:
+            result = event.get("res") or {}
+            return str(
+                result.get("msg")
+                or result.get("module_stderr")
+                or result.get("stderr")
+                or ""
+            )[:500]
+    return ""
 
 
 def _first_event_msg(
@@ -614,6 +660,50 @@ def _first_event_msg(
     except Exception:  # noqa: BLE001 — fallback to empty msg
         pass
     return ""
+
+
+def audit_summary_by_alias(summary: RunSummary) -> dict[str, dict[str, Any]]:
+    """Extract `vps_runner_audit_summary` debug payloads from RunSummary."""
+    summaries: dict[str, dict[str, Any]] = {}
+    for host in summary.hosts:
+        for event in host.events or []:
+            result = event.get("res") or {}
+            audit = result.get("vps_runner_audit_summary")
+            if isinstance(audit, dict):
+                summaries[host.alias] = audit
+    return summaries
+
+
+def audit_existing(env: str, alias: str) -> tuple[bool, list[dict[str, Any]], str]:
+    """Run audit.yml for one alias and return project-policy findings.
+
+    The boolean says whether audit itself completed and yielded a structured
+    summary. Findings being non-empty means the remote state is reachable but
+    not compliant with current project policy.
+    """
+    summary = run_playbook(
+        action="audit",
+        env=env,
+        playbook="audit.yml",
+        limit=alias,
+        quiet=True,
+    )
+    if summary.status != "successful":
+        host_msg = "; ".join(
+            f"{h.alias}: {h.status} {h.message}".strip() for h in summary.hosts
+        )
+        return False, [], (
+            f"audit playbook failed (rc={summary.rc})"
+            + (f": {host_msg}" if host_msg else "")
+        )
+    audit = audit_summary_by_alias(summary).get(alias)
+    if not isinstance(audit, dict):
+        return False, [], "audit summary missing"
+    compliance = audit.get("compliance") or {}
+    findings = compliance.get("findings") or []
+    if not isinstance(findings, list):
+        return False, [], "audit findings have unexpected shape"
+    return True, [f for f in findings if isinstance(f, dict)], "OK"
 
 
 # ---------------------------------------------------------------------------
@@ -852,11 +942,28 @@ def _summarize_existing(env: str, alias: str) -> str:
     )
 
 
+def _short_field(value: Any, *, limit: int = 120) -> str:
+    text = str(value if value is not None else "unknown")
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3] + "..."
+
+
+def _print_audit_findings(findings: list[dict[str, Any]]) -> None:
+    for idx, finding in enumerate(findings, start=1):
+        label = finding.get("label") or finding.get("id") or "unknown"
+        print(f"  {idx}) {label}")
+        print(f"     expected: {_short_field(finding.get('expected'))}")
+        print(f"     actual:   {_short_field(finding.get('actual'))}")
+
+
 def _alias_collision_menu(env: str, alias: str) -> str:
     """4-option menu per plan-2026-05-22b §4. Returns one of:
-      "skip"        — operator chose 1; wizard returns None silently
+      "skip"        — operator chose 1; CLI exits cleanly
       "retry"       — operator chose 2; wizard re-prompts the Alias field
-      "verified"    — operator chose 3 and verify succeeded; wizard returns None
+      "verified"    — operator chose 3, verify succeeded, and no repair requested
+      "repair"      — operator chose 3 and requested managed repair
       "overwrite"   — operator chose 4, OR chose 3 → verify failed → confirmed overwrite
     """
     print(f"\n==> 检测到 alias '{alias}' 已存在:\n")
@@ -866,7 +973,7 @@ def _alias_collision_menu(env: str, alias: str) -> str:
             "\n请选择处理方式:\n"
             "  1) 跳过并结束                              [默认]\n"
             "  2) 使用新的 alias 继续\n"
-            "  3) 验证现有配置\n"
+            "  3) 验证现有配置并运行 audit\n"
             "  4) 强制覆盖现有配置 (use when current is broken)"
         )
         raw = input("选择 [1]: ").strip() or "1"
@@ -879,7 +986,33 @@ def _alias_collision_menu(env: str, alias: str) -> str:
             print(f"==> 验证 '{alias}' 现有配置 ...")
             ok, msg = verify_existing(env, alias)
             if ok:
-                print(f"==> {msg} — 配置正确，无需变更.")
+                print(f"==> {msg} — managed SSH + Ansible 基础验证通过.")
+                print("==> 运行 audit，检查远端是否符合当前项目规则 ...")
+                audit_ok, findings, audit_msg = audit_existing(env, alias)
+                if not audit_ok:
+                    print(f"==> audit 未完成: {audit_msg}")
+                    confirm = input(
+                        "是否仍运行 managed repair 重新收敛? (y/N): "
+                    ).strip().lower()
+                    if confirm == "y":
+                        return "repair"
+                    print("==> 未执行修复, 现有配置保持不变.")
+                    return "verified"
+                if findings:
+                    print(
+                        "==> audit 发现以下项目未按当前项目规则配置或未正常运行:"
+                    )
+                    _print_audit_findings(findings)
+                    confirm = input(
+                        "是否修正/补全上述配置? "
+                        f"(等同 onboard {alias} --env {env}) (y/N): "
+                    ).strip().lower()
+                    if confirm == "y":
+                        return "repair"
+                    print("==> 未执行修复, 现有配置保持不变.")
+                    return "verified"
+                print("==> audit 未发现与当前项目规则不一致的配置.")
+                print("==> 现有配置保持不变.")
                 return "verified"
             print(f"==> 现有配置失效: {msg}")
             confirm = input("是否覆盖? (y/N): ").strip().lower()
@@ -918,9 +1051,10 @@ def prompt_new_host(
 
     Returns expanded dict with keys: alias, ip, user, port, managed_user,
     managed_port, auth_method, ssh_password, sudo_password, private_key_text.
+    Existing-alias skip/verified/repair choices return a small dict with
+    alias + existing_action so the CLI can exit cleanly or run managed repair.
     Returns None on abort (non-TTY, EOFError, KeyboardInterrupt, entry-check
-    failure). Same-alias detection in T1 returns None with a current-state
-    message; T3 will replace this with the 4-option menu.
+    failure).
     """
     if not sys.stdin.isatty():
         sys.stderr.write(
@@ -962,11 +1096,13 @@ def prompt_new_host(
             if alias in existing:
                 action = _alias_collision_menu(env, alias)
                 if action == "skip":
-                    return None
+                    return {"alias": alias, "existing_action": "skip"}
                 if action == "retry":
                     continue
                 if action == "verified":
-                    return None
+                    return {"alias": alias, "existing_action": "verified"}
+                if action == "repair":
+                    return {"alias": alias, "existing_action": "repair"}
                 # action == "overwrite"
                 overwrite_existing = True
                 break

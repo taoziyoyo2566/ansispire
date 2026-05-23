@@ -104,9 +104,16 @@
         - vps_network_tuning_changes.enabled | default(false) | bool
         - vps_network_tuning_changes.mtu_probing | default(false) | bool
 
-    - name: Install fail2ban when toggled on
+    - name: Install fail2ban support packages when toggled on
       ansible.builtin.package:
-        name: fail2ban
+        name: >-
+          {{
+            ['fail2ban']
+            + (['python3-systemd']
+               if ansible_facts.os_family == 'Debian'
+               and ansible_facts.service_mgr == 'systemd'
+               else [])
+          }}
         state: present
       when: vps_fail2ban_changes.enabled | default(false) | bool
 
@@ -122,12 +129,36 @@
           managed_port: "{{ ansible_port }}"
         vps_fail2ban: "{{ vps_fail2ban_changes }}"
       when: vps_fail2ban_changes.enabled | default(false) | bool
+      notify: Restart fail2ban
 
-    - name: Ensure fail2ban is enabled after modification
+    - name: Flush handlers - apply fail2ban modification now
+      ansible.builtin.meta: flush_handlers
+      when: vps_fail2ban_changes.enabled | default(false) | bool
+
+    - name: Ensure fail2ban is enabled and active after modification
       ansible.builtin.systemd:
         name: fail2ban
         enabled: true
         state: started
+      register: vps_fail2ban_service_status
+      until: vps_fail2ban_service_status.status.ActiveState == 'active'
+      retries: 6
+      delay: 5
+      when:
+        - vps_fail2ban_changes.enabled | default(false) | bool
+        - not ansible_check_mode
+
+    - name: Verify fail2ban sshd jail is loaded after modification
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+          - sshd
+      register: vps_fail2ban_jail_status
+      changed_when: false
+      until: vps_fail2ban_jail_status.rc == 0
+      retries: 6
+      delay: 5
       when:
         - vps_fail2ban_changes.enabled | default(false) | bool
         - not ansible_check_mode
@@ -142,3 +173,11 @@
         - not (vps_fail2ban_changes.enabled | bool)
         - not ansible_check_mode
       failed_when: false
+
+  handlers:
+    - name: Restart fail2ban
+      ansible.builtin.systemd:
+        name: fail2ban
+        enabled: true
+        state: restarted
+      when: not ansible_check_mode

@@ -212,7 +212,24 @@ def _cmd_audit(args: argparse.Namespace) -> int:
         return 2
 
     _print_summary(summary)
+    _print_audit_policy(summary)
     return 0 if summary.status == "successful" else 1
+
+
+def _first_time_extravars(
+    bootstrap_user: str,
+    bootstrap_port: int,
+    *,
+    bootstrap_key: str | Path | None = None,
+) -> dict[str, Any]:
+    extravars: dict[str, Any] = {
+        "vps_first_time": True,
+        "vps_first_time_user": bootstrap_user,
+        "vps_first_time_port": int(bootstrap_port),
+    }
+    if bootstrap_key:
+        extravars["vps_first_time_key"] = str(bootstrap_key)
+    return extravars
 
 
 def _cmd_onboard(args: argparse.Namespace) -> int:
@@ -233,19 +250,42 @@ def _cmd_onboard(args: argparse.Namespace) -> int:
         vr = data.get("vps_runner") or {}
         boot_user = args.bootstrap_user or vr.get("bootstrap_user", "root")
         boot_port = args.bootstrap_port or vr.get("bootstrap_port", 22)
-        extravars["ansible_user"] = boot_user
-        extravars["ansible_port"] = int(boot_port)
-        # R11 T2: if a previous wizard run failed mid-onboard and persisted
-        # the temp bootstrap key path, auto-inject it on retry so the operator
-        # doesn't need to re-paste or pass --extra-vars.
-        bootstrap_key = vr.get("bootstrap_key")
-        if bootstrap_key:
-            extravars["ansible_ssh_private_key_file"] = str(bootstrap_key)
-            print(f"==> retry: auto-injecting bootstrap_key={bootstrap_key}")
-        print(
-            f"==> first-time mode: connecting as {boot_user}@{boot_port} "
-            f"(host_vars target = {data.get('ansible_user')}@{data.get('ansible_port')})"
-        )
+        managed_host = data.get("ansible_host")
+        managed_user = data.get("ansible_user") or vr.get("managed_user")
+        try:
+            managed_port = int(data.get("ansible_port") or vr.get("managed_port") or 0)
+        except (TypeError, ValueError):
+            managed_port = 0
+        if managed_host and managed_user and managed_port:
+            managed_ok, managed_reason = core.ssh_probe(
+                managed_host,
+                managed_port,
+                managed_user,
+                core.DEFAULT_AUTOMATION_PRIVATE_KEY,
+                timeout=5,
+            )
+        else:
+            managed_ok, managed_reason = False, "managed_vars_missing"
+        if managed_ok:
+            print(
+                "==> managed channel already works; running managed repair mode "
+                f"({managed_user}@{managed_port})"
+            )
+        else:
+            # If a previous wizard run failed mid-onboard and persisted the
+            # temp bootstrap key path, auto-inject it on retry so the operator
+            # doesn't need to re-paste or pass --extra-vars.
+            bootstrap_key = vr.get("bootstrap_key")
+            extravars = _first_time_extravars(
+                boot_user, int(boot_port), bootstrap_key=bootstrap_key,
+            )
+            if bootstrap_key:
+                print(f"==> retry: auto-injecting bootstrap_key={bootstrap_key}")
+            print(
+                f"==> managed probe failed ({managed_reason}); first-time mode: "
+                f"connecting as {boot_user}@{boot_port} "
+                f"(host_vars target = {data.get('ansible_user')}@{data.get('ansible_port')})"
+            )
     print(f"==> vps-runner onboard alias={alias} env={args.env}")
     try:
         summary = core.run_playbook(
@@ -260,6 +300,7 @@ def _cmd_onboard(args: argparse.Namespace) -> int:
     _print_summary(summary)
     if summary.status == "successful":
         core.record_run(args.env, alias, summary, set_status="active")
+        _clear_bootstrap_key(args.env, alias)
         print(f"==> host_vars/{alias}.yml updated (status=active)")
         _write_local_ssh_alias(args.env, alias)
         return 0
@@ -346,6 +387,25 @@ def _cmd_modify(args: argparse.Namespace) -> int:
     return 0 if summary.status == "successful" else 1
 
 
+def _handle_existing_add_host_action(
+    args: argparse.Namespace, alias: str, action: str
+) -> int:
+    if action in {"skip", "verified"}:
+        return 0
+    if action == "repair":
+        print(f"==> running managed repair for existing alias '{alias}' ...")
+        repair_args = argparse.Namespace(
+            alias=alias,
+            env=args.env,
+            first_time=False,
+            bootstrap_user=None,
+            bootstrap_port=None,
+        )
+        return _cmd_onboard(repair_args)
+    sys.stderr.write(f"vps-runner: unknown existing-host action: {action}\n")
+    return 2
+
+
 def _cmd_add_host(args: argparse.Namespace) -> int:
     """R11: alias-absent → interactive wizard with full bootstrap creds collection
     (auth method + password or key + bootstrap user/port + managed user/port);
@@ -369,6 +429,10 @@ def _cmd_add_host(args: argparse.Namespace) -> int:
         return 130
 
     alias = collected["alias"]
+    existing_action = collected.get("existing_action")
+    if existing_action:
+        return _handle_existing_add_host_action(args, alias, str(existing_action))
+
     ip = collected["ip"]
     bootstrap_user = collected["user"]
     bootstrap_port = collected["port"]
@@ -416,10 +480,7 @@ def _cmd_add_host(args: argparse.Namespace) -> int:
         )
 
     # ---- password branch: full automatic onboard via passwords dict ----
-    extravars: dict[str, Any] = {
-        "ansible_user": bootstrap_user,
-        "ansible_port": int(bootstrap_port),
-    }
+    extravars = _first_time_extravars(bootstrap_user, int(bootstrap_port))
     cmdline_parts = ["--ask-pass"]
     passwords: dict[str, str] = {
         r"^SSH password:\s*$": ssh_password or "",
@@ -487,11 +548,11 @@ def _wizard_onboard_key_branch(
         return 2
     print(f"==> wrote temp bootstrap key: {temp_key_path}")
 
-    extravars: dict[str, Any] = {
-        "ansible_user": bootstrap_user,
-        "ansible_port": int(bootstrap_port),
-        "ansible_ssh_private_key_file": str(temp_key_path),
-    }
+    extravars = _first_time_extravars(
+        bootstrap_user,
+        int(bootstrap_port),
+        bootstrap_key=temp_key_path,
+    )
     print(
         f"==> first-time mode: connecting as {bootstrap_user}@{bootstrap_port} "
         f"with temp key (host_vars target = {managed_user}@{managed_port})"
@@ -663,6 +724,28 @@ def _print_summary(summary: "core.RunSummary") -> None:
         if h.message:
             line += f"  — {h.message.splitlines()[0][:80]}"
         print(line)
+
+
+def _print_audit_policy(summary: "core.RunSummary") -> None:
+    if summary.action != "audit":
+        return
+    audit_by_alias = core.audit_summary_by_alias(summary)
+    if not audit_by_alias:
+        return
+    print()
+    print("Project policy audit:")
+    for alias in sorted(audit_by_alias):
+        compliance = (audit_by_alias[alias].get("compliance") or {})
+        findings = compliance.get("findings") or []
+        if not findings:
+            print(f"  ✓ {alias}: compliant")
+            continue
+        print(f"  ✗ {alias}: {len(findings)} finding(s)")
+        for finding in findings:
+            label = finding.get("label") or finding.get("id") or "unknown"
+            expected = " ".join(str(finding.get("expected", "unknown")).split())
+            actual = " ".join(str(finding.get("actual", "unknown")).split())
+            print(f"      - {label}: expected {expected}; actual {actual[:120]}")
 
 
 _DISPATCH = {

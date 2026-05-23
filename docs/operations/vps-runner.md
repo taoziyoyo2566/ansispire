@@ -187,9 +187,11 @@ Managed port [1156]:                    ↩
 请选择处理方式:
   1) 跳过并结束                              [默认]
   2) 使用新的 alias 继续
-  3) 验证现有配置        ← schema + ssh probe + ansible ping，成功则免变更；失败则提示覆盖
+  3) 验证现有配置并运行 audit        ← 基础验证 + 合规检查；发现差异后可选择 managed repair
   4) 强制覆盖现有配置 (use when current is broken)
 ```
+
+选择 3 时，CLI 先做 host_vars schema / managed SSH / Ansible ping 基础验证；通过后继续运行 `audit.yml`，按当前项目规则列出未正确配置或未正常运行的项目（例如 managed sudo、sshd 策略、UFW、fail2ban）。若有 findings，用户可选择 `y` 直接运行 managed repair（等价 `onboard <alias> --env <env>`）来修正或补全。
 
 **非 TTY 拒绝**：stdin 不是终端（pipe / here-doc / CI），wizard 模式立刻退出 rc=2 并提示用 flag 模式。
 
@@ -237,7 +239,9 @@ python -m plugins.vps_runner.cli audit --env dev --limit hy-hk-u24
 python -m plugins.vps_runner.cli audit --env dev --forks 5 --quiet
 ```
 
-**做什么**：对每个 host 跑 ping / uptime / df / free / 操作系统 facts。**幂等，只读**。
+**做什么**：对每个 host 跑 ping / uptime / df / free / 操作系统 facts，并执行 inventory 中声明的 `vps_runner_audit_rules`。规则是数据化配置：每条规则声明 `command`、`expected_*` 和可选 `enabled` 条件，CLI 只展示 findings。**幂等，只读**。
+
+当前 dev 默认规则在 `inventory/vps_runner/dev/group_vars/vps_targets.yml`，覆盖 managed sudo、sshd 策略、UFW、fail2ban。后续调整检查项、期望值、开关条件时，优先改 `vps_runner_audit_rules`；单机差异用 host_vars 里的 `vps_runner_audit_rules_disabled` 或 `vps_runner_audit_rules_extra`，不改 CLI。
 
 **典型输出**（`--quiet` 模式）：
 ```
@@ -249,6 +253,11 @@ python -m plugins.vps_runner.cli audit --env dev --forks 5 --quiet
 Host results:
   ✓ hy-hk-u24        ok
   ✓ hk-d13           ok
+
+Project policy audit:
+  ✓ hy-hk-u24: compliant
+  ✗ hk-d13: 1 finding(s)
+      - fail2ban service: expected active; actual failed
 ```
 
 ### 3.3 `onboard` — 重新应用（key-only re-onboard）
@@ -265,7 +274,7 @@ python -m plugins.vps_runner.cli onboard hy-hk-u24 --env dev --first-time
 
 **前置**：`host_vars/<alias>.yml` 必须已存在（wizard 在 add-host 阶段写入）；标准自动化密钥 `~/.ssh/ansispire_ed25519` 已能登上 managed user。
 
-**`--first-time` 语义**：临时把 `ansible_user` / `ansible_port` 用 extravars 覆盖为 `vps_runner.bootstrap_user@bootstrap_port`（wizard 在 add-host 阶段写入；默认 `root@22`）。如果上一次 wizard 失败留下 `vps_runner.bootstrap_key`，本次重跑会自动注入该路径作为 `ansible_ssh_private_key_file`，**无需 `--extra-vars`**。**只影响这一次运行**——host_vars 中的 `ansible_user/port` 保持「目标态」。
+**`--first-time` 语义**：CLI 先用标准自动化密钥短探测 managed channel。如果 managed 已可达，自动转为普通 repair onboard，不再尝试已经关闭的 bootstrap port；如果 managed 不可达，则传 `vps_first_time_*` marker，让 `onboard.yml` 在 fact gathering 前切到 `vps_runner.bootstrap_user@bootstrap_port`。如果上一次 wizard 失败留下 `vps_runner.bootstrap_key`，本次重跑会自动作为 `vps_first_time_key` 注入，**无需 `--extra-vars`**；任意 onboard 成功后该 retry hint 会清空。host_vars 中的 `ansible_user/port` 始终表示「目标态」。
 
 **`make vps-reonboard`**：等价 `python -m plugins.vps_runner.cli onboard <alias> --env <env>`（不带 `--first-time`，纯密钥重跑）。
 
@@ -342,7 +351,7 @@ playbook 会：
 3. 写 sshd drop-in（迁端口、禁 root、禁密码、禁 kbd-interactive）
 4. 重载 sshd 并验证新端口连通
 5. 关闭 bootstrap port（若 `vps_runner.close_bootstrap_port_after_success: true`）
-6. 配置 UFW / fail2ban（按 `features.*`）。**docker 当前不在 onboard 范围内**——见 §7 设计沿革。
+6. 配置 UFW / fail2ban（按 `features.*`）；fail2ban 会重启、等待 active，并验证 `sshd` jail 已加载。**docker 当前不在 onboard 范围内**——见 §7 设计沿革。
 7. onboard 成功后 CLI 写本地 `~/.ssh/config.d/<alias>.conf`（per-alias 文件，`IdentityFile=~/.ssh/id_ed25519`，operator 直连密钥）。若 `~/.ssh/config` 缺 `Include …config.d/…` 行，CLI 会打印一次提示，加一行 `Include config.d/*` 即可一劳永逸。
 
 成功后再跑一次 audit 验收：
@@ -375,7 +384,8 @@ runtime/logs/vps_runner/<run_id>/
 |---|---|---|
 | `Permission denied (publickey)` | wizard 密钥分支：粘贴的私钥与远端 authorized_keys 不配；wizard 密码分支：密码错；onboard 重跑：自动化标准密钥 ansispire_ed25519 没装到 managed user | 首次接入走 wizard，确认目标用户能凭粘贴的密钥/密码登入；onboard 重跑前 `ssh -i ~/.ssh/ansispire_ed25519 <managed_user>@<host> -p <managed_port>` 验证手工连通 |
 | `host_vars not found` | 你没创建 `host_vars/<alias>.yml` | 见 §4 步骤 1 |
-| onboard 中途失败但 ssh 已迁端口 | 部分配置已落，节点处于半配状态 | 修改 `vps_runner.bootstrap_port: <new>` + `bootstrap_user: deploy`，重跑 `onboard` 续刷 |
+| onboard 中途失败但 ssh 已迁端口 | 部分配置已落，节点处于半配状态 | 优先直接重跑 `onboard <alias>`。若你误传 `--first-time`，CLI 会先探测 managed channel；探测成功时自动转为 managed repair，不再连 bootstrap 端口 |
+| fail2ban 安装后 `failed` | Debian 12+ 默认无 `/var/log/auth.log`，fail2ban sshd jail 若走文件 backend 会启动失败 | 当前 jail 模板默认 `backend = systemd`（systemd 主机）并安装 `python3-systemd`；重跑 `onboard` 或 `modify --toggle-fail2ban on` 会 restart + active/jail verify |
 | `ssh.managed_port must be a non-22 high port` assert 失败 | host_vars 里 `managed_port: 22` 或 `< 1024` | 改 host_vars，重跑 |
 | audit `unreachable` 但 ssh 手工能上 | `ansible_python_interpreter` 路径不存在 / known_hosts 不匹配 | 进 `runtime/logs/.../stdout` 看 ansible 报错；known_hosts 不匹配时手工 `ssh-keygen -R '[host]:port'` |
 | `summary.hosts` 是空集 | host_vars 里 YAML 语法错误，ansible-runner 提前退出 | `python -c "import yaml; yaml.safe_load(open('...').read())"` 自检 |
@@ -383,9 +393,10 @@ runtime/logs/vps_runner/<run_id>/
 ### 5.3 恢复半配节点
 
 如果 onboard 卡在 SSH 迁端口之后但 UFW / fail2ban 之前：
-1. 在 host_vars 中把 `vps_runner.bootstrap_port` / `bootstrap_user` 改成「当前实际」状态（通常已经是 `managed_port` / `managed_user`）。
-2. **不**加 `--first-time`，直接 `onboard` 重跑——playbook 是幂等的，已完成的任务会跳过。
-3. 还不行就看 `runtime/logs/vps_runner/<latest>/stdout` 定位具体 failed task。
+1. 先确认 managed SSH 是否可用：`ssh -i ~/.ssh/ansispire_ed25519 <managed_user>@<host> -p <managed_port> true`。
+2. 可用时直接 `onboard <alias>` 重跑；playbook 是幂等的，已完成的任务会跳过。
+3. 如果只记得失败来自 first-time 流程，也可以跑 `onboard <alias> --first-time`；CLI 会先探测 managed channel，成功时自动进入 managed repair。
+4. 还不行就看 `runtime/logs/vps_runner/<latest>/stdout` 定位具体 failed task。
 
 ---
 
@@ -406,7 +417,7 @@ python -m plugins.vps_runner.cli add-host --env dev
 python -m plugins.vps_runner.cli onboard <alias> --env dev
 # 等价: make vps-reonboard ALIAS=<alias>
 
-# wizard 首次失败后的 retry（自动读 host_vars.vps_runner.bootstrap_key 注入临时密钥）
+# wizard 首次失败后的 retry（先探测 managed；必要时自动读 bootstrap_key 注入临时密钥）
 python -m plugins.vps_runner.cli onboard <alias> --env dev --first-time
 
 # 改包 / 防火墙 / fail2ban
@@ -448,4 +459,4 @@ pytest plugins/vps_runner/tests/ -m integration
 **为什么换**：详见 [`docs/reference/investigations/IVG-MULTI-SERVER-ANSIBLE-PRACTICE.md`](../reference/investigations/IVG-MULTI-SERVER-ANSIBLE-PRACTICE.md) 与 [`IVG-REFLECT-BESTPRACTICE-GAP.md`](../reference/investigations/IVG-REFLECT-BESTPRACTICE-GAP.md)——简短说：旧实现是「在 Ansible 之上手工加层」的反范式，不可扩展，不能复用社区工具。
 
 ---
-*Last updated: 2026-05-16 (Round 4-a)*
+*Last updated: 2026-05-23 (VPS Runner Round 12b)*

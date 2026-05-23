@@ -15,6 +15,7 @@ import sys
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -455,7 +456,56 @@ def test_alias_collision_menu_option_3_verified(fake_inventory, monkeypatch):
     inputs = iter(["3"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
     monkeypatch.setattr(core, "verify_existing", lambda env, alias: (True, "OK"))
+    monkeypatch.setattr(core, "audit_existing", lambda env, alias: (True, [], "OK"))
     assert core._alias_collision_menu("dev", "alpha") == "verified"
+
+
+def test_alias_collision_menu_option_3_verified_then_repair(fake_inventory, monkeypatch):
+    inputs = iter(["3", "y"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    monkeypatch.setattr(core, "verify_existing", lambda env, alias: (True, "OK"))
+    monkeypatch.setattr(
+        core,
+        "audit_existing",
+        lambda env, alias: (
+            True,
+            [{
+                "id": "fail2ban_active",
+                "label": "fail2ban service",
+                "expected": "active",
+                "actual": "failed",
+            }],
+            "OK",
+        ),
+    )
+    assert core._alias_collision_menu("dev", "alpha") == "repair"
+
+
+def test_alias_collision_menu_option_3_findings_then_decline(
+    fake_inventory, monkeypatch, capsys
+):
+    inputs = iter(["3", "n"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    monkeypatch.setattr(core, "verify_existing", lambda env, alias: (True, "OK"))
+    monkeypatch.setattr(
+        core,
+        "audit_existing",
+        lambda env, alias: (
+            True,
+            [{
+                "id": "ufw_status",
+                "label": "UFW",
+                "expected": "Status: active",
+                "actual": "Status: inactive",
+            }],
+            "OK",
+        ),
+    )
+    assert core._alias_collision_menu("dev", "alpha") == "verified"
+    out = capsys.readouterr().out
+    assert "audit 发现" in out
+    assert "UFW" in out
+    assert "Status: inactive" in out
 
 
 def test_alias_collision_menu_option_3_fail_then_overwrite(fake_inventory, monkeypatch):
@@ -490,14 +540,16 @@ def test_alias_collision_menu_option_4_declined(fake_inventory, monkeypatch):
     assert core._alias_collision_menu("dev", "alpha") == "skip"
 
 
-def test_wizard_same_alias_option_1_returns_none(
+def test_wizard_same_alias_option_1_returns_existing_skip(
     fake_inventory, wizard_entry_ok, monkeypatch
 ):
-    # alpha exists; option 1 → wizard returns None
+    # alpha exists; option 1 -> CLI can exit cleanly instead of treating it
+    # like Ctrl-C/EOF.
     monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
     inputs = iter(["alpha", "1"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
-    assert core.prompt_new_host("dev") is None
+    result = core.prompt_new_host("dev")
+    assert result == {"alias": "alpha", "existing_action": "skip"}
 
 
 def test_wizard_same_alias_option_2_then_new_alias_proceeds(
@@ -545,7 +597,7 @@ def test_onboard_first_time_auto_injects_bootstrap_key(
     fake_inventory, monkeypatch, tmp_path
 ):
     """R11 T2 retry path: if vps_runner.bootstrap_key is set, onboard
-    --first-time picks it up and adds ansible_ssh_private_key_file extravar."""
+    --first-time picks it up and adds vps_first_time_key marker."""
     # seed host_vars with a bootstrap_key value pointing at a fake temp key
     fake_key = tmp_path / "alpha-bootstrap.key"
     fake_key.write_text("dummy", encoding="utf-8")
@@ -565,7 +617,14 @@ def test_onboard_first_time_auto_injects_bootstrap_key(
     with patch.object(core, "run_playbook", side_effect=fake_run):
         rc = cli.main(["onboard", "alpha", "--env", "dev", "--first-time"])
     assert rc == 1
-    assert captured["extravars"]["ansible_ssh_private_key_file"] == str(fake_key)
+    extravars = captured["extravars"]
+    assert extravars["vps_first_time"] is True
+    assert extravars["vps_first_time_user"] == "root"
+    assert extravars["vps_first_time_port"] == 22
+    assert extravars["vps_first_time_key"] == str(fake_key)
+    assert "ansible_user" not in extravars
+    assert "ansible_port" not in extravars
+    assert "ansible_ssh_private_key_file" not in extravars
 
 
 def test_delete_ssh_config_silently_rejects_bad_alias(tmp_path):
@@ -674,6 +733,81 @@ def test_first_event_msg_extracts_msg():
     assert core._first_event_msg(fake_runner, "alpha", "runner_on_failed") == "boom!"
 
 
+def test_audit_summary_by_alias_extracts_debug_payload():
+    audit_payload = {
+        "alias": "alpha",
+        "compliance": {
+            "ok": False,
+            "findings": [{"id": "fail2ban_active", "actual": "failed"}],
+        },
+    }
+    summary = core.RunSummary(
+        run_id="vps-runner-mock-dev-audit",
+        action="audit",
+        env="dev",
+        status="successful",
+        rc=0,
+        artifact_dir="/tmp/none",
+        hosts=[
+            core.HostResult(
+                alias="alpha",
+                status="ok",
+                events=[
+                    {
+                        "event": "runner_on_ok",
+                        "task": "Emit audit summary",
+                        "res": {"vps_runner_audit_summary": audit_payload},
+                    }
+                ],
+            )
+        ],
+    )
+
+    assert core.audit_summary_by_alias(summary) == {"alpha": audit_payload}
+
+
+def test_audit_existing_returns_policy_findings(monkeypatch):
+    audit_payload = {
+        "alias": "alpha",
+        "compliance": {
+            "ok": False,
+            "findings": [{
+                "id": "ufw_status",
+                "label": "UFW",
+                "expected": "Status: active",
+                "actual": "Status: inactive",
+            }],
+        },
+    }
+
+    def fake_run(**kwargs):
+        assert kwargs["action"] == "audit"
+        assert kwargs["playbook"] == "audit.yml"
+        assert kwargs["limit"] == "alpha"
+        assert kwargs["quiet"] is True
+        return core.RunSummary(
+            run_id="vps-runner-mock-dev-audit",
+            action="audit",
+            env="dev",
+            status="successful",
+            rc=0,
+            artifact_dir="/tmp/none",
+            hosts=[
+                core.HostResult(
+                    alias="alpha",
+                    status="ok",
+                    events=[{"res": {"vps_runner_audit_summary": audit_payload}}],
+                )
+            ],
+        )
+
+    monkeypatch.setattr(core, "run_playbook", fake_run)
+    ok, findings, msg = core.audit_existing("dev", "alpha")
+    assert ok is True
+    assert msg == "OK"
+    assert findings == audit_payload["compliance"]["findings"]
+
+
 # ---------------------------------------------------------------------------
 # CLI dispatch — error paths (no Ansible invocation)
 # ---------------------------------------------------------------------------
@@ -769,7 +903,7 @@ def test_cli_modify_builds_extravars(fake_inventory, capsys):
     assert changes["fail2ban"] == {"enabled": False}
 
 
-def test_cli_onboard_first_time_overrides_connection(fake_inventory):
+def test_cli_onboard_first_time_uses_vps_marker_vars(fake_inventory):
     captured = {}
 
     def fake_run(**kwargs):
@@ -788,8 +922,99 @@ def test_cli_onboard_first_time_overrides_connection(fake_inventory):
         rc = cli.main(["onboard", "alpha", "--env", "dev", "--first-time"])
     assert rc == 0
     extravars = captured["extravars"]
-    assert extravars["ansible_user"] == "root"
-    assert extravars["ansible_port"] == 22
+    assert extravars["vps_first_time"] is True
+    assert extravars["vps_first_time_user"] == "root"
+    assert extravars["vps_first_time_port"] == 22
+    assert "ansible_user" not in extravars
+    assert "ansible_port" not in extravars
+
+
+def test_cli_onboard_first_time_managed_probe_success_runs_repair_mode(
+    fake_inventory, monkeypatch, tmp_path
+):
+    data = core.read_host_vars("dev", "alpha")
+    data.setdefault("vps_runner", {})["bootstrap_key"] = str(tmp_path / "old.key")
+    core.write_host_vars("dev", "alpha", data)
+    captured = {}
+    monkeypatch.setattr(core, "ssh_probe", lambda *args, **kwargs: (True, ""))
+
+    def fake_run(**kwargs):
+        captured.update(kwargs)
+        return core.RunSummary(
+            run_id="vps-runner-20260516T000000Z-dev-onboard",
+            action="onboard",
+            env="dev",
+            status="successful",
+            rc=0,
+            artifact_dir="/tmp/none",
+            hosts=[],
+        )
+
+    with patch.object(core, "run_playbook", side_effect=fake_run):
+        rc = cli.main(["onboard", "alpha", "--env", "dev", "--first-time"])
+    assert rc == 0
+    assert captured["extravars"] == {}
+    fresh = core.read_host_vars("dev", "alpha")
+    assert fresh["vps_runner"]["bootstrap_key"] is None
+
+
+def test_onboard_playbook_first_time_connection_state_machine_regression():
+    text = (core.PLAYBOOK_DIR / "onboard.yml").read_text(encoding="utf-8")
+    assert "gather_facts: false" in text
+    assert "vps_first_time_user" in text
+    assert "vps_first_time_port" in text
+    assert "vps_first_time_key" in text
+    assert (
+        text.index("First-time bootstrap - select password/bootstrap channel")
+        < text.index("Gather minimal facts after connection selection")
+        < text.index("Collect service facts")
+    )
+    assert "Switch Ansible connection to managed channel" in text
+    managed_wait = text[
+        text.index("- name: Wait for managed-user connection\n"):
+        text.index("- name: Validate managed user sudo (native)")
+    ]
+    final_wait = text[
+        text.index("- name: Wait for managed-user connection after lockdown"):
+        text.index("- name: Validate final managed login (native)")
+    ]
+    assert "vars:" not in managed_wait
+    assert "vars:" not in final_wait
+
+
+def test_fail2ban_restart_active_and_jail_verify_regression():
+    template = (
+        core.PLAYBOOK_DIR / "templates" / "fail2ban_sshd.local.j2"
+    ).read_text(encoding="utf-8")
+    assert "backend =" in template
+    for playbook_name in ("onboard.yml", "modify.yml"):
+        text = (core.PLAYBOOK_DIR / playbook_name).read_text(encoding="utf-8")
+        assert "Restart fail2ban" in text
+        assert "ActiveState == 'active'" in text
+        assert "fail2ban-client" in text
+        assert "status" in text
+        assert "sshd" in text
+
+
+def test_audit_policy_rules_are_inventory_defined():
+    audit_text = (core.PLAYBOOK_DIR / "audit.yml").read_text(encoding="utf-8")
+    assert "vps_runner_audit_rules" in audit_text
+    assert "vps_runner_audit_rules_extra" in audit_text
+    assert "vps_runner_audit_rules_disabled" in audit_text
+    assert "fail2ban-client status sshd" not in audit_text
+    assert "systemctl is-active fail2ban" not in audit_text
+
+    group_vars = (
+        core.PROJECT_ROOT
+        / "inventory"
+        / "vps_runner"
+        / "dev"
+        / "group_vars"
+        / "vps_targets.yml"
+    ).read_text(encoding="utf-8")
+    assert "vps_runner_audit_rules:" in group_vars
+    assert "fail2ban-client status sshd" in group_vars
+    assert "systemctl is-active fail2ban" in group_vars
 
 
 # ---------------------------------------------------------------------------
@@ -1133,6 +1358,58 @@ def test_prompt_new_host_entry_check_missing_keys(
     assert "ssh-keygen" in err
 
 
+def test_add_host_existing_verified_exits_zero_without_repair(
+    fake_inventory, wizard_entry_ok, monkeypatch
+):
+    monkeypatch.setattr(cli.sys, "stdin", _FakeStdin())
+    monkeypatch.setattr(
+        core,
+        "prompt_new_host",
+        lambda env: {"alias": "alpha", "existing_action": "verified"},
+    )
+
+    def fail_run(**kwargs):
+        raise AssertionError("verified existing host should not run a playbook")
+
+    monkeypatch.setattr(core, "run_playbook", fail_run)
+
+    rc = cli.main(["add-host", "--env", "dev"])
+    assert rc == 0
+
+
+def test_add_host_existing_repair_runs_managed_onboard(
+    fake_inventory, wizard_entry_ok, monkeypatch
+):
+    monkeypatch.setattr(cli.sys, "stdin", _FakeStdin())
+    monkeypatch.setattr(
+        core,
+        "prompt_new_host",
+        lambda env: {"alias": "alpha", "existing_action": "repair"},
+    )
+    captured: dict[str, Any] = {}
+
+    def fake_run(**kwargs):
+        captured.update(kwargs)
+        return core.RunSummary(
+            run_id="vps-runner-mock-dev-onboard",
+            action="onboard",
+            env="dev",
+            status="successful",
+            rc=0,
+            artifact_dir="/tmp/none",
+            hosts=[],
+        )
+
+    monkeypatch.setattr(core, "run_playbook", fake_run)
+
+    rc = cli.main(["add-host", "--env", "dev"])
+    assert rc == 0
+    assert captured["action"] == "onboard"
+    assert captured["playbook"] == "onboard.yml"
+    assert captured["limit"] == "alpha"
+    assert captured["extravars"] == {}
+
+
 # --- T11 (R11/T2) — add-host CLI wizard mode (key branch): full lifecycle ----
 def test_add_host_cli_wizard_mode_key_branch_full_lifecycle(
     fake_inventory, wizard_entry_ok, monkeypatch, capsys, tmp_path
@@ -1150,8 +1427,11 @@ def test_add_host_cli_wizard_mode_key_branch_full_lifecycle(
     ])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
 
+    captured_runs: list[dict[str, Any]] = []
+
     # Mock both onboard + verify as successful so cleanup runs
     def fake_run(**kwargs):
+        captured_runs.append(kwargs)
         return core.RunSummary(
             run_id=f"vps-runner-mock-dev-{kwargs.get('action', 'onboard')}",
             action=kwargs.get("action", "onboard"),
@@ -1178,6 +1458,53 @@ def test_add_host_cli_wizard_mode_key_branch_full_lifecycle(
     assert data["vps_runner"].get("bootstrap_key") in (None, )
     # temp key file cleaned up
     assert not (tmp_path / "tempkeys" / "test-wiz.key").exists()
+    onboard_call = next(call for call in captured_runs if call["action"] == "onboard")
+    extravars = onboard_call["extravars"]
+    assert extravars["vps_first_time"] is True
+    assert extravars["vps_first_time_user"] == "root"
+    assert extravars["vps_first_time_port"] == 22
+    assert extravars["vps_first_time_key"].endswith("test-wiz.key")
+    assert "ansible_user" not in extravars
+    assert "ansible_ssh_private_key_file" not in extravars
+
+
+def test_add_host_cli_wizard_mode_password_branch_uses_markers_and_passwords(
+    fake_inventory, wizard_entry_ok, monkeypatch
+):
+    monkeypatch.setattr(core.sys, "stdin", _FakeStdin())
+    monkeypatch.setattr(cli.sys, "stdin", _FakeStdin())
+    inputs = iter([
+        "pw-wiz", "192.0.2.51",
+        "debian",
+        "p",
+        "", "", "",
+    ])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    pw_iter = iter(["ssh-secret", "sudo-secret"])
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": next(pw_iter))
+    captured: dict[str, Any] = {}
+
+    def fake_run(**kwargs):
+        captured.update(kwargs)
+        return core.RunSummary(
+            run_id="vps-runner-mock-dev-onboard",
+            action="onboard", env="dev", status="successful", rc=0,
+            artifact_dir="/tmp/none", hosts=[],
+        )
+
+    monkeypatch.setattr(core, "run_playbook", fake_run)
+
+    rc = cli.main(["add-host", "--env", "dev"])
+    assert rc == 0
+    extravars = captured["extravars"]
+    assert extravars == {
+        "vps_first_time": True,
+        "vps_first_time_user": "debian",
+        "vps_first_time_port": 22,
+    }
+    assert captured["cmdline"] == "--ask-pass --ask-become-pass"
+    assert captured["passwords"][r"^SSH password:\s*$"] == "ssh-secret"
+    assert captured["passwords"][r"^BECOME password.*:\s*$"] == "sudo-secret"
 
 
 # --- T11b (R11/T2) — key branch onboard failure path retains temp key + bootstrap_key ----

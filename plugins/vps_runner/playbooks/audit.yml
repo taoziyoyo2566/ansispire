@@ -1,11 +1,14 @@
 ---
 # vps_runner — audit playbook
 #
-# Lightweight per-host health probe. Reports back to ansible-runner via
-# task results which are then exposed structured via Runner.host_events().
+# Lightweight per-host health + project-policy probe. Reports back to
+# ansible-runner via task results which are then exposed structured via
+# Runner.host_events().
 #
-# Variables consumed (from host_vars):
-#   none required — uses Ansible facts + ansible_host metadata only.
+# Variables consumed:
+#   vps_runner_audit_rules           declarative project-policy checks
+#   vps_runner_audit_rules_extra     optional appended checks
+#   vps_runner_audit_rules_disabled  optional list of check ids to skip
 #
 # Variables produced (registered, available via Runner.host_events()):
 #   vps_runner_audit_summary  dict   per-host audit result
@@ -46,6 +49,70 @@
       args:
         executable: /bin/bash
 
+    - name: Run configured project policy audit rules
+      ansible.builtin.command: "{{ item.command }}"
+      become: true
+      register: _audit_rule_results
+      changed_when: false
+      failed_when: false
+      loop: >-
+        {{
+          (vps_runner_audit_rules | default([]))
+          + (vps_runner_audit_rules_extra | default([]))
+        }}
+      loop_control:
+        label: "{{ item.id | default(item.command) }}"
+      when:
+        - item.enabled | default(true) | bool
+        - (item.id | default('')) not in (vps_runner_audit_rules_disabled | default([]))
+
+    - name: Initialize project policy audit results
+      ansible.builtin.set_fact:
+        vps_runner_audit_checked: []
+        vps_runner_audit_findings: []
+
+    - name: Evaluate configured project policy audit rules
+      ansible.builtin.set_fact:
+        vps_runner_audit_checked: >-
+          {{ vps_runner_audit_checked + [item.item.id | default(item.item.command)] }}
+        vps_runner_audit_findings: >-
+          {{
+            vps_runner_audit_findings
+            + ([{
+                'id': item.item.id | default(item.item.command),
+                'label': item.item.label | default(item.item.id | default(item.item.command)),
+                'expected': item.item.expected
+                            | default('rc=' ~ (item.item.expected_rc | default(0) | string)),
+                'actual': ((item.stdout | default('') | trim)
+                           or (item.stderr | default('') | trim)
+                           or (item.msg | default('') | trim)
+                           or ('rc=' ~ (item.rc | string))),
+                'severity': item.item.severity | default('error')
+              }] if not (
+                ((item.rc | int) == (item.item.expected_rc | default(0) | int))
+                and (
+                  item.item.expected_stdout is not defined
+                  or ((item.stdout | default('') | trim)
+                      == (item.item.expected_stdout | string))
+                )
+                and (
+                  item.item.expected_stdout_contains is not defined
+                  or ((item.item.expected_stdout_contains | string)
+                      in (item.stdout | default('')))
+                )
+                and (
+                  item.item.expected_stdout_regex is not defined
+                  or ((item.stdout | default('') | regex_search(
+                        item.item.expected_stdout_regex | string
+                      )) is not none)
+                )
+              ) else [])
+          }}
+      loop: "{{ _audit_rule_results.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.id | default(item.item.command) }}"
+      when: not (item.skipped | default(false) | bool)
+
     - name: Assemble audit summary
       ansible.builtin.set_fact:
         vps_runner_audit_summary:
@@ -58,6 +125,10 @@
           os_family: "{{ ansible_os_family | default('unknown') }}"
           distribution: "{{ ansible_distribution | default('unknown') }}"
           distribution_version: "{{ ansible_distribution_version | default('unknown') }}"
+          compliance:
+            ok: "{{ (vps_runner_audit_findings | length) == 0 }}"
+            checked: "{{ vps_runner_audit_checked }}"
+            findings: "{{ vps_runner_audit_findings }}"
 
     - name: Emit audit summary (visible in stdout + events)
       ansible.builtin.debug:

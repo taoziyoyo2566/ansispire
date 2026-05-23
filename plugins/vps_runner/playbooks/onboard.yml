@@ -7,17 +7,15 @@
 #   - vps_runner.*: bootstrap_port / bootstrap_user / managed_port / managed_user /
 #                   identity_file / ansible_public_key / personal_keys / ...
 #
-# Precondition: target VPS already has python3 (plan §6 D8 — no raw bootstrap).
+# Precondition: target VPS already has python3 (plan §6 D8 - no raw bootstrap).
 # Re-onboard is idempotent. For first-time onboard from a different user/port,
-# the CLI passes `extravars={'ansible_user': 'root', 'ansible_port': 22}` to
-# override the connection for that one run only (host_vars stay canonical).
+# the CLI passes vps_first_time_* marker vars; this play switches connection
+# facts before explicit fact gathering so host_vars stay canonical.
 
 - name: Onboard VPS into Ansispire management (vps_runner)
   hosts: vps_targets
   become: true
-  gather_facts: true
-  gather_subset:
-    - min
+  gather_facts: false
   vars:
     # Combine group-wide vps_runner_defaults with per-host vps_runner.
     # See group_vars/vps_targets.yml for the split rationale.
@@ -74,6 +72,31 @@
     vps_base_packages_enabled: "{{ vps_profile.base_packages | default(true) | bool }}"
 
   pre_tasks:
+    - name: First-time bootstrap - select password/bootstrap channel
+      ansible.builtin.set_fact:
+        ansible_user: "{{ vps_first_time_user }}"
+        ansible_port: "{{ vps_first_time_port | int }}"
+      become: false
+      when:
+        - vps_first_time | default(false) | bool
+        - vps_first_time_key is not defined
+
+    - name: First-time bootstrap - select key/bootstrap channel
+      ansible.builtin.set_fact:
+        ansible_user: "{{ vps_first_time_user }}"
+        ansible_port: "{{ vps_first_time_port | int }}"
+        ansible_ssh_private_key_file: "{{ vps_first_time_key }}"
+      become: false
+      when:
+        - vps_first_time | default(false) | bool
+        - vps_first_time_key is defined
+
+    - name: Gather minimal facts after connection selection
+      ansible.builtin.setup:
+        gather_subset:
+          - min
+      check_mode: false
+
     - name: Assert managed SSH port policy
       ansible.builtin.assert:
         that:
@@ -285,13 +308,18 @@
         - vps_network_tuning.enabled | default(false) | bool
         - vps_network_tuning.mtu_probing | default(false) | bool
 
-    - name: Install fail2ban
+    - name: Install fail2ban support packages
       ansible.builtin.package:
-        name: fail2ban
+        name: >-
+          {{
+            ['fail2ban']
+            + (['python3-systemd']
+               if ansible_facts.os_family == 'Debian'
+               and ansible_facts.service_mgr == 'systemd'
+               else [])
+          }}
         state: present
-      when:
-        - vps_fail2ban.enabled | default(false) | bool
-        - not (vps_base_packages_enabled and 'fail2ban' in vps_package_install_list)
+      when: vps_fail2ban.enabled | default(false) | bool
 
     - name: Configure fail2ban sshd jail
       ansible.builtin.template:
@@ -301,12 +329,36 @@
         group: root
         mode: "0644"
       when: vps_fail2ban.enabled | default(false) | bool
+      notify: Restart fail2ban
 
-    - name: Ensure fail2ban is enabled
+    - name: Flush handlers - apply fail2ban config now
+      ansible.builtin.meta: flush_handlers
+      when: vps_fail2ban.enabled | default(false) | bool
+
+    - name: Ensure fail2ban is enabled and active
       ansible.builtin.systemd:
         name: fail2ban
         enabled: true
         state: started
+      register: vps_fail2ban_service_status
+      until: vps_fail2ban_service_status.status.ActiveState == 'active'
+      retries: 6
+      delay: 5
+      when:
+        - vps_fail2ban.enabled | default(false) | bool
+        - not ansible_check_mode
+
+    - name: Verify fail2ban sshd jail is loaded
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+          - sshd
+      register: vps_fail2ban_jail_status
+      changed_when: false
+      until: vps_fail2ban_jail_status.rc == 0
+      retries: 6
+      delay: 5
       when:
         - vps_fail2ban.enabled | default(false) | bool
         - not ansible_check_mode
@@ -484,31 +536,28 @@
       become: false
       when: not ansible_check_mode
 
-    # Native Ansible validation (replaces prior raw-`ssh` from localhost):
-    # reset the persistent control connection so Ansible re-dials using the
-    # managed user + new port + managed key, then prove the managed user can
-    # connect AND escalate. Respects inventory's ansible_ssh_common_args /
-    # ProxyJump etc., and does not blanket-disable StrictHostKeyChecking.
-    - name: Reset Ansible connection to pick up new SSH port/user
+    - name: Switch Ansible connection to managed channel
+      ansible.builtin.set_fact:
+        ansible_user: "{{ vps_managed.user }}"
+        ansible_port: "{{ vps_ssh.managed_port | int }}"
+        ansible_ssh_private_key_file: "{{ vps_managed.ansible_key.private_key }}"
+      become: false
+      when: not ansible_check_mode
+
+    # Reset the persistent control connection so Ansible re-dials using the
+    # managed user + new port + managed key, then prove managed login + sudo.
+    - name: Reset connection after managed channel switch
       ansible.builtin.meta: reset_connection
 
-    - name: Wait for connection as managed user on new port
+    - name: Wait for managed-user connection
       ansible.builtin.wait_for_connection:
         timeout: 30
-      vars:
-        ansible_port: "{{ vps_ssh.managed_port | int }}"
-        ansible_user: "{{ vps_managed.user }}"
-        ansible_ssh_private_key_file: "{{ vps_managed.ansible_key.private_key }}"
       when: not ansible_check_mode
 
     - name: Validate managed user sudo (native)
       ansible.builtin.command: id -u
       become: true
       changed_when: false
-      vars:
-        ansible_port: "{{ vps_ssh.managed_port | int }}"
-        ansible_user: "{{ vps_managed.user }}"
-        ansible_ssh_private_key_file: "{{ vps_managed.ansible_key.private_key }}"
       when: not ansible_check_mode
 
     - name: Install final locked-down sshd drop-in
@@ -560,33 +609,27 @@
         - vps_bootstrap.port | int != vps_ssh.managed_port | int
         - not ansible_check_mode
 
-    # Native Ansible validation (replaces prior raw-`ssh` from localhost):
-    # after lockdown sshd reload, reset the connection and reconnect as the
-    # managed user to confirm post-lockdown connectivity. If this fails, the
-    # operator still has the (still-running) original control connection via
-    # bootstrap user/port until the play exits — guarded recovery path.
     - name: Reset Ansible connection after final lockdown
       ansible.builtin.meta: reset_connection
 
     - name: Wait for managed-user connection after lockdown
       ansible.builtin.wait_for_connection:
         timeout: 30
-      vars:
-        ansible_port: "{{ vps_ssh.managed_port | int }}"
-        ansible_user: "{{ vps_managed.user }}"
-        ansible_ssh_private_key_file: "{{ vps_managed.ansible_key.private_key }}"
       when: not ansible_check_mode
 
     - name: Validate final managed login (native)
       ansible.builtin.command: "true"
       changed_when: false
-      vars:
-        ansible_port: "{{ vps_ssh.managed_port | int }}"
-        ansible_user: "{{ vps_managed.user }}"
-        ansible_ssh_private_key_file: "{{ vps_managed.ansible_key.private_key }}"
       when: not ansible_check_mode
 
   handlers:
+    - name: Restart fail2ban
+      ansible.builtin.systemd:
+        name: fail2ban
+        enabled: true
+        state: restarted
+      when: not ansible_check_mode
+
     - name: Reload sshd
       ansible.builtin.systemd:
         name: "{{ vps_ssh_service_name }}"
