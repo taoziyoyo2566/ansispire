@@ -66,11 +66,12 @@ _ENVVAR_WHITELIST = ("HOME", "LANG", "LC_ALL", "LC_CTYPE", "TERM")
 #   alnum + `_-.`, must start alnum (no leading dash → no flag-spoof; no
 #   leading dot → no hidden-file shenanigans). Length ≤63 keeps Ansible
 #   "limit" CLI string + inventory yaml readable.
-# - hostname: SSH HostName value. Reject whitespace / newline / `#` so the
-#   rendered config line can't break out into another directive.
+# - hostname: SSH HostName value. Allowlist: alnum/IPv6-start + . - : [ ] so
+#   rendered config lines can't break out (no whitespace / newline / `#`).
+#   Leading `:` is allowed to support bare IPv6 (e.g. `::1`).
 # - ssh user: POSIX-ish username. Reject anything outside `[A-Za-z_][A-Za-z0-9_-]*`.
 _VALID_ALIAS_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*$")
-_VALID_HOSTNAME_RE = re.compile(r"^[^\s#]+$")
+_VALID_HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9:][a-zA-Z0-9.\-:\[\]]*$")
 _VALID_SSH_USER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
 _MAX_ALIAS_LEN = 63
 _MAX_HOSTNAME_LEN = 253
@@ -103,11 +104,12 @@ def _validate_alias(alias: Any) -> str:
 
 
 def _validate_hostname(hostname: Any) -> str:
-    """Return hostname unchanged iff free of whitespace/newlines/`#` and ≤253 chars.
+    """Return hostname unchanged iff it matches the allowlist and is ≤253 chars.
 
-    Accepts IPv4, IPv6 (colons OK), DNS names. Rejects values that could break
-    out of the SSH HostName directive (newline → directive injection; `#` →
-    SSH config comment; whitespace → SSH config field separator).
+    Accepts IPv4 (1.2.3.4), DNS names (host.example.com), bare IPv6 (::1,
+    2001:db8::1) and bracketed IPv6 ([::1]). Rejects anything outside
+    [a-zA-Z0-9:.-:[]] — whitespace, newlines, `#`, and shell metachars are
+    all excluded, preventing SSH HostName directive injection.
     """
     if not isinstance(hostname, str) or not hostname:
         raise VpsRunnerError("hostname must be a non-empty string")
@@ -117,7 +119,8 @@ def _validate_hostname(hostname: Any) -> str:
         )
     if not _VALID_HOSTNAME_RE.match(hostname):
         raise VpsRunnerError(
-            f"hostname {hostname!r} invalid; reject any whitespace, newline, or '#'"
+            f"hostname {hostname!r} invalid; "
+            f"allowed charset: alphanumeric . - : [ ] (no whitespace or #)"
         )
     return hostname
 
