@@ -174,6 +174,47 @@
       when: ansible_facts.service_mgr == 'systemd'
 
   tasks:
+    # ── RHEL dnf hygiene — MUST precede every dnf operation below ───────────────
+    # EPEL (needed only for fail2ban) pulls Fedora-mirror metadata that is slow or
+    # unreachable from some regions. Left enabled, it makes EVERY later dnf op
+    # (base packages, Docker) hang refreshing its metadata. So: bound dnf's network
+    # waits, and neutralize an EPEL left enabled by a prior partial run. These are
+    # pure config-file edits (no dnf), so they cannot themselves hang. EPEL is then
+    # re-introduced disabled-by-default and enabled on-demand only for fail2ban.
+    - name: Harden dnf network behavior (RedHat family)
+      community.general.ini_file:
+        path: /etc/dnf/dnf.conf
+        section: main
+        option: "{{ item.k }}"
+        value: "{{ item.v }}"
+        no_extra_spaces: true
+        mode: "0644"
+      loop:
+        - { k: timeout, v: "15" }
+        - { k: retries, v: "2" }
+      when: ansible_facts.os_family == 'RedHat'
+
+    - name: Check for an existing EPEL repo file (RedHat family)
+      ansible.builtin.stat:
+        path: /etc/yum.repos.d/epel.repo
+      register: vps_epel_repo_file
+      when: ansible_facts.os_family == 'RedHat'
+
+    - name: Neutralize a pre-existing EPEL repo so it never blocks other dnf ops
+      community.general.ini_file:
+        path: /etc/yum.repos.d/epel.repo
+        section: epel
+        option: "{{ item.k }}"
+        value: "{{ item.v }}"
+        no_extra_spaces: true
+        mode: "0644"
+      loop:
+        - { k: enabled, v: "0" }
+        - { k: skip_if_unavailable, v: "1" }
+      when:
+        - ansible_facts.os_family == 'RedHat'
+        - vps_epel_repo_file.stat.exists | default(false)
+
     - name: Install requested base packages
       ansible.builtin.package:
         name: "{{ vps_package_install_list }}"
@@ -474,18 +515,112 @@
         - vps_network_tuning.enabled | default(false) | bool
         - vps_network_tuning.mtu_probing | default(false) | bool
 
-    - name: Install fail2ban support packages
-      ansible.builtin.package:
-        name: >-
-          {{
-            ['fail2ban']
-            + (['python3-systemd']
-               if ansible_facts.os_family == 'Debian'
-               and ansible_facts.service_mgr == 'systemd'
-               else [])
-          }}
-        state: present
+    - name: Install fail2ban (EPEL on RedHat) — fail-soft on repo outage
+      # fail2ban is optional hardening. Its package source can be flaky (EPEL on
+      # RHEL pulls Fedora-mirror metadata, which times out from some regions/hosts).
+      # EPEL is installed but kept DISABLED by default (it poisons every dnf op when
+      # enabled+unreachable) and enabled on-demand only for this install. Retry; if
+      # it still fails, defer fail2ban (set a flag, warn) instead of aborting the
+      # whole onboard — re-add later via `modify --toggle-fail2ban on`.
       when: vps_fail2ban.enabled | default(false) | bool
+      block:
+        - name: Install EPEL repo definition (RedHat family)
+          # fail2ban lives in EPEL, not RHEL/AlmaLinux/Rocky base repos. epel-release
+          # ships in the default-enabled `extras` repo, so this is self-contained.
+          ansible.builtin.dnf:
+            name: epel-release
+            state: present
+          register: vps_epel_install
+          until: vps_epel_install is succeeded
+          retries: 3
+          delay: 10
+          when: ansible_facts.os_family == 'RedHat'
+
+        - name: Keep EPEL disabled by default + non-blocking (RedHat family)
+          community.general.ini_file:
+            path: /etc/yum.repos.d/epel.repo
+            section: epel
+            option: "{{ item.k }}"
+            value: "{{ item.v }}"
+            no_extra_spaces: true
+            mode: "0644"
+          loop:
+            - { k: enabled, v: "0" }
+            - { k: skip_if_unavailable, v: "1" }
+          when: ansible_facts.os_family == 'RedHat'
+
+        - name: Probe EPEL reachability with a hard wall-clock cap (RedHat family)
+          # `enablerepo: epel` makes dnf fetch EPEL metadata via a metalink that can
+          # fan out to dozens of mirrors — dnf's per-connection timeout/retries do
+          # NOT bound the total, so an unreachable EPEL hangs for minutes. `timeout`
+          # kills the dnf process at 30s (SIGKILL +5s), and `makecache` caches the
+          # metadata so the install below uses cache (no re-download). rc 0 = EPEL
+          # usable; anything else (124 = timed out) = defer fail2ban.
+          ansible.builtin.command:
+            cmd: timeout -k 5 30 dnf -q --enablerepo=epel makecache --refresh
+          register: vps_epel_probe
+          changed_when: false
+          failed_when: false
+          check_mode: false
+          when: ansible_facts.os_family == 'RedHat'
+
+        - name: Defer fail2ban — EPEL unreachable within cap (RedHat family)
+          ansible.builtin.set_fact:
+            vps_fail2ban_deferred: true
+          when:
+            - ansible_facts.os_family == 'RedHat'
+            - vps_epel_probe.rc | default(1) != 0
+
+        - name: Warn that fail2ban was deferred (EPEL unreachable)
+          ansible.builtin.debug:
+            msg: >-
+              [WARNING] EPEL unreachable from this host within the probe cap — fail2ban
+              deferred. Core onboarding continues WITHOUT fail2ban; re-add it later with
+              `python -m plugins.vps_runner.cli modify {{ inventory_hostname }}
+              --env <env> --toggle-fail2ban on` once EPEL is reachable.
+          when:
+            - ansible_facts.os_family == 'RedHat'
+            - vps_epel_probe.rc | default(1) != 0
+
+        - name: Install fail2ban from EPEL on-demand (RedHat family)
+          ansible.builtin.dnf:
+            name: >-
+              {{
+                ['fail2ban']
+                + (['python3-systemd']
+                   if ansible_facts.service_mgr == 'systemd'
+                   else [])
+              }}
+            state: present
+            enablerepo: epel
+          when:
+            - ansible_facts.os_family == 'RedHat'
+            - vps_epel_probe.rc | default(1) == 0
+
+        - name: Install fail2ban support packages (Debian family)
+          ansible.builtin.package:
+            name: >-
+              {{
+                ['fail2ban']
+                + (['python3-systemd']
+                   if ansible_facts.service_mgr == 'systemd'
+                   else [])
+              }}
+            state: present
+          when: ansible_facts.os_family == 'Debian'
+      rescue:
+        - name: Defer fail2ban after repo/package failure (fail-soft)
+          ansible.builtin.set_fact:
+            vps_fail2ban_deferred: true
+
+        - name: Warn that fail2ban was deferred
+          ansible.builtin.debug:
+            msg: >-
+              [WARNING] fail2ban install failed (likely EPEL/repo metadata
+              unreachable from this host). Core onboarding continues WITHOUT
+              fail2ban; re-add it later with
+              `python -m plugins.vps_runner.cli modify {{ inventory_hostname }}
+              --env <env> --toggle-fail2ban on` once the repo is reachable.
 
     - name: Configure fail2ban sshd jail
       ansible.builtin.template:
@@ -494,12 +629,16 @@
         owner: root
         group: root
         mode: "0644"
-      when: vps_fail2ban.enabled | default(false) | bool
+      when:
+        - vps_fail2ban.enabled | default(false) | bool
+        - not (vps_fail2ban_deferred | default(false) | bool)
       notify: Restart fail2ban
 
     - name: Flush handlers - apply fail2ban config now
       ansible.builtin.meta: flush_handlers
-      when: vps_fail2ban.enabled | default(false) | bool
+      when:
+        - vps_fail2ban.enabled | default(false) | bool
+        - not (vps_fail2ban_deferred | default(false) | bool)
 
     - name: Ensure fail2ban is enabled and active
       ansible.builtin.systemd:
@@ -512,6 +651,7 @@
       delay: 5
       when:
         - vps_fail2ban.enabled | default(false) | bool
+        - not (vps_fail2ban_deferred | default(false) | bool)
         - not ansible_check_mode
 
     - name: Verify fail2ban sshd jail is loaded
@@ -527,6 +667,7 @@
       delay: 5
       when:
         - vps_fail2ban.enabled | default(false) | bool
+        - not (vps_fail2ban_deferred | default(false) | bool)
         - not ansible_check_mode
 
     - name: Install UFW on Debian family
@@ -607,6 +748,65 @@
         - ansible_facts.os_family == 'Debian'
         - vps_profile.ufw | default(true) | bool
 
+    # ── RHEL firewall: firewalld (mirror of the UFW block above) ────────────────
+    # Only manage firewalld when it is the host's ACTIVE firewall. If it is
+    # absent/stopped the host relies on nftables / a cloud security group, and
+    # enabling it here could silently drop traffic — so we skip. service_facts
+    # was gathered in pre_tasks. firewalld is deny-incoming-by-default in its
+    # default zone, so (unlike UFW) no explicit default-policy task is needed.
+    - name: Detect active firewalld (RedHat family)
+      ansible.builtin.set_fact:
+        vps_firewalld_active: >-
+          {{
+            ansible_facts.os_family == 'RedHat'
+            and (ansible_facts.services | default({})).get('firewalld.service', {}).get('state', '') == 'running'
+          }}
+
+    - name: Configure firewalld rules (RedHat family)
+      when: vps_firewalld_active | bool
+      block:
+        - name: Ensure firewalld is enabled at boot
+          ansible.builtin.systemd:
+            name: firewalld
+            enabled: true
+
+        - name: Allow managed SSH port (firewalld)
+          ansible.posix.firewalld:
+            port: "{{ vps_ssh.managed_port }}/tcp"
+            permanent: true
+            immediate: true
+            state: enabled
+
+        - name: Keep bootstrap SSH port open until final validation (firewalld)
+          ansible.posix.firewalld:
+            port: "{{ vps_bootstrap.port }}/tcp"
+            permanent: true
+            immediate: true
+            state: enabled
+          when: vps_bootstrap.port | int != vps_ssh.managed_port | int
+
+        - name: Allow requested additional TCP ports (firewalld)
+          ansible.posix.firewalld:
+            port: "{{ item }}/tcp"
+            permanent: true
+            immediate: true
+            state: enabled
+          loop: "{{ vps_firewall.allowed_tcp_ports | default([]) }}"
+          when:
+            - item | int != vps_ssh.managed_port | int
+            - item | int != vps_bootstrap.port | int
+
+        - name: Allow HTTP and HTTPS when explicitly requested (firewalld)
+          ansible.posix.firewalld:
+            service: "{{ item }}"
+            permanent: true
+            immediate: true
+            state: enabled
+          loop:
+            - http
+            - https
+          when: vps_firewall.allow_http_https | default(false) | bool
+
     - name: Ensure sshd drop-in directory exists
       ansible.builtin.file:
         path: /etc/ssh/sshd_config.d
@@ -638,6 +838,39 @@
           - AllowGroups
         vps_sshd_directive_regexp: "^\\s*({{ vps_sshd_directives | join('|') }}\\s+.*)$"
       notify: Reload sshd
+
+    # ── SELinux: allow sshd to bind the non-22 managed port ─────────────────────
+    # Under SELinux enforcing, sshd may only bind ports labeled `ssh_port_t`
+    # (22 by default). Without this, the reload below leaves sshd unable to
+    # listen on the managed port and 'Wait for managed SSH port' times out. Label
+    # it before the reload. Harmless when permissive; skipped when disabled.
+    - name: Detect SELinux mode for managed SSH port (RedHat family)
+      ansible.builtin.command: getenforce
+      register: vps_rhel_selinux_mode
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      when: ansible_facts.os_family == 'RedHat'
+
+    - name: Install SELinux management bindings for seport (RedHat family)
+      ansible.builtin.dnf:
+        name: policycoreutils-python-utils
+        state: present
+      when:
+        - ansible_facts.os_family == 'RedHat'
+        - vps_rhel_selinux_mode.stdout | default('') in ['Enforcing', 'Permissive']
+
+    - name: Label managed SSH port for SELinux (ssh_port_t)
+      community.general.seport:
+        ports: "{{ vps_ssh.managed_port | string }}"
+        proto: tcp
+        setype: ssh_port_t
+        state: present
+      vars:
+        ansible_python_interpreter: /usr/bin/python3
+      when:
+        - ansible_facts.os_family == 'RedHat'
+        - vps_rhel_selinux_mode.stdout | default('') in ['Enforcing', 'Permissive']
 
     - name: Install transitional sshd drop-in with managed port
       ansible.builtin.template:
@@ -771,6 +1004,18 @@
       when:
         - ansible_facts.os_family == 'Debian'
         - vps_profile.ufw | default(true) | bool
+        - vps_ssh.close_bootstrap_port_after_success | default(true) | bool
+        - vps_bootstrap.port | int != vps_ssh.managed_port | int
+        - not ansible_check_mode
+
+    - name: Close bootstrap SSH port after final validation (firewalld)
+      ansible.posix.firewalld:
+        port: "{{ vps_bootstrap.port }}/tcp"
+        permanent: true
+        immediate: true
+        state: disabled
+      when:
+        - vps_firewalld_active | default(false) | bool
         - vps_ssh.close_bootstrap_port_after_success | default(true) | bool
         - vps_bootstrap.port | int != vps_ssh.managed_port | int
         - not ansible_check_mode

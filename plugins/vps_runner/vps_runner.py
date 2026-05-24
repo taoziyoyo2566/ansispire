@@ -18,6 +18,7 @@ import contextlib
 import getpass
 import os
 import re
+import socket
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -50,6 +51,7 @@ DEFAULT_PERSONAL_IDENTITY_FILE = Path("~/.ssh/id_ed25519").expanduser()
 DEFAULT_PERSONAL_PUBLIC_KEY = Path("~/.ssh/id_ed25519.pub").expanduser()
 DEFAULT_AUTOMATION_PRIVATE_KEY = Path("~/.ssh/ansispire_ed25519").expanduser()
 DEFAULT_AUTOMATION_PUBLIC_KEY = Path("~/.ssh/ansispire_ed25519.pub").expanduser()
+DEFAULT_KNOWN_HOSTS = Path("~/.ssh/known_hosts").expanduser()
 
 DEFAULT_FORKS = 20
 DEFAULT_ROTATE_ARTIFACTS = 10
@@ -139,6 +141,22 @@ def _validate_ssh_user(user: Any) -> str:
             f"[A-Za-z_][A-Za-z0-9_-]*, ≤{_MAX_SSH_USER_LEN} chars"
         )
     return user
+
+
+def host_resolves(host: str) -> bool:
+    """True iff `host` resolves to an address — an IP literal (always) or a
+    name resolvable via DNS / /etc/hosts. The wizard uses this to catch the
+    common typo of entering the alias (or any unresolvable string) in the
+    IP/hostname field; otherwise the bad value surfaces only ~3 tasks into the
+    Ansible run as 'Could not resolve hostname'. IP literals resolve without a
+    DNS lookup, so correct input never trips this."""
+    if not isinstance(host, str) or not host:
+        return False
+    try:
+        socket.getaddrinfo(host, None)
+        return True
+    except (socket.gaierror, UnicodeError, OSError):
+        return False
 
 
 def _assert_path_in_dir(path: Path, parent: Path) -> None:
@@ -869,6 +887,51 @@ def ssh_probe(
     return False, f"other:{result.returncode}"
 
 
+def clear_known_host(
+    host: str,
+    *ports: int,
+    known_hosts: Path = DEFAULT_KNOWN_HOSTS,
+) -> list[str]:
+    """Purge stale ~/.ssh/known_hosts entries for `host` before a first-time
+    bootstrap. IP reuse / OS reinstall changes a VPS's host key; ansible.cfg's
+    StrictHostKeyChecking=no auto-accepts UNKNOWN hosts but still hard-fails —
+    and disables password / keyboard-interactive auth — on a CHANGED key, so a
+    conflicting entry blocks onboard entirely. Purging it lets the bootstrap
+    connection re-pin the new key (TOFU preserved for the next connection).
+
+    Clears the bare-host form (port-22 entries) plus each `[host]:port` form for
+    the supplied non-22 ports (custom bootstrap port, managed port). ssh-keygen
+    -R backs the file up to <known_hosts>.old and is a no-op when nothing
+    matches; -F is run first so the return value reflects real removals, not
+    no-op invocations. Best-effort: a missing ssh-keygen / OS error stops and
+    returns what was cleared so far rather than raising. Returns the list of
+    host targets that actually had an entry removed.
+    """
+    if not host or not known_hosts.exists():
+        return []
+    targets = [host]
+    for port in ports:
+        if port and int(port) != 22:
+            targets.append(f"[{host}]:{int(port)}")
+    removed: list[str] = []
+    for target in targets:
+        try:
+            found = subprocess.run(
+                ["ssh-keygen", "-F", target, "-f", str(known_hosts)],
+                capture_output=True, text=True,
+            )
+            if found.returncode != 0:
+                continue
+            subprocess.run(
+                ["ssh-keygen", "-R", target, "-f", str(known_hosts)],
+                capture_output=True, text=True,
+            )
+        except OSError:
+            break
+        removed.append(target)
+    return removed
+
+
 def verify_existing(env: str, alias: str) -> tuple[bool, str]:
     """R11 §4.1: verify an existing host_vars entry is still actually usable.
 
@@ -1137,6 +1200,16 @@ def prompt_new_host(
             except VpsRunnerError as exc:
                 print(f"  ! {exc}")
                 continue
+            if not host_resolves(ip):
+                # Charset-valid but unresolvable — almost always the alias typed
+                # into the IP field. Warn and re-prompt by default; allow an
+                # explicit override for hosts not yet in DNS/known to the caller.
+                print(
+                    f"  ! '{ip}' 无法解析为地址 — 是不是把 alias 误填到了 IP 字段?"
+                    f"（此处应填 IP 或可解析的主机名）"
+                )
+                if input(f"  仍要使用 '{ip}'? (y/N): ").strip().lower() not in ("y", "yes"):
+                    continue
             break
 
         # ---- 3. bootstrap user ----

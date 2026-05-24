@@ -433,6 +433,50 @@ def test_ssh_probe_identity_file_missing(tmp_path):
     assert reason.startswith("identity_file_missing:")
 
 
+_FAKE_HOST_KEY = (
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK1uhVoveSSj3QOvVkR8o2Ljk"
+)
+
+
+def test_clear_known_host_removes_bare_and_port_forms(tmp_path):
+    kh = tmp_path / "known_hosts"
+    kh.write_text(
+        f"198.51.100.7 {_FAKE_HOST_KEY}\n"
+        f"[198.51.100.7]:1156 {_FAKE_HOST_KEY}\n"
+        f"203.0.113.9 {_FAKE_HOST_KEY}\n",  # unrelated host — must survive
+        encoding="utf-8",
+    )
+    removed = core.clear_known_host("198.51.100.7", 22, 1156, known_hosts=kh)
+    assert removed == ["198.51.100.7", "[198.51.100.7]:1156"]
+    remaining = kh.read_text(encoding="utf-8")
+    assert "198.51.100.7" not in remaining  # both forms gone
+    assert "203.0.113.9" in remaining  # unrelated host untouched
+
+
+def test_clear_known_host_missing_file_is_noop(tmp_path):
+    assert core.clear_known_host("198.51.100.7", known_hosts=tmp_path / "nope") == []
+
+
+def test_clear_known_host_absent_entry_returns_empty(tmp_path):
+    kh = tmp_path / "known_hosts"
+    kh.write_text(f"203.0.113.9 {_FAKE_HOST_KEY}\n", encoding="utf-8")
+    assert core.clear_known_host("198.51.100.7", 1156, known_hosts=kh) == []
+    assert "203.0.113.9" in kh.read_text(encoding="utf-8")
+
+
+def test_host_resolves_ip_literal_always_true():
+    # IP literals resolve without a DNS lookup — documentation-space IP is fine.
+    assert core.host_resolves("192.0.2.99") is True
+    assert core.host_resolves("127.0.0.1") is True
+
+
+def test_host_resolves_rejects_unresolvable_and_empty():
+    # `.invalid` is RFC 2606 reserved — guaranteed never to resolve.
+    assert core.host_resolves("hk-alm9.this-is-not-real.invalid") is False
+    assert core.host_resolves("") is False
+    assert core.host_resolves(None) is False
+
+
 def test_verify_existing_schema_fail(fake_inventory):
     # beta has no host_vars file (orphan from fake_inventory)
     ok, msg = core.verify_existing("dev", "beta")

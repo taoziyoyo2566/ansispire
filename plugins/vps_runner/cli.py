@@ -232,6 +232,22 @@ def _first_time_extravars(
     return extravars
 
 
+def _purge_stale_host_keys(host: str | None, *ports: int) -> None:
+    """First-time bootstrap pre-step: drop stale ~/.ssh/known_hosts entries for
+    the target so an IP-reuse / OS-reinstall host-key change doesn't block SSH.
+    StrictHostKeyChecking=no (ansible.cfg) auto-accepts UNKNOWN hosts but still
+    hard-fails on a CHANGED key, so the conflicting entry must go before the
+    bootstrap connection re-pins the new key. Prints each entry cleared; silent
+    when nothing matched."""
+    if not host:
+        return
+    for target in core.clear_known_host(str(host), *ports):
+        print(
+            f"==> cleared stale known_hosts entry for {target} "
+            f"(host key changed/reused — re-pinning on connect)"
+        )
+
+
 def _cmd_onboard(args: argparse.Namespace) -> int:
     alias = args.alias
     try:
@@ -285,6 +301,9 @@ def _cmd_onboard(args: argparse.Namespace) -> int:
                 f"==> managed probe failed ({managed_reason}); first-time mode: "
                 f"connecting as {boot_user}@{boot_port} "
                 f"(host_vars target = {data.get('ansible_user')}@{data.get('ansible_port')})"
+            )
+            _purge_stale_host_keys(
+                data.get("ansible_host"), int(boot_port), managed_port,
             )
     print(f"==> vps-runner onboard alias={alias} env={args.env}")
     try:
@@ -493,6 +512,7 @@ def _cmd_add_host(args: argparse.Namespace) -> int:
         f"==> first-time mode: connecting as {bootstrap_user}@{bootstrap_port} "
         f"(host_vars target = {managed_user}@{managed_port})"
     )
+    _purge_stale_host_keys(ip, int(bootstrap_port), int(managed_port))
     print(f"==> vps-runner onboard alias={alias} env={args.env}")
     try:
         summary = core.run_playbook(
@@ -557,6 +577,7 @@ def _wizard_onboard_key_branch(
         f"==> first-time mode: connecting as {bootstrap_user}@{bootstrap_port} "
         f"with temp key (host_vars target = {managed_user}@{managed_port})"
     )
+    _purge_stale_host_keys(ip, int(bootstrap_port), int(managed_port))
     print(f"==> vps-runner onboard alias={alias} env={args.env}")
     try:
         summary = core.run_playbook(
