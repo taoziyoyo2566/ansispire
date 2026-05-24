@@ -1,0 +1,8 @@
+---
+# stag environment overrides.
+# Add keys here to override values in common/group_vars/vps_targets.yml.
+# Ansible merges both inventory sources (-i common -i stag); stag takes precedence.
+#
+# Example stag-only overrides:
+#   docker:
+#     debian_repo_url: https://mirrors.example.com/docker/linux/debian

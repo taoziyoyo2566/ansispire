@@ -1,0 +1,144 @@
+---
+# Shared defaults for all vps_targets across all environments.
+# Loaded as the base layer by vps_runner (ansible-playbook -i common -i <env>).
+# Per-environment overrides go in inventory/vps_runner/<env>/group_vars/vps_targets.yml.
+# Per-host overrides go in inventory/vps_runner/<env>/host_vars/<alias>.yml.
+#
+# Schema split (Ansible default hash_behaviour=replace means dict keys do NOT
+# merge between group_vars and host_vars):
+#   vps_runner_defaults  → group-wide immutable config (this file)
+#   vps_runner           → per-host mutable state (host_vars/<alias>.yml)
+# onboard.yml combines them into a single `vr` var at play start.
+
+# Connection defaults (control-plane consumed)
+ansible_python_interpreter: /usr/bin/python3
+ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') }}/.ssh/ansispire_ed25519"
+
+# Security policy (group default; override per host if needed)
+security:
+  root_login_disabled: true
+  password_login_disabled: true
+  ufw_enabled: true
+  fail2ban_enabled: true
+
+# Feature toggles (group default)
+features:
+  base_packages: true
+  docker: true
+  unattended_upgrades: true
+  system_limits: true
+  swap: false
+  network_tuning: false
+  ufw: true
+  fail2ban: true
+
+# Read-only audit policy. audit.yml executes these declarative rules and
+# compares stdout/rc against the expected fields; it does not hard-code which
+# project policy items are required. Use vps_runner_audit_rules_disabled or
+# vps_runner_audit_rules_extra in host_vars when a target intentionally differs.
+vps_runner_audit_rules:
+  - id: managed_sudo
+    label: Managed sudo
+    command: id -u
+    expected: become succeeds and id -u returns 0
+    expected_stdout: "0"
+
+  - id: sshd_managed_port
+    label: sshd managed port
+    command: sshd -T
+    expected: "port {{ vps_runner.managed_port | default(ansible_port) }}"
+    expected_stdout_regex: "(?m)^port {{ vps_runner.managed_port | default(ansible_port) }}$"
+
+  - id: sshd_root_login
+    label: sshd root login
+    enabled: "{{ security.root_login_disabled | default(true) }}"
+    command: sshd -T
+    expected: PermitRootLogin no
+    expected_stdout_regex: "(?m)^permitrootlogin no$"
+
+  - id: sshd_password_authentication
+    label: sshd password auth
+    enabled: "{{ security.password_login_disabled | default(true) }}"
+    command: sshd -T
+    expected: PasswordAuthentication no
+    expected_stdout_regex: "(?m)^passwordauthentication no$"
+
+  - id: sshd_kbd_interactive
+    label: sshd keyboard-interactive auth
+    enabled: "{{ security.disable_kbd_interactive | default(true) }}"
+    command: sshd -T
+    expected: KbdInteractiveAuthentication no
+    expected_stdout_regex: "(?m)^kbdinteractiveauthentication no$"
+
+  - id: ufw_status
+    label: UFW
+    enabled: "{{ security.ufw_enabled | default(features.ufw | default(true)) }}"
+    command: ufw status
+    expected: "Status: active"
+    expected_stdout_contains: "Status: active"
+
+  - id: fail2ban_enabled
+    label: fail2ban enabled
+    enabled: "{{ security.fail2ban_enabled | default(features.fail2ban | default(false)) }}"
+    command: systemctl is-enabled fail2ban
+    expected: enabled
+    expected_stdout: enabled
+
+  - id: fail2ban_active
+    label: fail2ban service
+    enabled: "{{ security.fail2ban_enabled | default(features.fail2ban | default(false)) }}"
+    command: systemctl is-active fail2ban
+    expected: active
+    expected_stdout: active
+
+  - id: fail2ban_sshd_jail
+    label: fail2ban sshd jail
+    enabled: "{{ security.fail2ban_enabled | default(features.fail2ban | default(false)) }}"
+    command: fail2ban-client status sshd
+    expected: fail2ban-client status sshd succeeds
+    expected_rc: 0
+
+  - id: docker_service
+    label: Docker service
+    enabled: "{{ features.docker | default(true) }}"
+    command: systemctl is-active docker
+    expected: active
+    expected_stdout: active
+
+  - id: docker_compose_plugin
+    label: Docker Compose plugin
+    enabled: "{{ features.docker | default(true) }}"
+    command: docker compose version
+    expected: docker compose version succeeds
+    expected_rc: 0
+
+  - id: docker_managed_user
+    label: Docker managed-user access
+    enabled: "{{ features.docker | default(true) and docker.add_managed_user | default(true) }}"
+    become: false
+    command: docker version --format '{{ "{{" }}.Server.Version{{ "}}" }}'
+    expected: managed user can reach Docker daemon
+    expected_rc: 0
+
+# Docker install policy for onboard.yml. Override per host with a top-level
+# `docker:` map in host_vars/<alias>.yml when using mirrors or disabling
+# managed-user docker group membership.
+docker:
+  add_managed_user: true
+  daemon_options: {}
+
+# Group-wide vps_runner defaults — combined with per-host `vps_runner` in
+# onboard.yml. Add per-host overrides by setting the same key in host_vars.
+vps_runner_defaults:
+  bootstrap_port: 22
+  bootstrap_user: root
+  identity_file: "{{ lookup('env', 'HOME') }}/.ssh/ansispire_ed25519"
+  ansible_public_key: "{{ lookup('env', 'HOME') }}/.ssh/ansispire_ed25519.pub"
+  personal_keys:
+    - name: operator
+      public_key: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519.pub"
+  ssh_config:
+    identity_file: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519"
+    file: "{{ lookup('env', 'HOME') }}/.ssh/config.d/ansispire.conf"
+  sudo_nopasswd: true
+  close_bootstrap_port_after_success: true

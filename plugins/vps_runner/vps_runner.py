@@ -512,6 +512,12 @@ def run_playbook(
 ) -> RunSummary:
     """Invoke an ansible-runner playbook against the vps_runner inventory.
 
+    Inventory loading uses the Ansible multi-source pattern (-i common -i <env>):
+    - common/  holds shared group_vars defaults for all environments
+    - <env>/   holds env-specific overrides (env wins on key collision)
+    ansible-runner's `inventory=` carries the common layer; the env layer is
+    injected as `-i <env>` prepended to `cmdline` so it lands after common.
+
     Hardening:
     - project_dir=PROJECT_ROOT       (playbook path relative to repo root)
     - inventory=absolute path        (no reliance on ansible.cfg default)
@@ -527,6 +533,7 @@ def run_playbook(
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
     run_id = generate_run_id(action, env)
     inv_dir = inventory_path(env)
+    common_inv = INVENTORY_ROOT / "common"
 
     playbook_path = PLAYBOOK_DIR / playbook
     if not playbook_path.exists():
@@ -534,11 +541,22 @@ def run_playbook(
     # path relative to project_dir (PROJECT_ROOT)
     playbook_rel = playbook_path.relative_to(PROJECT_ROOT).as_posix()
 
+    # Build inventory args: common first (base), env second (overrides).
+    # ansible-runner generates `-i <inventory>` from the `inventory=` kwarg;
+    # the env-specific layer is appended via cmdline so it takes precedence.
+    if common_inv.is_dir():
+        primary_inv = str(common_inv)
+        env_inv_prefix = f"-i {inv_dir}"
+        full_cmdline = f"{env_inv_prefix} {cmdline}".strip() if cmdline else env_inv_prefix
+    else:
+        primary_inv = str(inv_dir)
+        full_cmdline = cmdline
+
     envvars = _build_runner_envvars()
     runner_kwargs: dict[str, Any] = dict(
         project_dir=str(PROJECT_ROOT),
         playbook=playbook_rel,
-        inventory=str(inv_dir),
+        inventory=primary_inv,
         artifact_dir=str(ARTIFACT_ROOT),
         ident=run_id,
         limit=limit,
@@ -549,8 +567,8 @@ def run_playbook(
         forks=forks,
         quiet=quiet,
     )
-    if cmdline:
-        runner_kwargs["cmdline"] = cmdline
+    if full_cmdline:
+        runner_kwargs["cmdline"] = full_cmdline
     if passwords:
         # ansible-runner intercepts subprocess stdout against these regex
         # patterns and injects the matched password into stdin. Bypasses

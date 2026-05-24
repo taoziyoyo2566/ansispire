@@ -177,10 +177,10 @@ test-vps-runner-integration: ## L2 — plugins/vps_runner integration test (real
 	$(BIN)pytest plugins/vps_runner/tests/ -m integration
 
 vps-runner-syntax: ## Ansible syntax-check for VPS Runner action playbooks
-	$(BIN)ansible-playbook plugins/vps_runner/playbooks/onboard.yml --syntax-check -i inventory/vps_runner/dev/
-	$(BIN)ansible-playbook plugins/vps_runner/playbooks/modify.yml --syntax-check -i inventory/vps_runner/dev/
-	$(BIN)ansible-playbook plugins/vps_runner/playbooks/audit.yml --syntax-check -i inventory/vps_runner/dev/
-	$(BIN)ansible-playbook plugins/vps_runner/playbooks/remove.yml --syntax-check -i inventory/vps_runner/dev/
+	$(BIN)ansible-playbook plugins/vps_runner/playbooks/onboard.yml --syntax-check -i inventory/vps_runner/common/ -i inventory/vps_runner/dev/
+	$(BIN)ansible-playbook plugins/vps_runner/playbooks/modify.yml --syntax-check -i inventory/vps_runner/common/ -i inventory/vps_runner/dev/
+	$(BIN)ansible-playbook plugins/vps_runner/playbooks/audit.yml --syntax-check -i inventory/vps_runner/common/ -i inventory/vps_runner/dev/
+	$(BIN)ansible-playbook plugins/vps_runner/playbooks/remove.yml --syntax-check -i inventory/vps_runner/common/ -i inventory/vps_runner/dev/
 
 # ── VPS Runner daily ops (wrappers around `python -m plugins.vps_runner.cli`) ──
 # All take ENV=<dev|stag|prod> (default dev). ALIAS required for per-host targets.

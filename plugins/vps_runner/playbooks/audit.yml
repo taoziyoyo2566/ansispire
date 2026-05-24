@@ -51,7 +51,7 @@
 
     - name: Run configured project policy audit rules
       ansible.builtin.command: "{{ item.command }}"
-      become: true
+      become: "{{ item.become | default(true) }}"
       register: _audit_rule_results
       changed_when: false
       failed_when: false

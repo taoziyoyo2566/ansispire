@@ -1,0 +1,10 @@
+---
+# prod environment overrides.
+# Add keys here to override values in common/group_vars/vps_targets.yml.
+# Ansible merges both inventory sources (-i common -i prod); prod takes precedence.
+#
+# Example prod-only overrides:
+#   features:
+#     swap: true
+#   docker:
+#     debian_repo_url: https://mirrors.example.com/docker/linux/debian
