@@ -22,9 +22,16 @@
     vr: "{{ (vps_runner_defaults | default({})) | combine(vps_runner | default({})) }}"
     vps_bootstrap:
       port: "{{ vr.bootstrap_port | default(22) }}"
+    # Admin group for sudo membership differs by family: RHEL (Rocky) uses
+    # `wheel`, Debian/Ubuntu uses `sudo`. The sudoers drop-in grants NOPASSWD
+    # regardless, but the group must exist and match the family so `id <user>`
+    # and any SSH AllowGroups semantics are correct. Mirrors the roles path
+    # (roles/infra_baseline defaults `sudo` + vars/RedHat.yml `wheel`).
+    # Lazily evaluated at task time — os_family is gathered in pre_tasks (min).
+    vps_admin_group: "{{ 'wheel' if ansible_facts.os_family == 'RedHat' else 'sudo' }}"
     vps_managed:
       user: "{{ vr.managed_user | default('ansible') }}"
-      groups: "{{ vr.managed_groups | default(['sudo']) }}"
+      groups: "{{ vr.managed_groups | default([vps_admin_group]) }}"
       shell: "{{ vr.managed_shell | default('/bin/bash') }}"
       authorized_keys: >-
         {{
@@ -525,7 +532,7 @@
       when: vps_fail2ban.enabled | default(false) | bool
       block:
         - name: Install EPEL repo definition (RedHat family)
-          # fail2ban lives in EPEL, not RHEL/AlmaLinux/Rocky base repos. epel-release
+          # fail2ban lives in EPEL, not RHEL/Rocky base repos. epel-release
           # ships in the default-enabled `extras` repo, so this is self-contained.
           ansible.builtin.dnf:
             name: epel-release

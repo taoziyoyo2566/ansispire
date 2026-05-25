@@ -73,7 +73,7 @@ Tier 1（Molecule 真实覆盖）：
 - Debian 12（`geerlingguy/docker-debian12-ansible:latest`）
 
 Tier 2（占位，待 TASK-007）：
-- Rocky Linux 9 / Alma 9
+- Rocky Linux 9
 - Alpine
 
 ---

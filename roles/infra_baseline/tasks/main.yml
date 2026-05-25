@@ -1,7 +1,7 @@
 # roles/infra_baseline/tasks/main.yml
 #
 # OS-family branching: Debian (Debian / Ubuntu) implemented inline in the
-# Debian block below; RHEL family (Rocky / AlmaLinux / RHEL 9+) implemented
+# Debian block below; RHEL family (Rocky / RHEL 9+) implemented
 # via include_tasks: redhat.yml; Alpine remains a fail-stub until TASK-007.B.
 #
 # Task order rationale (TASK-007 D8): the Python ≥3.10 assert runs AFTER the
@@ -63,7 +63,7 @@
         state: started
         enabled: true
 
-# ── RHEL family (Rocky, AlmaLinux, RHEL 9+) ─────────────────────────────
+# ── RHEL family (Rocky, RHEL 9+) ────────────────────────────────────────
 - name: Baseline | RHEL-family setup
   ansible.builtin.include_tasks: redhat.yml
   when: ansible_facts['os_family'] == "RedHat"

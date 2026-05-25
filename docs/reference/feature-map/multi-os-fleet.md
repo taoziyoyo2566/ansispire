@@ -13,7 +13,7 @@ Two OS families are supported as of this round:
 | Family | Distros | Path |
 |---|---|---|
 | **Debian** | Debian 13 (`d13`), Ubuntu 24.04 (`u24`) | `roles/infra_baseline/tasks/main.yml` inline block — apt + Docker CE repo + systemd |
-| **RHEL** | Rocky Linux 9 (`rocky9`), AlmaLinux 9 (`alma9`) | `roles/infra_baseline/tasks/redhat.yml` — dnf + python3.11 pivot + Docker CE repo + SELinux container_manage_cgroup + systemd |
+| **RHEL** | Rocky Linux 9 (`rocky9`) | `roles/infra_baseline/tasks/redhat.yml` — dnf + python3.11 pivot + Docker CE repo + SELinux container_manage_cgroup + systemd |
 | Alpine | (none) | `main.yml` fail-stub; implementation pending TASK-007.B |
 
 ## Configuration SSOT

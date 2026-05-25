@@ -8,7 +8,7 @@
 #
 # Cross-OS support (TASK-007):
 #   - Debian / Ubuntu (targets_debian) — apt + systemd path, implemented inline
-#   - Rocky / AlmaLinux (targets_rhel)  — dnf + systemd path via redhat.yml
+#   - Rocky Linux (targets_rhel)        — dnf + systemd path via redhat.yml
 #   - Alpine (targets_alpine)           — apk + OpenRC path, STUB (TASK-007.B)
 ---
 - name: Deploy Ansispire managed targets (infra_baseline only)

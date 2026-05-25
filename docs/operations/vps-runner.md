@@ -387,7 +387,7 @@ runtime/logs/vps_runner/<run_id>/
 | `host_vars not found` | 你没创建 `host_vars/<alias>.yml` | 见 §4 步骤 1 |
 | onboard 中途失败但 ssh 已迁端口 | 部分配置已落，节点处于半配状态 | 优先直接重跑 `onboard <alias>`。若你误传 `--first-time`，CLI 会先探测 managed channel；探测成功时自动转为 managed repair，不再连 bootstrap 端口 |
 | fail2ban 安装后 `failed` | Debian 12+ 默认无 `/var/log/auth.log`，fail2ban sshd jail 若走文件 backend 会启动失败 | 当前 jail 模板默认 `backend = systemd`（systemd 主机）并安装 `python3-systemd`；重跑 `onboard` 或 `modify --toggle-fail2ban on` 会 restart + active/jail verify |
-| `Failed to download metadata for repo 'epel'`（RHEL/Alma/Rocky） | fail2ban 在 EPEL，装它要拉 Fedora 镜像元数据，部分地区/主机不稳 | 已 fail-soft：重试 3 次后仍失败则**跳过 fail2ban 继续 onboard**（标记 `vps_fail2ban_deferred`，打 WARNING）。EPEL 恢复后用 `modify <alias> --env <env> --toggle-fail2ban on` 补装 |
+| `Failed to download metadata for repo 'epel'`（RHEL/Rocky） | fail2ban 在 EPEL，装它要拉 Fedora 镜像元数据，部分地区/主机不稳 | 已 fail-soft：重试 3 次后仍失败则**跳过 fail2ban 继续 onboard**（标记 `vps_fail2ban_deferred`，打 WARNING）。EPEL 恢复后用 `modify <alias> --env <env> --toggle-fail2ban on` 补装 |
 | RHEL onboard 卡在 `Wait for managed SSH port`（端口迁移后连不上 1156） | SELinux enforcing 不让 sshd 绑非 22 端口，或 firewalld 没放行 managed 端口 | 已自动处理：SELinux 启用时 `seport` 给 managed 端口打 `ssh_port_t`；firewalld 为活动防火墙时放行 managed/bootstrap 端口。若主机用 nftables/云安全组，需在云控制台放行 managed 端口 |
 | `ssh.managed_port must be a non-22 high port` assert 失败 | host_vars 里 `managed_port: 22` 或 `< 1024` | 改 host_vars，重跑 |
 | audit `unreachable` 但 ssh 手工能上 | `ansible_python_interpreter` 路径不存在 / known_hosts 不匹配 | 进 `runtime/logs/.../stdout` 看 ansible 报错；known_hosts 不匹配时手工 `ssh-keygen -R '[host]:port'` |

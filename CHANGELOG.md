@@ -29,6 +29,16 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased]
 
+### Platform support: drop AlmaLinux; RHEL family = Rocky Linux only + onboard wheel fix (feat/vps-manager-v2, 2026-05-25)
+
+**Breaking (support matrix):** AlmaLinux is removed from the supported platform matrix. The RHEL family is now **Rocky Linux 9+ only**. This is a passive removal — Rocky and AlmaLinux are binary-compatible RHEL 9, so the shared `os_family == RedHat` code path is unchanged and no runtime reject was added; AlmaLinux is simply no longer documented, tested, or inventoried.
+
+- **Inventory**: removed `alma9` (`82.152.164.144`) from `inventory/hosts.ini` `[targets_rhel]`, and `hk-alm9` from the vps_runner dev inventory (`inventory/vps_runner/dev/hosts.yml` + deleted `host_vars/hk-alm9.yml`). RHEL fleet is now `rocky9` only.
+- **Config default (sudo admin group)**: `onboard.yml` previously hardcoded the managed user's group to `['sudo']` regardless of OS family — on RHEL this created a non-standard `sudo` group instead of using `wheel`. It now family-selects the admin group (`wheel` on RedHat, `sudo` on Debian), matching the established `roles/infra_baseline` pattern (`defaults: sudo` + `vars/RedHat.yml: wheel`). The sudoers drop-in still grants NOPASSWD directly, so this corrects group membership semantics on Rocky hosts.
+- **Tier lists / platform metadata**: `roles/common` preflight Tier-1 check, `meta/main.yml` platforms, and per-family `vars/RedHat.yml` comments narrowed to Rocky for the RHEL family.
+
+Plan: `docs/reviews/refactor-drop-almalinux/plan-2026-05-25.md`.
+
 ### VPS Runner: complete RHEL-family onboard (firewalld + SELinux port + fail2ban resilience) (feat/vps-manager-v2, 2026-05-24)
 
 `onboard.yml` was Debian-first for firewall/SELinux; onboarding an AlmaLinux 9 host surfaced the gaps in sequence. Now complete and defensive for RHEL family (Rocky/Alma 9). Plan: `docs/reviews/feat-vps-manager-v2/plan-2026-05-24-rhel-onboard-completion.md`.

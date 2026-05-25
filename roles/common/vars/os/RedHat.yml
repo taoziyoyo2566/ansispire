@@ -1,6 +1,6 @@
 # roles/common/vars/os/RedHat.yml
-# Tier 1 supported platforms: Rocky Linux 9+, AlmaLinux 9+
-# Tier 2 supported platforms: AlmaLinux 8, CentOS Stream 9
+# Tier 1 supported platforms: Rocky Linux 9+
+# Tier 2 supported platforms: CentOS Stream 9
 
 ---
 _common__os_packages:

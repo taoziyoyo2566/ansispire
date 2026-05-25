@@ -9,7 +9,6 @@ Base configuration applied to **all** managed hosts. This role is a prerequisite
 | Debian | Ubuntu | 20.04, 22.04, 24.04 | 1 (fully tested) |
 | Debian | Debian | 11, 12 | 2 (best-effort) |
 | RedHat | Rocky Linux | 9 | 1 (fully tested) |
-| RedHat | AlmaLinux | 8, 9 | 2 (best-effort) |
 
 ## Role Variables
 

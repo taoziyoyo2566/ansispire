@@ -1,5 +1,5 @@
 # roles/infra_baseline/vars/RedHat.yml
-# Per-family overrides for RHEL-family targets (Rocky / AlmaLinux / RHEL 9+).
+# Per-family overrides for RHEL-family targets (Rocky / RHEL 9+).
 # Loaded explicitly via `include_vars` at the top of tasks/redhat.yml — Ansible
 # does NOT auto-load vars/<os_family>.yml for roles.
 ---

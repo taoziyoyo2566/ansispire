@@ -110,7 +110,7 @@
   ignore_errors: "{{ ansible_check_mode }}"
   tags: [firewall]
 
-# ── Firewall: firewalld (RedHat/Rocky/Alma only) ────────────────────────────
+# ── Firewall: firewalld (RedHat/Rocky only) ─────────────────────────────────
 - name: Install firewalld (RedHat)
   ansible.builtin.package:
     name: firewalld

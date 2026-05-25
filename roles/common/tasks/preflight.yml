@@ -3,9 +3,9 @@
 #
 # Platform support tiers (see docs/reviews/platform-support-addendum-2026-04-09.md):
 #   Tier 1 — supported by default and continuously CI-verified:
-#             Ubuntu 20.04+ / Rocky Linux 9+ / AlmaLinux 9+
+#             Ubuntu 20.04+ / Rocky Linux 9+
 #   Tier 2 — code skeleton exists, not yet in CI:
-#             Debian 11+  / AlmaLinux 8 / CentOS Stream 9
+#             Debian 11+  / CentOS Stream 9
 #   Tier 3 — needs extra bootstrap; outside the default-path commitment:
 #             Alpine / minimal images / hosts without Python
 
@@ -18,7 +18,7 @@
     fail_msg: >
       Unsupported OS family: {{ ansible_facts['os_family'] }}
       ({{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}).
-      Supported families: Debian (Ubuntu/Debian), RedHat (Rocky/Alma/RHEL/CentOS Stream).
+      Supported families: Debian (Ubuntu/Debian), RedHat (Rocky/RHEL/CentOS Stream).
     success_msg: "OS family check passed: {{ ansible_facts.os_family }}"
   tags: [always, preflight]
 
@@ -58,7 +58,7 @@
     common_preflight_tier1: >-
       {{
         (ansible_facts['distribution'] == 'Ubuntu' and ansible_facts['distribution_major_version'] | int >= 20) or
-        (ansible_facts['distribution'] in ['Rocky', 'AlmaLinux'] and ansible_facts['distribution_major_version'] | int >= 9)
+        (ansible_facts['distribution'] == 'Rocky' and ansible_facts['distribution_major_version'] | int >= 9)
       }}
   tags: [always, preflight]
 
@@ -67,7 +67,7 @@
     msg: >
       WARNING: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }} is
       not a Tier 1 tested platform for this demo.
-      Tier 1 = Ubuntu 20.04+, Rocky 9+, AlmaLinux 9+.
+      Tier 1 = Ubuntu 20.04+, Rocky 9+.
       You may encounter untested behavior. See docs/reviews/platform-support-addendum-2026-04-09.md
   when: not common_preflight_tier1
   tags: [always, preflight]

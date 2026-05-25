@@ -105,7 +105,7 @@
 - **管理节点组**：`[hub_local]`（工作站）/ `[hub_remote]`（远端 VPS — ⚠ 当前 `ans-hk01` 引用的 IP 已被 OS 重装抹掉，待清理）/ `[hub:children]`（联合）
 - **被管节点组**（TASK-007 round 1 已接入，2026-05-19）：
   - `[targets_debian]` = d13 (Debian 13) + u24 (Ubuntu 24.04)
-  - `[targets_rhel]` = rocky9 (Rocky 9.7) + alma9 (AlmaLinux 9.7)
+  - `[targets_rhel]` = rocky9 (Rocky 9.7) —— AlmaLinux 已于 2026-05-25 移除,RHEL 家族仅 Rocky
   - `[targets_alpine]` = 空（TASK-007.B 占位）
   - `[targets:children]` + `[targets:vars]` —— 详见 [`multi-os-fleet.md`](multi-os-fleet.md)
 
@@ -174,7 +174,7 @@
 - 失败安全：dry-run 对全栈兼容（check-mode safety）
 
 ### 不能做什么 ❌ / 半完成 ⚠
-- ✅ **Rocky/AlmaLinux 9 真实部署**（TASK-007 round 1，2026-05-19）；❌ Alpine 仍 fail stub（TASK-007.B）
+- ✅ **Rocky 9 真实部署**（TASK-007 round 1，2026-05-19；AlmaLinux 已于 2026-05-25 移除）；❌ Alpine 仍 fail stub（TASK-007.B）
 - ❌ **数据库真 failover**（playbook placeholder + EDA rule disabled，待 TASK-008）
 - ❌ **Prometheus 监控集成**（待 TASK-002）
 - ❌ **Multi-node Semaphore HA + DB 升级 SQLite→PG**（待 TASK-003）

@@ -20,7 +20,7 @@ galaxy_info:
     # Tier 1 — validated by the molecule/common Rocky 9 scenario
     - name: EL
       versions:
-        - "9"        # Rocky Linux 9 / AlmaLinux 9 (Rocky validated, Alma expected-compatible)
+        - "9"        # Rocky Linux 9 (validated via molecule/common)
   galaxy_tags:
     - base
     - common
