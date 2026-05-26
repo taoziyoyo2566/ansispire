@@ -1048,11 +1048,13 @@ def test_audit_policy_rules_are_inventory_defined():
     assert "fail2ban-client status sshd" not in audit_text
     assert "systemctl is-active fail2ban" not in audit_text
 
+    # Canonical audit rules live in the shared common/ group_vars (dev/ holds
+    # only per-env overrides since the group_vars split — commit 82fba93).
     group_vars = (
         core.PROJECT_ROOT
         / "inventory"
         / "vps_runner"
-        / "dev"
+        / "common"
         / "group_vars"
         / "vps_targets.yml"
     ).read_text(encoding="utf-8")
