@@ -1,0 +1,21 @@
+---
+ansible_host: 157.120.39.142
+ansible_port: 1156
+ansible_user: ansible
+vps_runner:
+  managed_port: 1156
+  managed_user: ansible
+  status: active
+  os:
+    family: null
+    distribution: null
+    version: null
+  bootstrap_user: ubuntu
+  bootstrap_port: 22
+  last_run:
+    id: vps-runner-20260525T141423Z-dev-onboard
+    action: onboard
+    status: successful
+    rc: 0
+    completed_at: '2026-05-25T14:18:05Z'
+  updated_at: '2026-05-25T14:18:05Z'
