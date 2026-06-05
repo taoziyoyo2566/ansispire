@@ -48,7 +48,7 @@ Target state:
 - [x] Add this TODO file to the same branch.
 - [x] Add agent guidance for this topic directory.
 - [x] Add a branch-bootstrap changelog.
-- [ ] Commit the initial branch-management snapshot with a docs-only commit.
+- [x] Commit the initial branch-management snapshot with a docs-only commit. *(landed as `3cf02fe` bootstrap commit, 2026-06-03)*
 
 ### B. Branch boundary cleanup
 
@@ -89,10 +89,10 @@ These should **not** be created before the parent planning branch exists.
 This branch-management issue is considered solved only when all of the following are true:
 
 - [x] `feat/target-architecture` exists.
-- [ ] The target-architecture docs are committed on that branch.
+- [x] The target-architecture docs are committed on that branch. *(bootstrap `3cf02fe`)*
 - [x] New architecture work no longer lands on `feat/vps-manager-v2`.
 - [x] There is a written rule for which future work belongs to which branch.
-- [ ] The next implementation topic is opened from the correct parent branch.
+- [ ] The next implementation topic is opened from the correct parent branch. *(still pending — blocked on Phase 1 runtime probe; see TODO.md Open Decisions ENV)*
 
 ---
 

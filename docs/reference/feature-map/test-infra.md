@@ -72,9 +72,10 @@ Tier 1（Molecule 真实覆盖）：
 - Ubuntu 22.04（`geerlingguy/docker-ubuntu2204-ansible:latest`）
 - Debian 12（`geerlingguy/docker-debian12-ansible:latest`）
 
-Tier 2（占位，待 TASK-007）：
+Tier 2（已接入，TASK-007 round 1）：
 - Rocky Linux 9 / Alma 9
-- Alpine
+
+> Debian + RHEL 即完整支持集（scope 决策 2026-06-05）；Alpine 等其他 family out of scope。
 
 ---
 

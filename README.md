@@ -25,7 +25,7 @@ For the architecture-level picture, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 ## Prerequisites
 
 - **Control node** (where you run `ansible-playbook` and the optional dev compose stack): Linux (Ubuntu 22.04+ / Debian 12 recommended), Python 3.10+, Docker Engine + Compose plugin.
-- **Managed nodes**: Python 3.9+; SSH reachable. Debian/Ubuntu Tier 1, RHEL family Tier 2, Alpine Tier 2.
+- **Managed nodes**: Python 3.9+; SSH reachable. Debian/Ubuntu Tier 1, RHEL family Tier 2. These two families are the complete supported set; other families are rejected by the baseline guard.
 - **Ansible / collection versions**: pinned in [`requirements.txt`](./requirements.txt) and [`requirements.yml`](./requirements.yml). Do not deviate without rebuilding the [execution environment](./execution-environment.yml).
 
 A one-shot setup verifies all of the above:

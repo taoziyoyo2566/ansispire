@@ -21,7 +21,7 @@ Ansispire is a **Multi-Server Management Control System** for high-availability 
   - **Dev** (`inventory/dev/`): local development, unit testing, ephemeral EDA validation (`make test-eda-e2e`).
   - **Stag** (`inventory/stag/`): pre-production mirroring on real infrastructure (`make deploy-stag`).
   - **Prod** (`inventory/prod/`): live management and application plane (`make hub-deploy`, `make deploy-prod`).
-- **Inventory taxonomy**: `[hub_local]` / `[hub_remote]` / `[hub:children]` for management nodes; `[targets_debian|rhel|alpine]` for managed VPS data-plane (Debian + RHEL families populated in TASK-007 round 1, 2026-05-19 — 4 hosts across Debian 13, Ubuntu 24.04, Rocky 9, AlmaLinux 9; Alpine remains a placeholder pending TASK-007.B).
+- **Inventory taxonomy**: `[hub_local]` / `[hub_remote]` / `[hub:children]` for management nodes; `[targets_debian|rhel]` for managed VPS data-plane (Debian + RHEL families populated in TASK-007 round 1, 2026-05-19 — 4 hosts across Debian 13, Ubuntu 24.04, Rocky 9, AlmaLinux 9). Debian and RHEL are the complete supported set (scope decision 2026-06-05); other OS families are rejected by the `infra_baseline` guard.
 
 ## 3. Module Scope (Logic Truths)
 - [Hub Deployment](docs/reference/feature-map/hub-deployment.md) — feature map · ops: [`docs/operations/hub-deployment.md`](docs/operations/hub-deployment.md)

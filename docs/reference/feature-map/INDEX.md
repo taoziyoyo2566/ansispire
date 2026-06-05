@@ -16,7 +16,7 @@
 | **`database`** | ✅ 完整 | MySQL 安装 + `my.cnf` 模板（`ansible_managed` 包 `comment` filter）+ root 密码幂等设置 (`check_implicit_admin: true`) + 库/用户创建 + 备份脚本（可选） |
 | **`ansispire_hub`** | ✅ 完整 | Hub 部署：rsync 代码到 `/opt/ansispire/`（21 项 exclude）+ 渲染 `.env`（端口/镜像/admin）+ 启 Semaphore docker stack + EDA token mint/复用（state 在 `/var/lib/ansispire/state/`） |
 | **`ansispire_audit`** | ✅ 完整 | 审计链路部署：relay / sink / reactor 容器栈到 hub |
-| **`infra_baseline`** | ✅ Debian + RHEL | Debian 路径（Docker repo + 管理用户 + sudoers + ssh key + 可选 swap）；**RHEL 路径**（TASK-007 round 1，2026-05-19）：dnf docker repo + python3.11 pivot + SELinux container_manage_cgroup + wheel 组；**Alpine 路径仍为 fail stub**（TASK-007.B）。详见 [`multi-os-fleet.md`](multi-os-fleet.md) |
+| **`infra_baseline`** | ✅ Debian + RHEL | Debian 路径（Docker repo + 管理用户 + sudoers + ssh key + 可选 swap）；**RHEL 路径**（TASK-007 round 1，2026-05-19）：dnf docker repo + python3.11 pivot + SELinux container_manage_cgroup + wheel 组。**Debian + RHEL 即完整支持集**（scope 决策 2026-06-05）；其他 OS family 被 `main.yml` 守门 `fail` 拒绝。详见 [`multi-os-fleet.md`](multi-os-fleet.md) |
 | **`geerlingguy.docker`** | ✅ Vendor | 第三方角色，含本项目特定补丁（FQCN / octal 修复，见 `docs/governance/vendor-patches.md`） |
 
 ---
@@ -107,8 +107,7 @@
 - **被管节点组**（TASK-007 round 1 已接入，2026-05-19）：
   - `[targets_debian]` = d13 (Debian 13) + u24 (Ubuntu 24.04)
   - `[targets_rhel]` = rocky9 (Rocky 9.7) + alma9 (AlmaLinux 9.7)
-  - `[targets_alpine]` = 空（TASK-007.B 占位）
-  - `[targets:children]` + `[targets:vars]` —— 详见 [`multi-os-fleet.md`](multi-os-fleet.md)
+  - `[targets:children]` + `[targets:vars]` —— 详见 [`multi-os-fleet.md`](multi-os-fleet.md)。Debian + RHEL 为完整支持集，无 Alpine 组（scope 决策 2026-06-05）。
 
 ---
 
@@ -174,7 +173,7 @@
 - 失败安全：dry-run 对全栈兼容（check-mode safety）
 
 ### 不能做什么 ❌ / 半完成 ⚠
-- ✅ **Rocky/AlmaLinux 9 真实部署**（TASK-007 round 1，2026-05-19）；❌ Alpine 仍 fail stub（TASK-007.B）
+- ✅ **Rocky/AlmaLinux 9 真实部署**（TASK-007 round 1，2026-05-19）。Debian + RHEL 为完整支持集；其他 OS family（含 Alpine）out of scope，被守门 fail 拒绝（scope 决策 2026-06-05）。
 - ❌ **数据库真 failover**（playbook placeholder + EDA rule disabled，待 TASK-008）
 - ❌ **Prometheus 监控集成**（待 TASK-002）
 - ❌ **Multi-node Semaphore HA + DB 升级 SQLite→PG**（待 TASK-003）

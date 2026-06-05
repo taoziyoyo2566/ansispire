@@ -13,7 +13,7 @@
 | **Data Plane** | The managed servers — what Ansible actually configures via `roles/` and `playbooks/`. |
 | **Reaction Plane (EDA)** | The "self-healing" loop: events → rule match → remediation playbook fired via Semaphore API. |
 | **Hub** | A node that hosts the full Control + Audit stack. In `inventory/hosts.ini` it lives in `[hub_local]` (workstation) or `[hub_remote]` (real VPS); `[hub:children]` is the union. |
-| **Targets** | Managed VPS that receive `infra_baseline` and application roles only — they do **not** host the hub. Grouped by OS family in `[targets_debian|rhel|alpine]`. |
+| **Targets** | Managed VPS that receive `infra_baseline` and application roles only — they do **not** host the hub. Grouped by OS family in `[targets_debian|rhel]` (Debian + RHEL are the complete supported set; other families are rejected by the baseline guard). |
 | **Path A** | The "real deployment" path: `make hub-deploy HUB_NODE=...` invokes the `ansispire_hub` role to deploy the hub onto a remote VPS (or `localhost` for a permanent local hub). Persistent. |
 | **Path B** | The "dev / testing" path: `make controller-up && make controller-bootstrap && make controller-audit-up` uses docker-compose on the workstation. Ephemeral. |
 | **Bootstrap** | An Ansible playbook (`controller/semaphore/bootstrap.yml`) that registers Semaphore project / inventory / templates / API token via the REST API. IaC; UI-zero-touch. |
@@ -22,7 +22,7 @@
 | **Manifest sync** | `make manifest-sync` renders the SSOT manifest into `controller/semaphore/.env` (between `# BEGIN manifest` and `# END manifest` markers). Auto-runs before `make controller-up`. |
 | **Cooldown** | Per-rule timestamp in the reactor that prevents event-storm cascades (default 600 s). |
 | **`enabled: false`** | Soft-disable on a rule in `rules.json`. Reactor early-returns from `match_rule`; the rule stays in the file as documentation. |
-| **Tier 1 / Tier 2** | Platform support tier. Tier 1 = tested in CI + Molecule (Debian 12, Ubuntu 22.04+). Tier 2 = skeleton support, not first-class (Rocky 9, Alpine). See [`governance/operational-truths.md`](../governance/operational-truths.md). |
+| **Tier 1 / Tier 2** | Platform support tier. Tier 1 = tested in CI + Molecule (Debian 12, Ubuntu 22.04+). Tier 2 = supported but not yet first-class in CI (RHEL/Rocky 9). Debian + RHEL families are the complete supported set; other families (e.g. Alpine) are out of scope. See [`governance/operational-truths.md`](../governance/operational-truths.md). |
 
 ---
 

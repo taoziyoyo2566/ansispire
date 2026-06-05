@@ -29,6 +29,14 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branches `feat/target-architecture` + `feat/vps-manager-plugin` + `feat/multi-os-target-fleet`
 
+### Scope lock + project hygiene (2026-06-05)
+
+Branch `feat/target-architecture`. Direction decisions + resource cleanup; no runtime behaviour change beyond the OS-guard message.
+
+- **OS support set closed to Debian + RHEL**: Alpine (and any other family) is now explicitly out of scope — there is no roadmap to add it. `roles/infra_baseline/tasks/main.yml` replaces the Alpine-specific `NOT IMPLEMENTED` fail-stub with a generic unsupported-family guard (`os_family not in [Debian, RedHat]`). The empty `[targets_alpine]` group is removed from `inventory/hosts.ini` and `inventory/prod/hosts.ini` (and the `[targets:children]` reference). Backlog item TASK-007.B is cancelled. Truth sources synced: `ARCHITECTURE.md`, `README.md`, `config/manifest.yml`, `controller/semaphore/bootstrap.yml`, feature-map (`INDEX.md`, `multi-os-fleet.md`, `hub-deployment.md`, `test-infra.md`), user-guide (`01`, `04`, `05`), operations (`hub-deployment.md`, `eda-core.md`), `docs/governance/operational-truths.md`.
+- **`todo` branch retired**: `TODO.md` is now the sole dynamic-truth task ledger. The `todo` branch (3 commits, a superseded task-ledger SSOT) is archived under tag `archive/todo-ledger-2026-06-05` and deleted. `CLAUDE.md §2` updated.
+- **`reference/ansispire/` removed**: a 3.6 MB untracked full-repo duplicate that risked accidental commit and polluted lint/grep scans.
+
 ### Target architecture branch cleanup (2026-06-03)
 
 Branch `feat/target-architecture`.
@@ -39,7 +47,7 @@ Branch `feat/target-architecture`.
 
 ### Multi-OS target fleet — RHEL family support (TASK-007 round 1, 2026-05-19)
 
-First-class data-plane support for managed VPS across two OS families: Debian (Debian 13 + Ubuntu 24.04) and RHEL (Rocky Linux 9 + AlmaLinux 9). Closes the placeholder fail-stub that `infra_baseline` carried for RHEL since the role's inception. Alpine remains a placeholder for follow-up TASK-007.B.
+First-class data-plane support for managed VPS across two OS families: Debian (Debian 13 + Ubuntu 24.04) and RHEL (Rocky Linux 9 + AlmaLinux 9). Closes the placeholder fail-stub that `infra_baseline` carried for RHEL since the role's inception. (As of the 2026-06-05 scope lock, these two families are the complete supported set — see above.)
 
 - **Role**: `roles/infra_baseline/tasks/redhat.yml` (new) — dnf-based Docker CE install via vendor `.repo`; SELinux `container_manage_cgroup` boolean flip (enforcing OR permissive); `python3.11` install + interpreter pivot to satisfy `infra_baseline_python_min_version: 3.10` (RHEL 9 ships 3.9 by default); `--check` mode safety via stat probe + `meta: end_host` for fresh-host preview.
 - **Role**: `roles/infra_baseline/tasks/main.yml` (refactored) — Python version assert moved from position 1 to after per-family blocks; Docker service start relocated from family-agnostic into the Debian `block:` (RHEL handles its own via `redhat.yml`); RHEL fail-stub replaced with `include_tasks: redhat.yml`; user creation parameterized to use OS-appropriate admin group (`sudo` on Debian, `wheel` on RHEL via `vars/RedHat.yml`).

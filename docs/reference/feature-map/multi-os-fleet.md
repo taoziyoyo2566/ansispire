@@ -2,23 +2,23 @@
 
 ## Status
 
-Initial implementation (TASK-007 round 1, 2026-05-19). Debian + RHEL families implemented; Alpine deferred to TASK-007.B.
+Initial implementation (TASK-007 round 1, 2026-05-19). Debian + RHEL families implemented. Scope decision 2026-06-05: these two families are the **complete** supported set — Alpine and any other family are intentionally out of scope (rejected by the infra_baseline guard).
 
 ## Overview
 
 `[targets_*]` are managed VPS that receive `infra_baseline` only — they form the *data plane* under one or more hubs. The hub dispatches Ansible jobs against these hosts (via SSH from the Semaphore container) but the targets themselves run no control-plane software.
 
-Two OS families are supported as of this round:
+Two OS families are supported — and this is the complete set:
 
 | Family | Distros | Path |
 |---|---|---|
 | **Debian** | Debian 13 (`d13`), Ubuntu 24.04 (`u24`) | `roles/infra_baseline/tasks/main.yml` inline block — apt + Docker CE repo + systemd |
 | **RHEL** | Rocky Linux 9 (`rocky9`), AlmaLinux 9 (`alma9`) | `roles/infra_baseline/tasks/redhat.yml` — dnf + python3.11 pivot + Docker CE repo + SELinux container_manage_cgroup + systemd |
-| Alpine | (none) | `main.yml` fail-stub; implementation pending TASK-007.B |
+| _(any other family)_ | — | rejected by the `main.yml` unsupported-family guard; out of scope |
 
 ## Configuration SSOT
 
-- **Physical inventory**: [`inventory/hosts.ini`](../../../inventory/hosts.ini) `[targets_debian]` / `[targets_rhel]` / `[targets_alpine]` / `[targets:children]` / `[targets:vars]`.
+- **Physical inventory**: [`inventory/hosts.ini`](../../../inventory/hosts.ini) `[targets_debian]` / `[targets_rhel]` / `[targets:children]` / `[targets:vars]`.
 - **Prod inventory** ([`inventory/prod/hosts.ini`](../../../inventory/prod/hosts.ini)) **deliberately keeps the `[targets_*]` blocks empty**. Reason: `playbooks/site.yml` first play is `hosts: all`, so populating prod's targets would sweep them on every `make deploy-prod` / Semaphore "site.yml (check mode)" run — broadening blast radius beyond the role those hosts actually receive (infra_baseline only). The SSOT `inventory/hosts.ini` carries the targets; Semaphore consumes them via a dedicated `targets-managed` inventory record (see "Semaphore integration" below).
 - **Connection vars** ([`inventory/hosts.ini` `[targets:vars]`](../../../inventory/hosts.ini)):
   - `ansible_user=ansible` (steady-state; created by the role on first run)
@@ -28,7 +28,7 @@ Two OS families are supported as of this round:
 
 ## Engineering mandates
 
-- **Per-family `include_tasks` pattern**: `main.yml` dispatches to `redhat.yml` (RHEL) via `include_tasks` when `ansible_facts['os_family'] == "RedHat"`. Alpine still uses inline `fail:` until TASK-007.B; Debian still uses an inline `block:` because consolidating it into `debian.yml` was out of scope for this round.
+- **Per-family `include_tasks` pattern**: `main.yml` dispatches to `redhat.yml` (RHEL) via `include_tasks` when `ansible_facts['os_family'] == "RedHat"`. Debian still uses an inline `block:` because consolidating it into `debian.yml` was out of scope for this round. Any host whose `os_family` is neither `Debian` nor `RedHat` hits the `fail:` guard and stops — Ansispire supports only these two families.
 - **Python pivot on RHEL 9** (`redhat.yml` D8): RHEL 9 ships `/usr/bin/python3` = 3.9, below `infra_baseline_python_min_version: 3.10`. The role's first RHEL task installs `python3.11` from AppStream using the existing 3.9 interpreter, then `set_fact: ansible_python_interpreter=/usr/bin/python3.11` + `setup:` re-gathers facts. The family-agnostic Python assert in `main.yml` now runs AFTER the per-family blocks (refactored task order) so it sees the pivoted interpreter on RHEL.
 - **`--check` mode safety**: `redhat.yml` stat-probes `/usr/bin/python3.11` with `check_mode: false`. On a fresh host in `--check` mode (binary not yet present), the role emits a preview-only debug notice and ends the play for that host via `meta: end_host` — avoiding the downstream "module interpreter not found" failure. Real runs install python3.11 first and proceed normally.
 - **SELinux on RHEL**: `getenforce` probe (with `check_mode: false` so it actually runs under `--check`); when status ∈ `{Enforcing, Permissive}`, installs `python3-libselinux + python3-libsemanage` and flips `container_manage_cgroup=on` via `ansible.posix.seboolean` (interpreter overridden to `/usr/bin/python3` for that one task since the system Python is what owns the SELinux Python bindings). Permissive mode is intentionally included so the persistent boolean is in place if the operator later switches to Enforcing.
@@ -67,7 +67,6 @@ Both materialize on the next `make hub-deploy` after this branch lands. End-to-e
 
 ## Known limitations (this round)
 
-- **Alpine**: no host provisioned; `main.yml` Alpine block remains a fail-stub. Tracked as **TASK-007.B**.
 - **Per-OS Molecule coverage**: existing 4 scenarios cover Debian only. A `roles/infra_baseline/molecule/redhat/` scenario would catch regressions inside the dnf/SELinux path.
 - **`[hub_remote]` orphan**: the `ans-hk01` reference in `inventory/hosts.ini` `[hub_remote]` points at an IP (89.185.26.211:1156) that was wiped by the user's OS reinstall on 2026-05-19. Same IP is now Debian 13 target `d13` (port 22). Cleanup is tracked as a separate TODO follow-up; not in TASK-007 scope (W-R13 minimum-modification).
 - **End-to-end Semaphore "Ping all targets" execution**: declared in `bootstrap.yml` but not materialized this round (requires a running Semaphore + bootstrap re-run + hub-side SSH key authorized on targets).

@@ -65,14 +65,12 @@ hub_remote
 
 [targets_debian]
 [targets_rhel]
-[targets_alpine]
 [targets:children]
 targets_debian
 targets_rhel
-targets_alpine
 ```
 
-`[targets_*]` 占位组为下一阶段 4 台多 OS VPS 准备。
+`[targets_*]` 组承载受管 VPS。支持集仅 Debian 系 + RHEL 系（scope 决策 2026-06-05），其他 OS family 被 `infra_baseline` 守门拒绝。
 
 ### 4.2 部署到远程 hub（Path A）
 
@@ -166,7 +164,7 @@ Ansible 2.20+ inventory 解析严格：引用了未定义的子组 → **整个�
 | Path A `--check` 失败 `cookies_string` | 已修：role 加 `when: not ansible_check_mode`；如重现，检查 `roles/ansispire_hub/tasks/main.yml` |
 | Path A rsync 把 `.env` / `.secrets` / `.demo_*.pw` 上传 | 已修：21 项 rsync excludes；如重现，检查 `roles/ansispire_hub/tasks/main.yml` rsync_opts |
 | 远程 `.eda_token` 每次部署被擦 | 已修：状态文件迁 `/var/lib/ansispire/state/.eda_token`；rsync 看不见 |
-| `infra_baseline` 在 Alpine/Rocky 上立即 fail | 故意：Round 4 守门，等 TASK-007 实现 RHEL/Alpine 分支 |
+| `infra_baseline` 在非 Debian/RHEL 主机上立即 fail | 故意：OS-family 守门。仅支持 Debian 系 + RHEL 系（scope 决策 2026-06-05）；把不支持的主机（如 Alpine）从 targets inventory 移除 |
 
 更多细节见 [`docs/user-guide/02-quickstart-eda.md`](../user-guide/02-quickstart-eda.md) §10。
 

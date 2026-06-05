@@ -190,7 +190,7 @@ controller/semaphore/.secrets           ← bootstrap 自动写入 SEMAPHORE_API
 ✅ Round 4 (2026-05-10)：Path A 全面硬化 + manifest SSOT + inventory `[hub_local]`/`[hub_remote]` 拓扑 + rsync 强 excludes + state 迁出 + OS-family 守门 + `make hub-deploy HUB_NODE=` 包装。**TASK-001 闭环。**
 
 后续：
-- TASK-007（多 OS target fleet）：4 台 VPS 接入 `[targets_*]`、实现 `infra_baseline` RHEL/Alpine 分支
+- TASK-007（多 OS target fleet）：4 台 VPS 接入 `[targets_*]`、`infra_baseline` Debian + RHEL 分支已实现（即完整支持集，Alpine out of scope）
 - TASK-008（DB Failover 真实化）：实现 `playbooks/remediation/db_failover.yml`、把 rule `enabled: true`、加 L4 用例
 
 ---

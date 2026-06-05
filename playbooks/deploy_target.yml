@@ -6,10 +6,10 @@
 # no hub (Semaphore + audit) is deployed onto them. They are pure managed
 # data-plane hosts, supervised by the hub via SSH-based job dispatch.
 #
-# Cross-OS support (TASK-007):
+# Cross-OS support (TASK-007) — Debian and RHEL families only (scope 2026-06-05):
 #   - Debian / Ubuntu (targets_debian) — apt + systemd path, implemented inline
 #   - Rocky / AlmaLinux (targets_rhel)  — dnf + systemd path via redhat.yml
-#   - Alpine (targets_alpine)           — apk + OpenRC path, STUB (TASK-007.B)
+#   Any other OS family is rejected by infra_baseline's unsupported-family guard.
 ---
 - name: Deploy Ansispire managed targets (infra_baseline only)
   hosts: targets

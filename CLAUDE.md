@@ -53,7 +53,7 @@ Long-form workflow spec per tier: `docs/governance/ai-workflow.md §1`.
 Use `AGENTS.md` / nested `AGENTS.md` as the routing layer, then load actual truth in this hierarchy:
 
 1.  **Design truth**: `ARCHITECTURE.md` (read FIRST).
-2.  **Dynamic truth**: `TODO.md` / `todo` branch.
+2.  **Dynamic truth**: `TODO.md` (sole task ledger; the former `todo` branch was retired 2026-06-05 — its history is preserved under tag `archive/todo-ledger-2026-06-05`).
 3.  **Investigation truth**: `docs/reference/investigations/INDEX.md` — if status is `Applied`, skip deep-reading; the rule already lives at the 「应用位置」column target.
 4.  **Logic truth**: `docs/reference/feature-map/<name>.md` (per module).
 5.  **Implementation**: source code or `details.md`.

@@ -27,7 +27,7 @@
 | `.eda_token` disappears on every deploy | Old token lived in `/opt/ansispire/.eda_token` (inside the rsync target dir; `--delete` wiped it) | Already fixed: token now in `/var/lib/ansispire/state/.eda_token`, outside the rsync target |
 | `Host is using the discovered Python interpreter at /usr/bin/python3.13` warning | Auto-discovery; no explicit pin | Already fixed: `inventory/hosts.ini` pins `ansible_python_interpreter` per host |
 | `ansible.posix.synchronize` raises a `to_text` deprecation warning | Collection's internal import path lags upstream Python | Suppress; ansible-core 2.24 will not break it. Tracked upstream |
-| `infra_baseline` immediately fails with `NOT IMPLEMENTED` on Alpine / Rocky | Intentional Round-4 OS-family gate | Wait for the multi-OS expansion task (TASK-007); do not put Alpine/Rocky hosts in the hub deploy until then |
+| `infra_baseline` fails with "Ansispire does not support" on a non-Debian/RHEL host | Intentional OS-family guard | Only Debian and RHEL families are supported (scope decision 2026-06-05). Remove the unsupported host (e.g. Alpine) from the targets inventory — there is no plan to add it. |
 
 ## 3. Toolchain / verify chain
 

@@ -2,7 +2,9 @@
 #
 # OS-family branching: Debian (Debian / Ubuntu) implemented inline in the
 # Debian block below; RHEL family (Rocky / AlmaLinux / RHEL 9+) implemented
-# via include_tasks: redhat.yml; Alpine remains a fail-stub until TASK-007.B.
+# via include_tasks: redhat.yml. Debian + RHEL are the COMPLETE supported set
+# (scope decision 2026-06-05); any other family hits the unsupported-family
+# guard and fails fast.
 #
 # Task order rationale (TASK-007 D8): the Python ≥3.10 assert runs AFTER the
 # per-family blocks — RHEL 9 ships Python 3.9, and redhat.yml installs 3.11
@@ -10,8 +12,7 @@
 # the assert either order since they already ship Python ≥3.12.
 #
 # Docker service start (`systemd: name=docker state=started`) lives INSIDE
-# each per-family block so the OS-specific service manager can be used
-# (Alpine will use OpenRC via ansible.builtin.service in TASK-007.B).
+# each per-family block so the OS-specific service manager can be used.
 #
 # Family-agnostic tail (group / user / sudo / authorized_key) runs on every
 # host regardless of family.
@@ -68,15 +69,18 @@
   ansible.builtin.include_tasks: redhat.yml
   when: ansible_facts['os_family'] == "RedHat"
 
-# ── Alpine — STUB until TASK-007.B (no Alpine host provisioned 2026-05) ─
-- name: Baseline | Alpine setup (NOT IMPLEMENTED)
-  when: ansible_facts['os_family'] == "Alpine"
+# ── Unsupported OS families — fail loudly, do NOT silently skip ──────────
+# Scope decision (2026-06-05): Ansispire supports Debian and RHEL families
+# only. Alpine (and any other family) is intentionally out of scope. This
+# guard exists so an out-of-scope host fails fast instead of skipping every
+# per-family block and appearing "successful" with no baseline applied.
+- name: Baseline | Reject unsupported OS family
+  when: ansible_facts['os_family'] not in ["Debian", "RedHat"]
   ansible.builtin.fail:
     msg: >-
-      Alpine infra_baseline is not implemented yet. This stub exists so
-      {{ inventory_hostname }} doesn't silently skip baseline. Implement
-      apk-based docker install in roles/infra_baseline/tasks/alpine.yml and
-      replace this fail with `include_tasks: alpine.yml` (TASK-007.B).
+      {{ inventory_hostname }} is OS family '{{ ansible_facts['os_family'] }}',
+      which Ansispire does not support. Only Debian and RHEL families are
+      supported. Remove this host from the targets inventory.
 
 # ── Family-agnostic tail (run on every host after per-family blocks) ────
 # Python version assert MUST run after per-family blocks so redhat.yml gets

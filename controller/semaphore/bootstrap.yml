@@ -678,5 +678,5 @@
           - ""
           - "── TASK-007 multi-OS targets ─────────────────────"
           - "Template:   'Ping all targets' (playbooks/ping_targets.yml)"
-          - "Inventory groups: targets_debian, targets_rhel (targets_alpine empty — TASK-007.B)"
+          - "Inventory groups: targets_debian, targets_rhel (complete supported set; other families rejected by guard)"
           - "CLI: make target-deploy TARGET_NODE=debian|rhel|all|<alias> [ANSIBLE_USER=root]"

@@ -21,7 +21,7 @@
 
 - Python ≥ 3.9 (Ansible's managed-node baseline since the 2026 LTS upgrade).
 - SSH reachable from the control node, with key auth set up.
-- Tier 1: Debian 12, Ubuntu 22.04+. Tier 2 (skeleton support): RHEL/Rocky 9, Alpine.
+- Tier 1: Debian 12, Ubuntu 22.04+. Tier 2: RHEL/Rocky 9. Debian + RHEL are the complete supported set; other families (e.g. Alpine) are out of scope.
 
 Versions of Ansible Core and the collection set are pinned — see [`requirements.txt`](../../requirements.txt) and [`requirements.yml`](../../requirements.yml). Do not mix-and-match; the [`execution-environment.yml`](../../execution-environment.yml) is the source of truth.
 

@@ -20,9 +20,9 @@
 # Semaphore, 3010 for the audit sink) — image upgrades don't require port
 # edits on our side.
 #
-# Forward compatibility: when targets_{debian,rhel,alpine} groups come online
-# in the next phase, OS-family-specific package pins go in this file too
-# (e.g. ansispire_versions.docker_engine_debian / ..._alpine).
+# Forward compatibility: OS-family-specific package pins (for the supported
+# targets_debian / targets_rhel groups) go in this file too when needed
+# (e.g. ansispire_versions.docker_engine_debian / ..._rhel).
 
 # ── Versions ──────────────────────────────────────────────────────────────
 ansispire_versions:

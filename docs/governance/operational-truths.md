@@ -28,7 +28,8 @@
 
 
 - **Tier 1**: Debian 12, Ubuntu 22.04+ in CI and Molecule.
-- **Tier 2**: Rocky Linux 9, Alpine — skeleton tested, not first-class. Rocky 9 specifically has deep PAM entanglements in Docker that make functional role testing unreliable in containerized CI; prefer real-VM testing for RHEL-family verification.
+- **Tier 2**: Rocky Linux 9 / AlmaLinux 9 — supported (TASK-007 round 1) but not first-class in CI. Rocky 9 specifically has deep PAM entanglements in Docker that make functional role testing unreliable in containerized CI; prefer real-VM testing for RHEL-family verification.
+- **Supported set is closed**: Debian + RHEL families are the COMPLETE supported set (scope decision 2026-06-05). Alpine and any other family are out of scope — `infra_baseline` rejects them via the unsupported-family guard. There is no Alpine roadmap item.
 - **Dropped**: Ubuntu 20.04 (Python baseline), Debian 11 (EOL trajectory).
 
 ## Governance
