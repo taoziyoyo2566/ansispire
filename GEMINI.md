@@ -1,26 +1,31 @@
-# GEMINI.md — 项目治理与执行总纲
+# GEMINI.md — Gemini / Cross-Agent Collaboration Notes
 
-本文件是 Ansispire 项目的最高执行契约。
+本文件不是 Ansispire 的唯一最高规则。
+它是给 Gemini 会话使用的补充治理说明，需要与以下内容配合：
 
-## 0. AI 行为协议 (The Peer Rule)
-- **主动挑战**：AI 严禁盲目执行指令。任何修改必须先进行影响分析（Impact Analysis）。
-- **交付门禁 (Delivery Gate)**：任何修改在向用户交付前，必须经过 100% 全链路验证。
-- **一致性保护**：任务关闭前必须确认：1. ARCHITECTURE.md 已更新；2. README.md 已更新；3. 验证经验已整理入对应的 operations.md（最终参考手册）。
+- `AGENTS.md` / 嵌套 `AGENTS.md`：任务路由、局部上下文、路径级规则
+- `CLAUDE.md`：共享工作流基线（任务分级、Sync Guard、分支生命周期）
+- 当前仓库事实：`ARCHITECTURE.md`、`TODO.md`、`docs/governance/*`、feature-map、active review plan、代码
 
-## 1. 验证与知识沉淀 (Testing & Codification)
-- **强制规程**：执行验证阶段时，必须强制遵循 `docs/governance/testing-governance.md`。
-- **消灭“口传知识”**：严禁将复杂的命令序列留在聊天记录中。所有被证实有效的操作路径必须沉淀为功能指南，作为系统的最终参考手册。
+若这些来源互相冲突，优先当前仓库事实与 active plan，而不是本文件本身。
 
-## 2. 工程标准 (Engineering Standards)
-- **幂等性原则**：严禁使用 `recreate: always` 等暴力手段。必须通过任务状态感知（changed/handler）驱动资源变更。
-- **解耦原则**：控制面与执行面物理分离。M2M 集成必须使用 Bearer Token。
-- **配置即代码 (IaC)**：所有资源（Project, Template）必须通过剧本拨备，禁止手动 UI 操作。
+## 1. 上下文与方向控制
 
-## 3. 冲突阻断与审计 (Audit Protocol)
-- **半径 3 米审计**：发现问题时，必须检查代码库其他位置是否存在类似缺陷。
-- **Git 提交纪律 (Atomic Commits)**：严禁碎步提交。原则上一个逻辑任务（包含 Bug 修复和反馈循环）只允许一个提交。在未经过 100% 验证（包括逻辑时序分析）前，禁止执行 `git commit`。
-- **生命周期审计 (Lifecycle Audit)**：涉及网络、SSH 或执行流修改时，必须显式审计其在工具（如 Ansible）执行周期中的位置。严禁仅凭“通过单元测试”就假设逻辑正确，必须论证其在真实调用链路中的有效性。
-- **强制 Gate**：提交前必须提供 `make syntax` 和 `ansible-lint` 通过日志。
+- **尊重上下文过滤**：Gemini 会话优先遵守 `.geminiignore`，避免把无关文档、历史产物、临时文件全量塞进上下文。
+- **先判断方向，再扩展实现**：如果任务是在现有实现上继续加功能，先验证该实现是否仍符合当前架构方向；若它本身已偏航，不要直接叠补丁。
+- **显式落地关键取舍**：L1.5 / L2 工作中的关键取舍，必须写进 plan / IVG / review note，而不是只留在聊天里。
+
+## 2. 交付与知识沉淀
+
+- **验证服从项目测试治理**：非平凡改动完成前，按 `docs/governance/testing-governance.md` 跑对应 surface 的最低必需验证；若没跑，必须明确说明缺口。
+- **不要把 docs 变更也硬套成全链路运行测试**：纯文档 / 治理改动应重点核对命令、路径、交叉引用与职责边界，而不是强行补无意义的 runtime gate。
+- **消灭“口传知识”**：一旦某条命令序列、排障路径、操作套路被证明有复用价值，就应沉淀到 `docs/operations/`、`docs/governance/` 或对应 feature-map，而不是只留在聊天记录。
+
+## 3. 交叉审计与纠偏
+
+- **发现结构性问题先纠偏，再继续开发**：如果另一套 AI 产出的 plan / IVG / 实现存在结构错误、事实错误或方向错误，不要在其上继续叠加工作。
+- **纠偏必须可追溯**：先复现或确认问题，再通过 plan / changelog / review note 修正、归档或替换记录，让后续 agent 能复盘为什么改口径。
+- **把 Gemini 用在它擅长的地方**：上下文裁剪、交叉审计、把临时有效经验写回仓库文档；共享规则本身则优先复用 `CLAUDE.md` 与当前 repo truth，而不是在这里重复造一份总纲。
 
 ---
-*遵循本准则以确保 Ansispire 项目的工业级稳定性。*
+*本文件用于补充 Gemini / 多 agent 协作，不替代仓库事实。*

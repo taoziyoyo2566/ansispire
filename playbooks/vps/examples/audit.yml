@@ -1,0 +1,12 @@
+---
+vps_task:
+  checks:
+    disk: true
+    memory: true
+    failed_services: true
+    reboot_required: true
+  thresholds:
+    disk_warning_percent: 80
+    disk_critical_percent: 90
+    memory_warning_percent: 80
+    memory_critical_percent: 90

@@ -112,7 +112,7 @@
           - "--exclude=*.swp"
           - "--exclude=*~"
           - "--exclude=*.retry"
-          # vps_manager inbox/logs/state — workstation-local only, must
+          # legacy local runtime/scratch data — workstation-local only, must
           # never leak to the hub side
           - "--exclude=runtime/"
           # ── Secrets — must never leave the workstation ──

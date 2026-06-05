@@ -20,7 +20,9 @@ Top-of-repo documents that are NOT under `docs/`:
 - [`SECURITY.md`](../SECURITY.md) — vulnerability reporting policy
 - [`LICENSE`](../LICENSE) — Apache-2.0
 - [`TODO.md`](../TODO.md) — current task list and branch readiness
-- [`CLAUDE.md`](../CLAUDE.md) / [`GEMINI.md`](../GEMINI.md) — AI collaborator mandates
+- [`AGENTS.md`](../AGENTS.md) — Codex routing entry and path-local context loading
+- [`CLAUDE.md`](../CLAUDE.md) — shared workflow baseline for repo AI work
+- [`GEMINI.md`](../GEMINI.md) — complementary Gemini / cross-agent guidance
 
 ---
 
@@ -40,6 +42,7 @@ Terse command-first references. Optimized for "I need to do X right now, what's 
 
 - [eda-core.md](operations/eda-core.md) — reactor / audit-stack day-2 commands
 - [hub-deployment.md](operations/hub-deployment.md) — Path A (Ansible role-based) hub deploy reference
+- [vps-lifecycle.md](operations/vps-lifecycle.md) — Semaphore-first VPS lifecycle playbook reference
 - [environments.md](operations/environments.md) — dev / stag / prod inventory and Make-target map
 
 ## reference/ — feature maps, test specs, investigations
@@ -47,6 +50,7 @@ Terse command-first references. Optimized for "I need to do X right now, what's 
 Lazy-loadable detail. Don't read top-to-bottom; cross-referenced from elsewhere.
 
 - [feature-map/](reference/feature-map/) — one-page summary per feature (audit-plane, eda-core, eda-remediation, hub-deployment, test-infra)
+- [reference/feature-map/vps-lifecycle.md](reference/feature-map/vps-lifecycle.md) — retained VPS lifecycle content on `feat/target-architecture`
 - [investigations/INDEX.md](reference/investigations/INDEX.md) — RCA / spike history; rows with `Applied` status route to the active rule location
 - [test-specs/](reference/test-specs/) — TSVS verification records per test layer
 

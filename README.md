@@ -4,6 +4,8 @@ Ansispire is an opinionated control plane on top of Ansible. It turns "scripts +
 
 It is intended for teams managing a fleet of Linux servers who want one operational truth — where state lives, who changed what, when did it heal itself — instead of stitching that truth together after the fact.
 
+On `feat/target-architecture`, the old local `vps_manager` control surface is intentionally removed. The retained VPS automation lives as plain Ansible content under [`playbooks/vps/`](./playbooks/vps/README.md) while the branch converges on Semaphore Inventory + Key Store + Task API as the control-plane truth.
+
 ---
 
 ## Capabilities
@@ -14,7 +16,7 @@ It is intended for teams managing a fleet of Linux servers who want one operatio
 - **Tiered environment model**: `dev` (local loopback), `stag` (pre-prod parity), `prod` (live management + apps). One playbook, three inventories.
 - **Two deployment paths**: Path A (Ansible role-based hub deploy onto a remote VPS) and Path B (docker-compose dev stack on your workstation). Same control plane image, same audit plane, different bootstrap.
 - **Bearer-token machine identity**: the reactor talks to the control plane API with a scoped token minted by IaC bootstrap. The admin password never enters the reaction loop.
-- **VPS lifecycle plugin**: `plugins/vps_manager/` consumes one-shot YAML tasks, onboards VPS hosts onto a non-22 SSH management port, archives tasks with redaction, and keeps a local VPS inventory for follow-up actions.
+- **Semaphore-first VPS lifecycle content**: `playbooks/vps/` retains the onboarding / modify / audit / remove / docker_host / deploy_compose playbooks that the target architecture will drive from Semaphore Inventory + Key Store + Task API.
 
 For the architecture-level picture, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
@@ -87,10 +89,11 @@ Full spec: [`docs/governance/loopback-runner.md`](./docs/governance/loopback-run
 | You want to... | Read |
 |---|---|
 | Understand the architecture in 5 minutes | [ARCHITECTURE.md](./ARCHITECTURE.md) |
-| Onboard or manage VPS hosts from YAML tasks | [plugins/vps_manager/README.md](./plugins/vps_manager/README.md) |
+| Inspect the retained VPS lifecycle content on this branch | [playbooks/vps/README.md](./playbooks/vps/README.md) |
 | Install Ansispire on a clean machine | [docs/user-guide/01-installation.md](./docs/user-guide/01-installation.md) |
 | Understand EDA self-healing end-to-end (rationale + failure modes) | [docs/user-guide/02-quickstart-eda.md](./docs/user-guide/02-quickstart-eda.md) |
-| Look up a specific operational command (maintainer view) | [docs/operations/eda-core.md](./docs/operations/eda-core.md) · [docs/operations/hub-deployment.md](./docs/operations/hub-deployment.md) · [docs/operations/vps-manager.md](./docs/operations/vps-manager.md) |
+| Look up a specific operational command (maintainer view) | [docs/operations/eda-core.md](./docs/operations/eda-core.md) · [docs/operations/hub-deployment.md](./docs/operations/hub-deployment.md) · [docs/operations/vps-lifecycle.md](./docs/operations/vps-lifecycle.md) |
+| Understand the target-architecture cutover plan | [docs/reviews/feat-target-architecture/plan-2026-05-25.md](./docs/reviews/feat-target-architecture/plan-2026-05-25.md) |
 | Baseline a managed VPS (Debian / Ubuntu / Rocky / AlmaLinux) | `make target-deploy TARGET_NODE=<group\|alias>` — see [feature-map/multi-os-fleet.md](./docs/reference/feature-map/multi-os-fleet.md) |
 | Choose which inventory / Make target for dev / stag / prod | [docs/operations/environments.md](./docs/operations/environments.md) |
 | Know what's planned next | [TODO.md](./TODO.md) |
@@ -105,9 +108,10 @@ Full spec: [`docs/governance/loopback-runner.md`](./docs/governance/loopback-run
 
 This project follows a layered governance model. The relevant files:
 
-- [CLAUDE.md](./CLAUDE.md) — workload classification (L0–L2), mandatory plan-first / changelog protocol
-- [GEMINI.md](./GEMINI.md) — Gemini-specific operating directives
-- [docs/governance/ai-workflow.md](./docs/governance/ai-workflow.md) — how AI collaborators should operate inside this repo
+- [AGENTS.md](./AGENTS.md) — Codex routing entry and path-local context loading
+- [CLAUDE.md](./CLAUDE.md) — shared workflow baseline (task levels, sync discipline, branch lifecycle)
+- [GEMINI.md](./GEMINI.md) — complementary Gemini / cross-agent guidance (context discipline, peer audit, codification)
+- [docs/governance/ai-workflow.md](./docs/governance/ai-workflow.md) — repo-wide AI workflow model and how these layers fit together
 
 Contributions must follow the workflow in [docs/governance/contributing.md](./docs/governance/contributing.md): scope-defined commits, mandatory diff self-check, evidence-backed test claims.
 

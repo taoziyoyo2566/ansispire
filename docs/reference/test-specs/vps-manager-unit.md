@@ -1,7 +1,9 @@
 # TSVS-VPS-MANAGER-UNIT-001 — VPS Manager Local Lifecycle
 
+> **Retired 2026-06-03** — `feat/target-architecture` 分支移除了本地 `vps_manager` 控制面。本文档只保留历史覆盖记录，不再作为当前活跃实现的覆盖判断依据。
+
 ## Status
-Active — first registered 2026-05-14.
+Retired — first registered 2026-05-14; retired on 2026-06-03.
 
 ## Surface
 `plugins/vps_manager/vps_manager.py` and its local runtime state model.

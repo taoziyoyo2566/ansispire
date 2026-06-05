@@ -33,14 +33,14 @@
 
 ## Governance
 
-- **AI-native collaboration**: Gemini and Claude rules are integrated. See [`CLAUDE.md`](../../CLAUDE.md) and [`GEMINI.md`](../../GEMINI.md).
+- **AI-native collaboration**: `AGENTS.md` handles routing and local context, `CLAUDE.md` holds the shared workflow baseline, and `GEMINI.md` adds Gemini / cross-agent guidance. When they drift, prefer current repo truth.
 - **Cross-AI audit**: any multi-AI investigation must produce a peer-review and archiving trail (planning + changelog), so a future agent can reconstruct the rationale.
 
 ---
 
 ## Performance & Scale
 
-- **High-Latency Optimization (244ms+):** Over long-distance connections, Ansible's per-task overhead (SSH handshake + become) dominates execution time. Roles MUST prioritize **Task Consolidation**: replace multi-item `loop` on small file mutations (e.g., `replace`, `lineinfile`, `authorized_key`) with single-task regex or aggregated Jinja2 strings to minimize round-trips. Current carriers: `plugins/vps_manager/playbooks/onboard.yml`.
+- **High-Latency Optimization (244ms+):** Over long-distance connections, Ansible's per-task overhead (SSH handshake + become) dominates execution time. Roles MUST prioritize **Task Consolidation**: replace multi-item `loop` on small file mutations (e.g., `replace`, `lineinfile`, `authorized_key`) with single-task regex or aggregated Jinja2 strings to minimize round-trips. Current carriers: `playbooks/vps/onboard.yml`.
 - **Future Scale Path:** For large-fleet or high-latency management, investigate **Mitogen** for persistent Python execution or **Async** (poll: 0) for non-blocking package installation to decouple flow from network round-trips.
 
 *This file replaces `SUMMARY.md` §4. Its role is to retain those settled truths in a place where they are searchable and can grow without bloating the architecture document.*

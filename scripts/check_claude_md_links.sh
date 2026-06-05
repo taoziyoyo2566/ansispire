@@ -4,8 +4,8 @@
 # namespace into governance.
 #
 # Why this exists:
-#   CLAUDE.md is loaded as resident context for every session and is the
-#   project's foundational mandate (see project ./CLAUDE.md §0). Wikilinks
+#   CLAUDE.md is loaded as resident context for every Claude session and is the
+#   shared workflow baseline for Claude sessions (see project ./CLAUDE.md). Wikilinks
 #   like `[[feedback-foo]]` resolve only inside an agent's private
 #   `~/.claude/projects/*/memory/` namespace — they are dead references
 #   from the repo's point of view. A future agent that inherits only the

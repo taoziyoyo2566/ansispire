@@ -62,7 +62,7 @@
 | `config/manifest.yml` (Semaphore 镜像 tag bump) | `make manifest-sync` + `make verify` | `make test-api-contract` | — |
 | `controller/semaphore/preflight/**` | `bash -n` + `make verify` | `make test-api-contract` | — |
 | `filter_plugins/**` | `make test-filters` | `make verify` | （由 molecule 间接覆盖渲染产物） |
-| `plugins/vps_manager/**` | `make test-vps-manager` + `make vps-manager-syntax` | `make verify` | 真实远端 onboarding 仍需人工 smoke 或后续 L4/L5 |
+| `playbooks/vps/**` | `make vps-lifecycle-syntax` | `make verify` | 真正的 Semaphore-driven 执行链路仍需后续 functional verification |
 | `playbooks/site.yml` | `make verify` | `make verify-full` | — |
 | `inventory/{stag,prod}/**` | `make syntax` | `make verify` | — |
 | `Makefile` / `.github/workflows/**` | `make verify` | `make verify-full` (本地)；CI 自验 | — |
@@ -81,13 +81,12 @@
 | 目标 | 包含 | 耗时 | 用途 |
 |---|---|---|---|
 | `make verify-quick` | syntax-check (stag + prod) | ~3 s | commit 前最低门槛、保存点检查 |
-| `make verify` | **yamllint** + **ansible-lint** + syntax + `vps-manager-syntax` + **detect-secrets** + `test-eda` (L1+L2+L3, 5 个文件) + `test-filters` + `test-vps-manager` + dry-run | ~30–60 s | push / PR 前默认、一般改动闸口 |
+| `make verify` | **yamllint** + **ansible-lint** + syntax + `vps-lifecycle-syntax` + **detect-secrets** + `test-eda` (L1+L2+L3, 5 个文件) + `test-filters` + dry-run | ~30–60 s | push / PR 前默认、一般改动闸口 |
 | `make verify-full` | `verify` + `molecule-all` (4 场景串行) | ~10–20 min | release 前 / 涉及 role 改动 / 涉及 Make 改动 |
 | `make test-eda-e2e` | 真实 docker e2e（约 60–90 s） | ~90 s | 涉及 reactor / 审计链路改动 |
 | `make test-api-contract` | 一次性 Semaphore 容器 + `bootstrap_preflight.yml --full`（17 endpoints 走完） | ~30–60 s | bump `config/manifest.yml` 的 Semaphore tag、改 `bootstrap.yml`/`bootstrap_preflight.yml`、PR 前预演 |
 | `make test-filters` | `filter_plugins/custom_filters.py` 单测 | < 1 s | 改了 custom filter 行为 |
-| `make test-vps-manager` | `plugins/vps_manager/` 本地 lifecycle 单测 | < 1 s | 改了 VPS Manager 调度器、schema、示例或本地状态逻辑 |
-| `make vps-manager-syntax` | `plugins/vps_manager/playbooks/*.yml` 原生 Ansible syntax-check | < 5 s | 改了 VPS Manager action playbook |
+| `make vps-lifecycle-syntax` | `playbooks/vps/*.yml` 原生 Ansible syntax-check | < 5 s | 改了保留的 VPS lifecycle playbook 或示例 |
 | `make detect-secrets` | 扫 tracked + unignored 文件 vs `.secrets.baseline`，新增 → fail | < 5 s | 内置于 `verify`；单独触发用于排错 |
 | `make controller-rbac-smoke` | RBAC 三角色权限 smoke | < 30 s | 涉及 rbac 改动 |
 | `make controller-loop-smoke` | Semaphore action → relay → sink 回环 | ≤ 20 s | 涉及 audit 链路改动 |
@@ -103,8 +102,8 @@
 ```
 yamllint ──┬─→ ansible-lint ──┬─→ dry-run
            ├─→ syntax-check ──┤
-           ├─→ vps-manager-syntax ─────────────────────────────────────────┤
-           └─→ python tests (test-eda + test-filters + test-vps-manager) ──┴─→ molecule [matrix: common, webserver, database, full-stack 并行]
+           ├─→ vps-lifecycle-syntax ───────────────────────────────────────┤
+           └─→ python tests (test-eda + test-filters) ─────────────────────┴─→ molecule [matrix: common, webserver, database, full-stack 并行]
 
 detect-secrets (独立 job；同样是合并门禁)
 api-contract [matrix: pinned (gating), latest (continue-on-error, drift warning)]

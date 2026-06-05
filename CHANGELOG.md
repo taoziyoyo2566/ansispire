@@ -27,7 +27,15 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ---
 
-## [Unreleased] — branches `feat/vps-manager-plugin` + `feat/multi-os-target-fleet`
+## [Unreleased] — branches `feat/target-architecture` + `feat/vps-manager-plugin` + `feat/multi-os-target-fleet`
+
+### Target architecture branch cleanup (2026-06-03)
+
+Branch `feat/target-architecture`.
+
+- **Breaking refactor**: the local `plugins/vps_manager/` control surface is removed on this branch. The retained VPS lifecycle automation now lives under `playbooks/vps/`.
+- **CLI / Make UX**: local `vps-new` / `vps-submit` / `vps-manager-process` style entry points are removed from this branch; the remaining gate is `make vps-lifecycle-syntax`.
+- **Documentation**: active operator and feature-map docs now describe Semaphore-first lifecycle content instead of the removed local plugin workflow.
 
 ### Multi-OS target fleet — RHEL family support (TASK-007 round 1, 2026-05-19)
 

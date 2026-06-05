@@ -24,6 +24,17 @@
 
 ## 🟡 进行中 / 下一轮可立刻启动 (Active / Next-up)
 
+### Target Architecture — 回归 Ansible + Semaphore（planning branch ready）  ▶️
+- **目标**：以 `Semaphore Inventory + Key Store + Task API` 作为控制面真相；owner branch 已移除本地 `vps_manager` 调度层，并把保留的生命周期 playbook 迁到 `playbooks/vps/`。
+- **入口**：`docs/reviews/feat-target-architecture/plan-2026-05-25.md`、`design-2026-05-26.md`、`TODO-2026-06-03-branch-management.md`、`round1-2026-06-03.changelog.md`、`round2-2026-06-03.changelog.md`、`round3-2026-06-03.changelog.md`、`docs/reference/investigations/IVG-SEMAPHORE-INVENTORY-API.md`
+- **状态**：▶️ **owner branch + cleanup 已落地，Phase 1 静态契约调查已开始** —— `feat/target-architecture` 负责这条方向的规划与当前分支真相；后续不要再把这类规划或实现落到 `feat/vps-manager-v2`。
+- **下一步**：
+    1. `[~]` Phase 1：`IVG-SEMAPHORE-INVENTORY-API` 已完成静态契约调查；待补一次有 Docker daemon 的运行态验证（`GET/PUT /inventory/{id}` + task launch params）
+    2. `[ ]` Q4：确认 CF Worker 语言（JS 推荐 / Python 备选）
+    3. `[ ]` Phase 3 follow-up：把 `playbooks/vps/` 真正接到 Semaphore Inventory / Key Store / Task API，并继续清理剩余失效入口
+- **优先级**：P1
+- **建议分支**：`feat/target-architecture`（owner） → 后续再拆子分支
+
 ### TASK-007.B — Alpine OS-family branch  🆕
 - **目标**：把 `roles/infra_baseline/tasks/alpine.yml` fail-stub 替换为真实 apk+OpenRC 实现，让 Alpine VPS 也能纳管。
 - **入口**：现有 `main.yml:70-78` fail 占位；Phase 3 已设计好 `target-deploy` 的 `TARGET_NODE=alpine` 路径（接 placeholder）。
@@ -78,6 +89,18 @@
 - **依赖**：TASK-001 闭环（已完成）；端口 9390/9090 已在 `config/manifest.yml` 预留
 - **优先级**：P3
 - **建议分支**：`feat/observability-prometheus`
+
+### TASK-009 — Dependency / Image Security Governance
+- **目标**：把当前“版本治理骨架”补成真正可审计的安全 / 兼容性闭环：覆盖 Python 依赖、容器镜像、Semaphore 上游版本、兼容性矩阵、以及 waiver 机制。
+- **入口**：`docs/reviews/feat-dependency-security-governance/plan-2026-06-03.md`、`docs/reviews/feat-dependency-security-governance/round1-2026-06-03.changelog.md`
+- **当前缺口**：
+    1. `[ ]` Python 依赖无漏洞扫描（仅有 `detect-secrets` + Dependabot）
+    2. `[ ]` Docker / Semaphore / base image 无 CVE gate
+    3. `[ ]` 依赖与镜像缺少 release-mode 冻结集（当前多为 `>=` 最低版本）
+    4. `[ ]` 没有兼容性矩阵，无法定义“支持 / 候选 / 豁免 / 不支持”
+    5. `[ ]` 没有 Semaphore 上游 advisory / release 审查机制与 waiver 规则
+- **优先级**：P1（治理型缺口，不阻塞当前 target-architecture Phase 1，但应在后续功能落地前补齐）
+- **建议分支**：`feat/dependency-security-governance`
 
 ### TASK-003 — Controller High Availability
 - **目标**：多节点 Semaphore；DB 从 SQLite 升级到 Postgres / MySQL；HA 选主 / 共享存储

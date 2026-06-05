@@ -1,12 +1,19 @@
-# CLAUDE.md — Project Governance & Execution Rules
+# CLAUDE.md — Shared Workflow Baseline for Claude Sessions
 
-This file governs every Claude session. It is the **foundational mandate** for Ansispire and takes precedence over default AI behavior.
+This file is the project-level workflow baseline for Claude sessions in Ansispire.
+It complements:
 
-Resident context — every line is loaded into every session. Add a rule here only if it passes the universality test (workspace W-R14):
+- `AGENTS.md` and nested `AGENTS.md` for routing and path-local guidance
+- `GEMINI.md` for complementary Gemini / cross-agent guidance
+- repo docs and code for the current operational truth
+
+Resident context — every line is loaded into every Claude session. Add a rule here only if it passes the universality test (workspace W-R14):
 
 > *"No matter what I'm doing, I should X."*
 
-If the rule only fires for a specific surface, task type, or artefact, it belongs in the relevant governance / README / spec file, **not** here.
+If the rule only fires for a specific surface, task type, or artefact, it belongs in the relevant governance / README / spec / `AGENTS.md`, **not** here.
+
+When guidance conflicts, prefer user instruction, deeper path-local `AGENTS.md`, and current repo truth over this file.
 
 ---
 
@@ -20,7 +27,7 @@ If the rule only fires for a specific surface, task type, or artefact, it belong
     3. `docs/reference/feature-map/<name>.md` — per-feature scope
     4. `CHANGELOG.md` `[Unreleased]` — release notes (trigger criteria documented in `CHANGELOG.md` header)
     5. `docs/reference/feature-map/INDEX.md` — aggregate functional inventory; **mandatory** when touching `roles/`, `playbooks/`, `controller/`, `extensions/eda/`, `inventory/`, `Makefile`, or `config/manifest.yml` (drift here = future agents re-derive the inventory each session)
-- **Chain of Thought**: For all [L2] and [L1.5] tasks, use `<thinking>` blocks to analyze trade-offs before acting.
+- **Trade-off Capture**: For all [L2] and [L1.5] tasks, record the key trade-offs in the plan doc / IVG / review note. Do not rely only on implicit reasoning.
 - **Refactor globally, do not append**: when editing any rule / config file (this one included), rewrite for whole-file coherence rather than tacking on at the bottom.
 </protocol>
 
@@ -43,7 +50,7 @@ Long-form workflow spec per tier: `docs/governance/ai-workflow.md §1`.
 
 ## 2. Layered Context Governance (Lazy-loading)
 
-To optimize context and cost, load information in this hierarchy:
+Use `AGENTS.md` / nested `AGENTS.md` as the routing layer, then load actual truth in this hierarchy:
 
 1.  **Design truth**: `ARCHITECTURE.md` (read FIRST).
 2.  **Dynamic truth**: `TODO.md` / `todo` branch.
@@ -106,4 +113,4 @@ git branch -D fix/<sub-topic>
 - Existing branches that pre-date this rule (created before 2026-05-20) are grandfathered — apply the new rule on their next merge, not retroactively.
 
 ---
-*Project: Ansispire | Optimized for Claude with XML & Thinking*
+*Project: Ansispire | Claude workflow baseline; combine with AGENTS routing and repo truth.*
