@@ -206,7 +206,7 @@ Configured via `wrangler.toml` (vars) and Cloudflare dashboard / `wrangler secre
 
 | Name | Type | Value |
 |---|---|---|
-| `SEMAPHORE_URL` | var | `http://localhost:3300` (reached via CF Tunnel) |
+| `SEMAPHORE_URL` | var | `https://semaphore.saberu.com` (Cloudflare Tunnel public hostname; tunnel origin points to VPS-local `http://127.0.0.1:3300`) |
 | `SEMAPHORE_PROJECT_ID` | var | Semaphore project integer ID |
 | `SEMAPHORE_INVENTORY_ID` | var | ID of the `targets-managed` Semaphore inventory |
 | `SEMAPHORE_AUDIT_TEMPLATE_ID` | var | ID of the audit task template |
@@ -229,7 +229,7 @@ Configured via `wrangler.toml` (vars) and Cloudflare dashboard / `wrangler secre
 ## 10. Security
 
 - **No CORS needed**: wizard HTML is served by the Worker itself (same-origin). External callers are not expected.
-- **CF Tunnel**: Worker reaches Semaphore via CF Tunnel at `SEMAPHORE_URL`. No inbound port on the VPS.
+- **CF Tunnel**: Worker reaches Semaphore through the Tunnel public hostname in `SEMAPHORE_URL` (for now `https://semaphore.saberu.com`). The tunnel origin on the VPS points to local Semaphore (`http://127.0.0.1:3300`). No inbound port on the VPS.
 - **Token scope**: use a Semaphore API token scoped to the single project (not admin).
 - **SSH key**: never persisted in Worker KV, Worker cache, or logs. Request body → Key Store API → done.
 
