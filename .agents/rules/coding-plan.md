@@ -22,7 +22,8 @@ At minimum:
 3. Check whether the implementation would layer onto an existing anti-pattern; if yes, surface that before planning the patch.
 4. Check whether the framework/tool already has a native or recommended approach.
    Use project usage first, then official docs or external references when the answer depends on current framework behavior or best practice.
-5. Record any uncertainty, blocked prerequisite, or direction risk before proposing edits.
+5. Check `.agents/rules/codex-capabilities.md` for a better execution method before defaulting to manual/basic implementation.
+6. Record any uncertainty, blocked prerequisite, or direction risk before proposing edits.
 
 Do not treat the user's initial wording as proof that the requested direction is correct.
 
@@ -40,6 +41,7 @@ The plan must include:
 - **Scope**: files, components, and behavior included in this task.
 - **Out of scope**: related work intentionally excluded.
 - **Prerequisites**: branch state, existing docs/plans, tools, permissions, or runtime assumptions needed before implementation.
+- **Capability fit**: Codex/tooling capabilities to use for efficiency or accuracy, or why none apply.
 - **Expected effect**: what should be observably different when the task is done.
 - **Acceptance checks**: how to compare final results against the original goal.
 

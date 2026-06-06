@@ -4,7 +4,7 @@ Use this whenever running git commands, changing branches, staging, committing, 
 
 ## Read-only inspection
 
-Read-only git inspection is pre-authorized. Do not ask before running git commands that do not modify:
+Read-only git inspection is pre-authorized. Do not ask for permission or escalation before running git commands that do not modify:
 
 - working tree
 - index
@@ -21,6 +21,7 @@ Examples:
 - `git show`
 - `git diff`
 - `git diff --check`
+- `git grep`
 - `git branch --list`
 - `git merge-base`
 - `git merge-tree`

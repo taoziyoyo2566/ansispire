@@ -20,6 +20,7 @@ When starting in this repo, after a context reset, or when the user asks "where 
    - `git log --oneline --decorate --max-count=5`
 2. Read:
    - `.agents/rules/session-bootstrap.md`
+   - `.agents/rules/codex-capabilities.md`
    - `.agents/project/overview.md`
    - `TODO.md`
 3. If the current branch maps to a topic under `docs/reviews/`, read the latest relevant plan and round changelog for that topic.
@@ -34,6 +35,7 @@ Do not modify files during bootstrap.
 - For architecture-sensitive work: `.agents/project/architecture.md`.
 - For implementation or workflow edits: `.agents/rules/boundaries.md` and `.agents/rules/testing.md`.
 - For coding-related implementation tasks: `.agents/rules/coding-plan.md`.
+- For task-efficiency or tool-selection questions: `.agents/rules/codex-capabilities.md`.
 
 ## Read When Modifying Existing Behavior
 
