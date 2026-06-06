@@ -41,7 +41,7 @@
 - **目标**：以 `Semaphore Inventory + Key Store + Task API` 作为控制面真相；owner branch 已移除本地 `vps_manager` 调度层，并把保留的生命周期 playbook 迁到 `playbooks/vps/`。
 - **入口**：`docs/reviews/feat-target-architecture/`（`plan-2026-05-25.md` / `design-2026-05-26.md` / `TODO-2026-06-03-branch-management.md` / `round1..3-2026-06-03.changelog.md`）、`docs/reference/investigations/IVG-SEMAPHORE-INVENTORY-API.md`
 - **状态**：▶️ owner branch + cleanup 已落地；Phase 1 **静态**契约调查完成（IVG），**运行态验证被环境阻塞**。
-- **🚧 头号阻塞（critical path gate）**：本工作区 `.venv/bin/ansible-playbook`、`python3` 缺失，且 Docker daemon socket 指向失效目标——无法跑一次性 Semaphore 探针。**在恢复 Docker daemon 之前，Phase 1 无法收尾，整条 P1 主线停滞。**
+- **🚧 头号阻塞（critical path gate）**：本工作区 `python3` 与 `.venv/bin/ansible-playbook` 存在；Ansible 需把 local/remote temp 指到 `/tmp` 才能避开只读 `$HOME`。当前仍无 `docker` CLI / Docker daemon，无法启动一次性 Semaphore 探针。**在恢复 Docker runtime 之前，Phase 1 无法收尾，整条 P1 主线停滞。**
 - **下一步**：
     1. `[blocked]` Phase 1 收尾：在有 Docker daemon 的环境跑一次性 Semaphore 探针，证明 `GET/PUT /inventory/{id}` + task launch `extra_vars` 契约（当前公开证据只够支撑 `static` whole-blob CRUD，未证明 `extra_vars`）
     2. `[ ]` **Q4 决策（待用户）**：CF Worker 语言 —— JS 推荐 / Python 备选
@@ -111,7 +111,7 @@
 | Q4 | CF Worker 语言 | Target Arch Phase 2 | JS（推荐）/ Python |
 | D1 | hub_remote 去留 | TASK-007.C | 拨新机 / 清空 local-only / 重部署到 d13 |
 | D2 | DB failover 模型 + 是否有演练 db 拓扑 | TASK-008 | 主备切换 / 提升 standby / DNS 切换 |
-| ENV | 提供一个有 Docker daemon + ansible venv 的环境 | Target Arch Phase 1 收尾（**P1 critical path**） | 恢复本机 daemon / 换执行环境 |
+| ENV | 提供一个有 Docker runtime 的环境 | Target Arch Phase 1 收尾（**P1 critical path**） | 安装/恢复本机 Docker CLI + daemon / 换执行环境；Ansible 可用但需 `ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote` |
 
 ---
 
@@ -121,7 +121,7 @@
 - **合并目标**：**仅 `dev`**（feat→dev，§4 规则）。**永不进 `master`**（2026-06-05 决策）。
 - **同步状态**（2026-06-05 实测）：`feat/target-architecture..origin/dev` 为空 —— 与 dev tip 一致，无待合并 dev 改动（W-R21 sync 通过）。
 - **本分支已落地**：owner-branch bootstrap（`3cf02fe`）+ Phase 1 IVG 调查 + 本轮 scope 整理（Alpine 下线 / todo 分支退役 / reference 副本清理 / 文档真相同步）。
-- **环境限制**：本工作区无 `.venv` ansible 二进制、无可用 Docker daemon —— 运行态/molecule 验证需在具备这些的环境补做（见 Open Decisions ENV）。
+- **环境限制**：本工作区有 `.venv` ansible 二进制，但默认 `$HOME` 临时目录只读；可用 `/tmp` 作为 Ansible temp。当前无 Docker CLI / daemon，运行态 Semaphore 探针仍需在具备 Docker runtime 的环境补做（见 Open Decisions ENV）。
 
 ---
 
@@ -136,4 +136,4 @@
 - **CLAUDE.md 三层**：`~/.claude/CLAUDE.md` / `~/workspace/CLAUDE.md` / `./CLAUDE.md`
 
 ---
-*Last updated: 2026-06-05 (Scope 决策锁定：Alpine 下线 / todo 分支退役 / target-arch 不进 master / reference 副本清理；Branch Readiness 段重写为当前分支真相).*
+*Last updated: 2026-06-06 (ENV blocker correction：Python/Ansible present with `/tmp` temp override; Docker runtime still blocks Target Architecture Phase 1 probe).*
