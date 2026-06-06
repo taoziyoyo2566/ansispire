@@ -28,6 +28,7 @@ cd controller/semaphore
 # 2. Copy the env template and set the admin password
 cp .env.example .env
 vim .env        # at minimum, change SEMAPHORE_ADMIN_PASSWORD
+# `make manifest-sync` / `make controller-up` fills missing Semaphore security keys.
 
 # 3. Start (from the repo root you can instead run `make controller-up`)
 docker compose --env-file .env up -d

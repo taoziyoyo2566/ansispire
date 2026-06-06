@@ -10,7 +10,8 @@
 #   AUDIT_PYTHON_BASE_TAG=...      (Docker Hub python:VERSION base)
 #   # END manifest (managed by manifest-sync — do not edit)
 #
-# Anything outside the markers (admin password, timezone, etc.) is preserved.
+# Anything outside the markers (admin password, timezone, etc.) is preserved,
+# except missing/empty Semaphore security keys are generated once and kept.
 # Stray un-marked SEMAPHORE_PORT / AUDIT_PORT lines are removed so docker
 # compose does not see two values for the same key.
 #
@@ -69,6 +70,60 @@
         marker: "{{ legacy_block_marker }}"
         state: absent
       when: _needs_migration
+
+    - name: Ensure Semaphore security keys exist
+      ansible.builtin.command:
+        cmd: python3 -
+        stdin: |
+          from pathlib import Path
+          import base64
+          import os
+          import re
+
+          path = Path("{{ env_path }}")
+          text = path.read_text()
+          changed = False
+          keys = [
+              "SEMAPHORE_ACCESS_KEY_ENCRYPTION",
+              "SEMAPHORE_COOKIE_HASH",
+              "SEMAPHORE_COOKIE_ENCRYPTION",
+          ]
+
+          def new_value():
+              return base64.b64encode(os.urandom(32)).decode("ascii")
+
+          lines_to_add = []
+          for key in keys:
+              pattern = re.compile(rf"^{re.escape(key)}=(.*)$", re.MULTILINE)
+              match = pattern.search(text)
+              if match and match.group(1).strip():
+                  continue
+              value = new_value()
+              line = f"{key}={value}"
+              if match:
+                  text = pattern.sub(line, text, count=1)
+              else:
+                  lines_to_add.append(line)
+              changed = True
+
+          if lines_to_add:
+              block = (
+                  "\n# Security keys (generated once by manifest-sync)\n"
+                  + "\n".join(lines_to_add)
+                  + "\n"
+              )
+              marker = "# BEGIN manifest (managed by manifest-sync"
+              idx = text.find(marker)
+              if idx >= 0:
+                  text = text[:idx].rstrip() + "\n" + block + "\n" + text[idx:]
+              else:
+                  text = text.rstrip() + "\n" + block
+
+          if changed:
+              path.write_text(text)
+          print(f"changed={changed}")
+      register: _security_keys_result
+      changed_when: "'changed=True' in _security_keys_result.stdout"
 
     - name: Write managed manifest block
       ansible.builtin.blockinfile:
