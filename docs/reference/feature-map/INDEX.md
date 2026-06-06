@@ -79,6 +79,13 @@
   - 已移除：本地 inbox / archive / inventory / SSH config / Python dispatcher
   - 详见 [`vps-lifecycle.md`](vps-lifecycle.md)
 
+### 3.5 CF Worker Wizard (`cf-worker/`)
+- **`cf-worker/`** — Phase 2 Wizard/API layer for Semaphore-first VPS lifecycle:
+  - routes: `GET /`, `GET /health`, `GET/POST /vps`, `PUT/DELETE /vps/:alias`, `POST /vps/:alias/audit`
+  - source of truth: Semaphore `static` inventory blob + Key Store + Task API
+  - task payload: task-level `environment` JSON string carrying top-level `vps_task`
+  - local verification: `npm test --prefix cf-worker`, `npm run deploy:dry-run --prefix cf-worker`
+
 ---
 
 ## 4. EDA 规则库 (Event-Driven Automation)
@@ -180,7 +187,7 @@
 - ⚠ **Stag 环境真机**（结构就绪等接入）
 - ⚠ **多 OS target fleet**（占位组就绪，等 4 台 VPS 上线）
 - ⚠ **`molecule/hub/` scenario**（hub role 目前无独立 molecule 测试，靠 `make hub-deploy-check` 间接 dry-run）
-- ⚠ **Semaphore-first VPS lifecycle wiring 未闭环**（保留 playbook 已迁至 `playbooks/vps/`，但 Inventory / Key Store / Task API 接线仍待后续 phase）
+- ⚠ **Semaphore-first VPS lifecycle wiring 未完全闭环**（`cf-worker/` 本地实现已落地；live integration、real template provisioning、以及 Phase 3 production inventory migration 仍待后续 phase）
 
 ---
-*最后更新：2026-06-03 | 对应分支：`feat/target-architecture`*
+*最后更新：2026-06-06 | 对应分支：`feat/target-architecture`*

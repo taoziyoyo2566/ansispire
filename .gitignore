@@ -38,6 +38,11 @@ __pycache__/
 .venv/
 uv.lock
 
+# ── JavaScript / Cloudflare Workers ────────────────────────────────────
+node_modules/
+cf-worker/.wrangler/
+cf-worker/dist/
+
 # ── Coverage / test runner artifacts ────────────────────────────────────
 .coverage
 .coverage.*

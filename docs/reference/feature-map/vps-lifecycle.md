@@ -40,7 +40,7 @@ The intended control-plane truth is:
 
 - Inventory must define `vps_targets`.
 - Task payload is injected as top-level `vps_task`.
-- Examples under `playbooks/vps/examples/` are `extra_vars` payload references.
+- Examples under `playbooks/vps/examples/` are `vps_task` payload references; the Phase 2 Worker carries runtime payloads through Semaphore task-level `environment` JSON.
 - Recovery-style flows are expected to reuse `onboard.yml`; there is no
   separate `recover` dispatcher in this branch.
 
@@ -63,6 +63,6 @@ surface and is retired as an active coverage signal on this branch.
 
 ## Known Boundaries
 
-- Semaphore Inventory / Task API wiring is still a follow-up phase, not a done state.
+- Semaphore Inventory / Task API wiring is partially implemented by `cf-worker/`; live integration and production inventory migration remain follow-up work.
 - Real Semaphore-driven execution on this branch does not yet have a dedicated TSVS.
 - The old `vps_manager` MVP remains historical context only on older branches and retired specs.

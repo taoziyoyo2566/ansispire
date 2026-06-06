@@ -1,0 +1,13 @@
+name = "ansispire-vps-worker"
+main = "src/index.js"
+compatibility_date = "2026-06-06"
+
+[vars]
+SEMAPHORE_URL = "https://semaphore.saberu.com"
+SEMAPHORE_PROJECT_ID = "1"
+SEMAPHORE_INVENTORY_ID = "2"
+SEMAPHORE_ONBOARD_TEMPLATE_ID = ""
+SEMAPHORE_AUDIT_TEMPLATE_ID = ""
+
+# Set with:
+#   npx wrangler secret put SEMAPHORE_API_TOKEN

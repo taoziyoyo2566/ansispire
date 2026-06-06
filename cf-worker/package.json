@@ -1,0 +1,17 @@
+{
+  "name": "ansispire-cf-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test src/*.test.js",
+    "dev": "wrangler dev",
+    "deploy:dry-run": "wrangler deploy --dry-run"
+  },
+  "dependencies": {
+    "itty-router": "^5.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

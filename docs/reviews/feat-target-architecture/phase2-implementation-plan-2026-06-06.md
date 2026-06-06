@@ -70,7 +70,7 @@ Use a small, dependency-light JavaScript Worker. Keep Ansispire-specific logic e
 - `src/index.js`: route registration, request validation, response formatting.
 - `src/semaphore.js`: fetch wrappers and upstream error normalization.
 - `src/inventory.js`: pure INI parsing, serialization, and host mutations.
-- `src/wizard.html`: minimal operator UI served same-origin by the Worker.
+- `src/wizard.js`: minimal operator UI HTML exported as a JS string, avoiding non-standard raw HTML imports in Wrangler bundling.
 
 The Worker does not become a second control-plane database. Semaphore remains the source of truth:
 
@@ -97,7 +97,7 @@ Expected files:
 - `cf-worker/src/index.js`
 - `cf-worker/src/semaphore.js`
 - `cf-worker/src/inventory.js`
-- `cf-worker/src/wizard.html`
+- `cf-worker/src/wizard.js`
 - `cf-worker/src/inventory.test.js`
 - `docs/reference/feature-map/INDEX.md` and/or `docs/reference/feature-map/vps-lifecycle.md` if the new Worker surface needs index visibility.
 - `docs/reviews/feat-target-architecture/round8-2026-06-06.changelog.md` after implementation.
