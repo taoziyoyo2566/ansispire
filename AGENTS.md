@@ -11,13 +11,12 @@ Do not turn it into another monolithic governance file.
 - If a deeper `AGENTS.md` exists, use it for that subtree.
 - If user instructions conflict with this file, follow the user.
 
-## Always Read Before Any Non-trivial Change
+## Choose Context Before Any Non-trivial Change
 
-- `.agents/project/overview.md`
-- `.agents/project/agent-strategy.md`
-- `.agents/project/architecture.md`
-- `.agents/rules/boundaries.md`
-- `.agents/rules/testing.md`
+- Start with the smallest relevant set, then load more only when the task needs it.
+- For repo facts and AI-guidance ordering: `.agents/project/overview.md` and `.agents/project/agent-strategy.md`.
+- For architecture-sensitive work: `.agents/project/architecture.md`.
+- For implementation or workflow edits: `.agents/rules/boundaries.md` and `.agents/rules/testing.md`.
 
 ## Read When Modifying Existing Behavior
 

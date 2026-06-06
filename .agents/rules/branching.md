@@ -8,6 +8,7 @@ Current branch policy is described in `CLAUDE.md §4`, but branch decisions shou
 - Do not merge `fix/` directly to `dev`.
 
 - Read-only git inspection is pre-authorized: do not ask before running git commands that do not modify the working tree, index, refs, remotes, config, credentials, or external service state. Examples: `git status`, `git log`, `git show`, `git diff`, `git diff --check`, `git branch --list`, `git merge-base`, `git merge-tree`, and `git ls-files`. Judge by effect, not subcommand name; mutating git operations still follow normal branch and destructive-operation rules.
+- Project-wide agent guidance (`AGENTS.md`, `.agents/`, and broad path-local routing) is baseline governance: land it on a dev-based branch, then sync active feature branches from `dev`. Only feature-specific local guidance should ride with that feature branch.
 - One topic should have one clear owner branch.
 - Do not keep landing a new architecture direction into a transition branch if the topic has already diverged.
 - If a plan set under `docs/reviews/feat-<topic>/` has no matching branch and is becoming active, create the matching `feat/<topic>` branch and move future work there.
