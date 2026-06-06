@@ -27,6 +27,13 @@
           - vps_ssh.managed_port | int <= 65535
         fail_msg: "ssh.managed_port must be a non-22 high port."
 
+    - name: Assert managed validation key is provided
+      ansible.builtin.assert:
+        that:
+          - vps_managed.ansible_key.private_key is defined
+          - vps_managed.ansible_key.private_key | length > 0
+        fail_msg: "managed.ansible_key.private_key is required for managed SSH validation."
+
     - name: Collect service facts
       ansible.builtin.service_facts:
       check_mode: false
