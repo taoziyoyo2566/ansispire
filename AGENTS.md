@@ -33,22 +33,26 @@ Do not modify files during bootstrap.
 - For repo facts and AI-guidance ordering: `.agents/project/overview.md` and `.agents/project/agent-strategy.md`.
 - For architecture-sensitive work: `.agents/project/architecture.md`.
 - For implementation or workflow edits: `.agents/rules/boundaries.md` and `.agents/rules/testing.md`.
+- For coding-related implementation tasks: `.agents/rules/coding-plan.md`.
 
 ## Read When Modifying Existing Behavior
 
 - `.agents/scenarios/modify-existing-feature.md`
+- `.agents/rules/coding-plan.md`
 - `.agents/rules/docs-sync.md`
 - `.agents/rules/operational-quirks.md`
 
 ## Read When Fixing A Bug
 
 - `.agents/scenarios/fix-bug.md`
+- `.agents/rules/coding-plan.md`
 - `.agents/rules/operational-quirks.md`
 - `.agents/rules/docs-sync.md`
 
 ## Read When Adding A New Feature Or Subsystem
 
 - `.agents/scenarios/new-feature.md`
+- `.agents/rules/coding-plan.md`
 - `.agents/rules/branching.md`
 - `.agents/rules/docs-sync.md`
 
