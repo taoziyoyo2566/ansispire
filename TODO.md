@@ -39,15 +39,16 @@
 
 ### Target Architecture — 回归 Ansible + Semaphore  ▶️ **P1 主线**
 - **目标**：以 `Semaphore Inventory + Key Store + Task API` 作为控制面真相；owner branch 已移除本地 `vps_manager` 调度层，并把保留的生命周期 playbook 迁到 `playbooks/vps/`。
-- **入口**：`docs/reviews/feat-target-architecture/`（`plan-2026-05-25.md` / `design-2026-05-26.md` / `TODO-2026-06-03-branch-management.md` / `round1..3-2026-06-03.changelog.md`）、`docs/reference/investigations/IVG-SEMAPHORE-INVENTORY-API.md`
-- **状态**：▶️ owner branch + cleanup 已落地；Phase 1 **静态**契约调查完成（IVG），**运行态验证被环境阻塞**。
-- **🚧 头号阻塞（critical path gate）**：本工作区 `python3` 与 `.venv/bin/ansible-playbook` 存在；Ansible 需把 local/remote temp 指到 `/tmp` 才能避开只读 `$HOME`。当前仍无 `docker` CLI / Docker daemon，无法启动一次性 Semaphore 探针。**在恢复 Docker runtime 之前，Phase 1 无法收尾，整条 P1 主线停滞。**
+- **入口**：`docs/reviews/feat-target-architecture/`（`plan-2026-05-25.md` / `design-2026-05-26.md` / `phase2-worker-design.md` / `round1..6-*.changelog.md`）、`docs/reference/investigations/IVG-SEMAPHORE-INVENTORY-API.md`
+- **状态**：▶️ owner branch + cleanup 已落地；Phase 1 **静态**契约调查完成（IVG）；**Phase 2 详细设计已完成**（Q4 关闭：JS）；**运行态验证仍被环境阻塞**。
+- **🚧 头号阻塞（critical path gate）**：当前无 Docker CLI / daemon，无法启动一次性 Semaphore 探针。**在恢复 Docker runtime 之前，Phase 1 runtime probe 无法完成，Phase 2 extra_vars stub 无法关闭。**
+- **决策（2026-06-06 全部关闭）**：Q1 不加内部 TLS（docker 内部）· Q2 暂用 SQLite（后期升 Postgres，与 TASK-003 一并处理）· Q3 保持 Key Store（后续按需 Vault）· Q4 CF Worker = JS。详见 `design-2026-05-26.md §八`。
 - **下一步**：
-    1. `[blocked]` Phase 1 收尾：在有 Docker daemon 的环境跑一次性 Semaphore 探针，证明 `GET/PUT /inventory/{id}` + task launch `extra_vars` 契约（当前公开证据只够支撑 `static` whole-blob CRUD，未证明 `extra_vars`）
-    2. `[ ]` **Q4 决策（待用户）**：CF Worker 语言 —— JS 推荐 / Python 备选
-    3. `[ ]` Phase 2：锁定 Wizard / Worker payload 契约（依赖 Phase 1 探针结论）
-    4. `[ ]` Phase 3：把 `controller/semaphore/bootstrap.yml` 的 `type:"file"` inventory 切到 DB-backed `static`，并把 `playbooks/vps/` 真正接到 Semaphore Inventory / Key Store / Task API
-- **建议子分支**（仅在 Phase 1 探针通过后开）：`feat/semaphore-inventory-api` → `feat/cf-worker-wizard` → `refactor/semaphore-vps-cutover` → `feat/semaphore-prod-hardening`（全部 from `feat/target-architecture`）
+    1. `[blocked]` Phase 1 收尾：在有 Docker daemon 的环境跑一次性 Semaphore 探针，答复 `phase2-worker-design.md §13` 的 4 个 open questions（`GET/PUT /inventory/{id}` 真实语义 + task launch extra_vars 承载路径）
+    2. `[✓]` Phase 2 详细设计：路由 / payload schema / Semaphore client / INI blob 算法 / extra_vars stub（`phase2-worker-design.md`，2026-06-06）
+    3. `[ ]` Phase 2 实现（依赖 Phase 1 probe 关闭 extra_vars stub）
+    4. `[ ]` Phase 3 迁移（依赖 Phase 2 完成）：`controller/semaphore/bootstrap.yml` `type:"file"` → `type:"static"` + blob；`bootstrap_preflight.yml` 扩展到 item 级 inventory CRUD + task launch probe
+- **建议子分支**（Phase 1 probe 通过后开）：`feat/cf-worker-wizard` → `refactor/semaphore-vps-cutover` → `feat/semaphore-prod-hardening`（全部 from `feat/target-architecture`）
 
 ### TASK-009 — Dependency / Image Security Governance  🟡 **P1（并行，不阻塞主线）**
 - **目标**：把当前「版本治理骨架」补成真正可审计的安全 / 兼容性闭环：覆盖 Python 依赖、容器镜像、Semaphore 上游版本、兼容性矩阵、以及 waiver 机制。
@@ -101,14 +102,16 @@
 ### TASK-003 — Controller High Availability
 - **目标**：多节点 Semaphore；DB 从 SQLite 升级到 Postgres / MySQL；HA 选主 / 共享存储。
 - **优先级**：P3（生产规模化时再做）。**注**：与 Target Architecture Phase 3/4 的 DB-backed inventory 方向相关，落地时需对齐。
+- **🔗 Q2 对齐（2026-06-06）**：Target Architecture 决定**暂用 SQLite**（降复杂度），后期升级 Postgres。**Postgres 迁移归口到本任务**——届时 Target Arch 的 DB 后端与本任务的 HA DB 选型一并处理，不重复选型。
 
 ---
 
 ## ❓ 待用户决策汇总 (Open Decisions — 阻塞下游)
 
+Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-2026-05-26.md §八`）：Q1 不加内部 TLS · Q2 暂用 SQLite（Postgres 升级归口 TASK-003）· Q3 保持 Key Store · Q4 CF Worker = JS。剩余开放项：
+
 | # | 决策 | 阻塞的任务 | 选项 |
 |---|---|---|---|
-| Q4 | CF Worker 语言 | Target Arch Phase 2 | JS（推荐）/ Python |
 | D1 | hub_remote 去留 | TASK-007.C | 拨新机 / 清空 local-only / 重部署到 d13 |
 | D2 | DB failover 模型 + 是否有演练 db 拓扑 | TASK-008 | 主备切换 / 提升 standby / DNS 切换 |
 | ENV | 提供一个有 Docker runtime 的环境 | Target Arch Phase 1 收尾（**P1 critical path**） | 安装/恢复本机 Docker CLI + daemon / 换执行环境；Ansible 可用但需 `ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote` |
@@ -119,9 +122,9 @@
 
 - **当前分支**：`feat/target-architecture`（owner / planning branch for 回归-Semaphore 方向）
 - **合并目标**：**仅 `dev`**（feat→dev，§4 规则）。**永不进 `master`**（2026-06-05 决策）。
-- **同步状态**（2026-06-05 实测）：`feat/target-architecture..origin/dev` 为空 —— 与 dev tip 一致，无待合并 dev 改动（W-R21 sync 通过）。
-- **本分支已落地**：owner-branch bootstrap（`3cf02fe`）+ Phase 1 IVG 调查 + 本轮 scope 整理（Alpine 下线 / todo 分支退役 / reference 副本清理 / 文档真相同步）。
-- **环境限制**：本工作区有 `.venv` ansible 二进制，但默认 `$HOME` 临时目录只读；可用 `/tmp` 作为 Ansible temp。当前无 Docker CLI / daemon，运行态 Semaphore 探针仍需在具备 Docker runtime 的环境补做（见 Open Decisions ENV）。
+- **同步状态**（2026-06-06 实测）：已 merge `origin/dev`（含 baseline PR #19/#20/#21），CLAUDE.md 冲突已解（merge commit `66e2bb8`）。
+- **本分支已落地**：owner-branch bootstrap（`3cf02fe`）+ Phase 1 IVG 调查 + scope 整理（Alpine 下线 / todo 分支退役 / reference 副本清理 / 文档同步）+ dev 同步 merge + **Phase 2 CF Worker 详细设计 + Q1–Q4 决策关闭（2026-06-06 Round 6）**。
+- **环境限制**：本工作区有 `.venv` ansible 二进制（需 `/tmp` temp override）；当前无 Docker CLI / daemon，运行态 Semaphore 探针仍需在具备 Docker runtime 的环境补做（见 Open Decisions ENV）。
 
 ---
 
@@ -136,4 +139,4 @@
 - **CLAUDE.md 三层**：`~/.claude/CLAUDE.md` / `~/workspace/CLAUDE.md` / `./CLAUDE.md`
 
 ---
-*Last updated: 2026-06-06 (ENV blocker correction：Python/Ansible present with `/tmp` temp override; Docker runtime still blocks Target Architecture Phase 1 probe).*
+*Last updated: 2026-06-06 (Round 6: Phase 2 CF Worker design complete; Q1–Q4 all closed — no internal TLS / SQLite-for-now / keep Key Store / JS; Phase 1 runtime probe still blocked on Docker daemon).*
