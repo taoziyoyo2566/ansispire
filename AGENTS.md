@@ -11,6 +11,22 @@ Do not turn it into another monolithic governance file.
 - If a deeper `AGENTS.md` exists, use it for that subtree.
 - If user instructions conflict with this file, follow the user.
 
+## Session Bootstrap
+
+When starting in this repo, after a context reset, or when the user asks "where are we", do a read-only status scan before proposing work:
+
+1. Run:
+   - `git status --short --branch`
+   - `git log --oneline --decorate --max-count=5`
+2. Read:
+   - `.agents/rules/session-bootstrap.md`
+   - `.agents/project/overview.md`
+   - `TODO.md`
+3. If the current branch maps to a topic under `docs/reviews/`, read the latest relevant plan and round changelog for that topic.
+4. Summarize current branch, clean/dirty state, active topic, likely next steps, and blocked/deferrable items.
+
+Do not modify files during bootstrap.
+
 ## Choose Context Before Any Non-trivial Change
 
 - Start with the smallest relevant set, then load more only when the task needs it.
@@ -45,10 +61,12 @@ Do not turn it into another monolithic governance file.
 
 ## Read When User Explicitly Asks For A Commit
 
+- `.agents/rules/git.md`
 - `.agents/rules/commits.md`
 
 ## Read When Touching Branches / Plans / Review Docs
 
+- `.agents/rules/git.md`
 - `.agents/rules/branching.md`
 - `docs/AGENTS.md`
 
