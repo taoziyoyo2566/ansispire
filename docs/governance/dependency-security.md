@@ -34,7 +34,7 @@ Every versioned surface, its single authoritative source, and its current postur
 
 | Surface | SSOT file | Current form | Freeze carrier (release mode) |
 |---|---|---|---|
-| Local Python toolchain (ansible-core, lint, molecule, libs) | `requirements.txt` + `pyproject.toml` `[project.optional-dependencies]` | `>=` floors | **`uv.lock`** (see §3) |
+| Local Python toolchain (ansible-core, lint, molecule, libs) | `requirements.txt` + `pyproject.toml` `[project.optional-dependencies]` | `>=` floors split across two manifests | **`uv.lock` after manifest reconciliation** (see §3) |
 | Ansible collections | `requirements.yml` | **already exact-pinned** (`community.general 12.6.0`, `community.mysql 4.2.0`, `community.docker 5.2.0`, `ansible.posix 2.1.0`) | `requirements.yml` itself is the freeze |
 | Semaphore control-plane image | `config/manifest.yml` `ansispire_versions.semaphore_pinned` | tag pin (`v2.18.2`) | tag pin → **+ digest** (see §3) |
 | Upstream Python base image (audit) | `config/manifest.yml` `audit_python_pinned` | tag pin (`3.12-alpine`) | tag pin → **+ digest** |
@@ -48,14 +48,16 @@ Every versioned surface, its single authoritative source, and its current postur
 
 ### 3.1 Python → `uv.lock` (not a parallel constraints file)
 
-**Decision**: the Python release-freeze carrier is **`uv.lock`**.
+**Decision**: the Python release-freeze carrier is **`uv.lock`**, but only after the current split Python manifests are reconciled.
 
 **Why (W-R18 framework-best-practice check)**: `pyproject.toml` already declares `[tool.uv]` with `dev-dependencies` — **uv is the adopted package manager**. uv's native lockfile (`uv.lock`) is the idiomatic reproducible-resolution artifact. Introducing a *second* freeze mechanism (`pip-compile`/`constraints.txt`, a hand-written release manifest) on top of an already-uv project would be the exact "layer a parallel mechanism on the existing tool" anti-pattern W-R18(b) warns against. So we align with uv rather than invent.
+
+**Current caveat**: the repo still has two Python dependency declaration surfaces. `pyproject.toml` is the uv project manifest; `requirements.txt` carries additional floors (`jsonschema`, `cryptography`, `requests`, and formatting variants) that plain `uv lock` does not automatically import. Therefore the runtime follow-up must first reconcile the Python manifests (preferably by moving the remaining `requirements.txt` floors into `pyproject.toml` extras, or by documenting an explicit uv-supported bridge) before claiming `uv.lock` is the complete release-freeze set.
 
 **Generation** (run in an environment that has `uv` + network — see §5 boundary):
 
 ```bash
-uv lock                 # resolve pyproject + requirements into uv.lock
+uv lock                 # resolve the reconciled pyproject into uv.lock
 git add uv.lock
 # commit on the release-cut branch; uv.lock is the reproducible Python set
 ```
@@ -66,7 +68,7 @@ git add uv.lock
 uv sync --frozen        # install the exact locked set (CI / release / audit)
 ```
 
-> **Status**: `uv.lock` is **not yet committed** — generating it requires `uv` + dependency-resolution network access, which the current planning workspace lacks (no `uv` binary, no daemon). This is a WU-1 follow-up to run in a provisioned env, not a doc gap. Until then the Python release set is *declared* (this doc) but not yet *materialized*.
+> **Status**: `uv.lock` is **not yet committed** — generating it requires (1) reconciling the split `requirements.txt` / `pyproject.toml` Python manifests, then (2) running `uv` with dependency-resolution network access. This is a WU-1 runtime follow-up to run in a provisioned env. Until then the Python freeze carrier is *chosen*, but the complete Python release set is not yet *materialized*.
 
 ### 3.2 Collections → `requirements.yml` is already the freeze
 
@@ -91,7 +93,7 @@ Record the `sha256:…` digests in the release changelog (and, when WU-2 lands, 
 
 | I want to change… | Edit only… | Then… |
 |---|---|---|
-| ansible-core / lint / molecule / a Python lib floor | `requirements.txt` (or `pyproject.toml` optional-deps) | re-`uv lock` on release branch |
+| ansible-core / lint / molecule / a Python lib floor | `pyproject.toml` once the manifest split is reconciled; until then, keep `requirements.txt` and `pyproject.toml` in sync | re-`uv lock` on release branch |
 | a collection version | `requirements.yml` | re-verify per WU-3 |
 | Semaphore image | `config/manifest.yml` `semaphore_pinned` | WU-4 upgrade policy + `make test-api-contract` |
 | audit Python base image | `config/manifest.yml` `audit_python_pinned` | re-bake audit images, re-record digest |
@@ -105,7 +107,7 @@ Record the `sha256:…` digests in the release changelog (and, when WU-2 lands, 
 - **No compatibility guarantee**: "supported together" is WU-3's matrix. This doc declares the *set*, not its tested-compatible *status*.
 - **No Semaphore upgrade ritual**: bumping `semaphore_pinned` safely is WU-4.
 - **No waiver mechanism**: WU-5.
-- **No `uv.lock` materialized yet**: requires a provisioned env (uv + network); see §3.1 status.
+- **No `uv.lock` materialized yet**: requires Python manifest reconciliation plus a provisioned env (uv + network); see §3.1 status.
 
 ---
 
@@ -113,9 +115,9 @@ Record the `sha256:…` digests in the release changelog (and, when WU-2 lands, 
 
 WU-1 is complete when:
 
-- [x] Every versioned surface has one declared SSOT (§2).
+- [x] Every versioned surface has a declared owner surface (§2); Python's split manifest reconciliation is explicitly tracked in §3.1.
 - [x] Dev-floor vs release-freeze are defined, with the freeze carrier chosen per surface (§1, §3).
 - [x] The "which file for which surface" map is published (§4).
-- [ ] `uv.lock` is generated and committed on a release-cut branch *(blocked: needs uv + network; tracked as the WU-1 runtime follow-up)*.
+- [ ] Python manifests are reconciled and `uv.lock` is generated/committed on a release-cut branch *(blocked: needs manifest cleanup + uv + network; tracked as the WU-1 runtime follow-up)*.
 
 Remaining plan WUs (WU-2 scanners → WU-3 matrix → WU-4 Semaphore policy → WU-5 waivers) are out of this slice; see plan §6 order.
