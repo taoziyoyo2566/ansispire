@@ -12,7 +12,7 @@
 | IVG-SEMAPHORE-CROSS-COMPARE | 2026-05-17 | Control-plane + Audit | 架构探索 + 交叉验证 | 独立审计 ansispire vs upstream semaphore v2.18，5 条 Codex 发现全部独立确认，另独立发现 8 条工程项 + 1 条 Vault Pro 修正；分 Tier 1/2/3 建议未实施 | Active | — | [Link](./IVG-SEMAPHORE-CROSS-COMPARE.md) |
 | IVG-EDA-RULEBOOK-MIGRATION | 2026-05-18 | Audit / Reaction-plane | 架构探索 / 可行性 | 评估自研 reactor (235 行) vs upstream `ansible-rulebook` (Apache-2.0 v1.3.0)；功能等价但运行时 ×5-8 (JVM)、镜像 ×4-5、当前 2 条规则不构成迁移收益；推荐**暂不迁移**，记录 4 项触发条件清单 | Active | — | [Link](./IVG-EDA-RULEBOOK-MIGRATION.md) |
 | IVG-EXECUTION-PLANE-RUNNER | 2026-05-18 | Control + Data-plane | 架构探索 / 可行性 | 评估引入 Semaphore OSS Runner 拆分 controller/executor；OSS 完全支持基础 Runner（tag-routing 是 Pro，不可吸收）；当前 1 job/min + 0 真实 fleet 节点不构成拆分收益；推荐**暂不引入**，记录 5 项触发条件 + 6-Gate 落地路径草案 | Active | — | [Link](./IVG-EXECUTION-PLANE-RUNNER.md) |
-| IVG-SEMAPHORE-INVENTORY-API | 2026-06-03 | Control-plane / VPS lifecycle | API 契约调查 / 架构探索 | 核清 `feat/target-architecture` 的 Semaphore Inventory / Task API 方向：当前 repo 仍是 `file` inventory；公开契约已足够支持 `static` whole-blob CRUD 方向；Task launch 的 `extra_vars` 尚未被本轮公开证据证明，设计需回到 `vps_task` 契约 | Active | — | [Link](./IVG-SEMAPHORE-INVENTORY-API.md) |
+| IVG-SEMAPHORE-INVENTORY-API | 2026-06-03 / runtime addendum 2026-06-06 | Control-plane / VPS lifecycle | API 契约调查 / 架构探索 | 核清 `feat/target-architecture` 的 Semaphore Inventory / Task API 方向：当前 repo 仍是 `file` inventory；runtime probe 已确认 `static` whole-blob CRUD；task payload 使用 task-level `environment` JSON string 承载嵌套 `vps_task`，不依赖 raw `extra_vars` | Active | — | [Link](./IVG-SEMAPHORE-INVENTORY-API.md) |
 
 ---
 
@@ -27,4 +27,3 @@
 3. **必须登记**：新增 IVG 后在本表追加一行（不登记 = 不存在 → 未来 agent 找不到）
 4. **Findings 落地后改 `Applied`**：当结论被吸收进 `CLAUDE.md` / `ARCHITECTURE.md` / `docs/governance/*` / 代码注释等，把状态改为 `Applied` 并在「应用位置」列填入指向规则落点的链接，让未来 agent 可以跳过深读
 5. **长流程文档**：完整 L1.5 工作流见 [`docs/governance/ai-workflow.md §1`](../../governance/ai-workflow.md)
-

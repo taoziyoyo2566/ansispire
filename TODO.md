@@ -39,14 +39,14 @@
 
 ### Target Architecture — 回归 Ansible + Semaphore  ▶️ **P1 主线**
 - **目标**：以 `Semaphore Inventory + Key Store + Task API` 作为控制面真相；owner branch 已移除本地 `vps_manager` 调度层，并把保留的生命周期 playbook 迁到 `playbooks/vps/`。
-- **入口**：`docs/reviews/feat-target-architecture/`（`plan-2026-05-25.md` / `design-2026-05-26.md` / `phase2-worker-design.md` / `round1..6-*.changelog.md`）、`docs/reference/investigations/IVG-SEMAPHORE-INVENTORY-API.md`
-- **状态**：▶️ owner branch + cleanup 已落地；Phase 1 **静态**契约调查完成（IVG）；**Phase 2 详细设计已完成**（Q4 关闭：JS）；**运行态验证仍被环境阻塞**。
-- **🚧 头号阻塞（critical path gate）**：当前无 Docker CLI / daemon，无法启动一次性 Semaphore 探针。**在恢复 Docker runtime 之前，Phase 1 runtime probe 无法完成，Phase 2 extra_vars stub 无法关闭。**
+- **入口**：`docs/reviews/feat-target-architecture/`（`plan-2026-05-25.md` / `design-2026-05-26.md` / `phase2-worker-design.md` / `round1..7-*.changelog.md`）、`docs/reference/investigations/IVG-SEMAPHORE-INVENTORY-API.md`
+- **状态**：▶️ owner branch + cleanup 已落地；Phase 1 静态契约调查完成（IVG）且 **2026-06-06 运行态探针已关闭**；**Phase 2 详细设计已完成**（Q4 关闭：JS），可进入 Worker 实现。
+- **运行态探针结论（2026-06-06）**：Semaphore `static` inventory 支持 whole-blob CRUD；`PUT /inventory/{id}` 返回 `204`；任务运行时变量使用 task-level `environment` JSON string 承载嵌套 `vps_task`，不依赖 raw `extra_vars`。
 - **决策（2026-06-06 全部关闭）**：Q1 不加内部 TLS（docker 内部）· Q2 暂用 SQLite（后期升 Postgres，与 TASK-003 一并处理）· Q3 保持 Key Store（后续按需 Vault）· Q4 CF Worker = JS。详见 `design-2026-05-26.md §八`。
 - **下一步**：
-    1. `[blocked]` Phase 1 收尾：在有 Docker daemon 的环境跑一次性 Semaphore 探针，答复 `phase2-worker-design.md §13` 的 4 个 open questions（`GET/PUT /inventory/{id}` 真实语义 + task launch extra_vars 承载路径）
-    2. `[✓]` Phase 2 详细设计：路由 / payload schema / Semaphore client / INI blob 算法 / extra_vars stub（`phase2-worker-design.md`，2026-06-06）
-    3. `[ ]` Phase 2 实现（依赖 Phase 1 probe 关闭 extra_vars stub）
+    1. `[✓]` Phase 1 收尾：一次性 Semaphore 探针已答复 `phase2-worker-design.md §13` 的核心 open questions（`GET/PUT /inventory/{id}` 真实语义 + task launch `environment` 承载路径）
+    2. `[✓]` Phase 2 详细设计：路由 / payload schema / Semaphore client / INI blob 算法 / runtime payload path（`phase2-worker-design.md`，2026-06-06）
+    3. `[ ]` Phase 2 实现（Worker + Semaphore client + wizard；使用 task-level `environment` 承载 `vps_task`）
     4. `[ ]` Phase 3 迁移（依赖 Phase 2 完成）：`controller/semaphore/bootstrap.yml` `type:"file"` → `type:"static"` + blob；`bootstrap_preflight.yml` 扩展到 item 级 inventory CRUD + task launch probe
 - **建议子分支**（Phase 1 probe 通过后开）：`feat/cf-worker-wizard` → `refactor/semaphore-vps-cutover` → `feat/semaphore-prod-hardening`（全部 from `feat/target-architecture`）
 
@@ -123,8 +123,8 @@ Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-202
 - **当前分支**：`feat/target-architecture`（owner / planning branch for 回归-Semaphore 方向）
 - **合并目标**：**仅 `dev`**（feat→dev，§4 规则）。**永不进 `master`**（2026-06-05 决策）。
 - **同步状态**（2026-06-06 实测）：已 merge `origin/dev`（含 baseline PR #19/#20/#21），CLAUDE.md 冲突已解（merge commit `66e2bb8`）。
-- **本分支已落地**：owner-branch bootstrap（`3cf02fe`）+ Phase 1 IVG 调查 + scope 整理（Alpine 下线 / todo 分支退役 / reference 副本清理 / 文档同步）+ dev 同步 merge + **Phase 2 CF Worker 详细设计 + Q1–Q4 决策关闭（2026-06-06 Round 6）**。
-- **环境限制**：本工作区有 `.venv` ansible 二进制（需 `/tmp` temp override）；当前无 Docker CLI / daemon，运行态 Semaphore 探针仍需在具备 Docker runtime 的环境补做（见 Open Decisions ENV）。
+- **本分支已落地**：owner-branch bootstrap（`3cf02fe`）+ Phase 1 IVG 调查 + scope 整理（Alpine 下线 / todo 分支退役 / reference 副本清理 / 文档同步）+ dev 同步 merge + **Phase 2 CF Worker 详细设计 + Q1–Q4 决策关闭（2026-06-06 Round 6）** + **Phase 1 runtime probe closure（2026-06-06 Round 7）**。
+- **环境状态（2026-06-06）**：用户侧 Docker / Semaphore runtime 已可用并完成 Phase 1 live probe。Codex shell 仍不能直接访问 Docker socket，涉及 Docker runtime 的命令继续由用户 shell 执行或另行授权。
 
 ---
 
@@ -139,4 +139,4 @@ Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-202
 - **CLAUDE.md 三层**：`~/.claude/CLAUDE.md` / `~/workspace/CLAUDE.md` / `./CLAUDE.md`
 
 ---
-*Last updated: 2026-06-06 (Round 6: Phase 2 CF Worker design complete; Q1–Q4 all closed — no internal TLS / SQLite-for-now / keep Key Store / JS; Phase 1 runtime probe still blocked on Docker daemon).*
+*Last updated: 2026-06-06 (Round 7: Phase 1 runtime probe closed; Phase 2 CF Worker implementation can begin with `environment`-based `vps_task` payload).*

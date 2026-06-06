@@ -2,7 +2,7 @@
 
 **Date**: 2026-06-06
 **Branch**: `feat/target-architecture`
-**Status**: Design-only — implementation begins after Phase 1 runtime probe closes `extra_vars` stub (§6).
+**Status**: Design-ready — Phase 1 runtime probe closed the task-parameter path (§6) on 2026-06-06.
 **Refs**: [`plan-2026-05-25.md §4 Phase 2`](./plan-2026-05-25.md) · [`design-2026-05-26.md`](./design-2026-05-26.md) · [`IVG-SEMAPHORE-INVENTORY-API`](../../reference/investigations/IVG-SEMAPHORE-INVENTORY-API.md)
 
 ---
@@ -119,7 +119,7 @@ createKey(projectId, name, type, payload)
 
 triggerTask(projectId, templateId, overrides)
   → POST /api/project/{pid}/tasks
-  → Body: { template_id, ... } — see §6 for the overrides stub.
+  → Body: { template_id, environment?: JSON.stringify(overrides) } — see §6.
   → Returns { id: N }
 ```
 
@@ -159,22 +159,43 @@ ansible_ssh_common_args=-o StrictHostKeyChecking=accept-new
 
 ---
 
-## 6. Task Launch — ⚠️ STUB (Pending Phase 1 Runtime Probe)
+## 6. Task Launch — Runtime Payload Path Confirmed
 
 The onboard task (`POST /vps`) requires passing `vps_task.bootstrap` (temporary connection info) to the Semaphore Task run before the managed user exists in inventory. This is the only operation that cannot be fully designed until Phase 1 live probe confirms which mechanism is available.
 
-**Candidate paths (to be validated in Phase 1 probe):**
+**Runtime probe result (2026-06-06, Semaphore `v2.18.2`):**
 
 | Path | Description | Status |
 |---|---|---|
-| A | `POST /api/project/{id}/tasks` body includes an `extra_vars` field accepted by Semaphore | Unconfirmed — no public-contract evidence found in IVG |
-| B | Semaphore template survey vars pre-configure `vps_task.bootstrap` fields | Requires exploring template survey API |
-| C | Worker creates a one-shot template clone with `extra_vars` baked in, triggers it, then deletes the template | Possible but noisy |
+| A | `POST /api/project/{id}/tasks` body includes raw `extra_vars` | Not reliable. The API accepted the unknown field but task detail/output did not prove it reached Ansible. |
+| B | `POST /api/project/{id}/tasks` body includes `environment` as a JSON string | **Confirmed.** Task detail persisted the JSON string and Ansible debug output received nested `vps_task`. |
+| C | Semaphore template survey vars | Still valid for UI-driven runtime input, but not needed for Worker task launch. |
+| D | One-shot template clone | Not needed; noisier than task-level `environment`. |
 
-**Design constraint until Phase 1 closes this stub:**
-- `POST /vps` creates the Key Store entry and updates the inventory blob ✅
-- `POST /vps` does **not** trigger the bootstrap task — that step returns `"taskId": null` with a `"note": "extra_vars mechanism pending Phase 1 probe"` ⚠️
-- All other routes (modify, remove, audit) use `triggerTask(projectId, templateId)` with no overrides — this is confirmed working from `controller/audit/reactor.py` evidence.
+**Task launch contract:**
+
+```json
+{
+  "template_id": 5,
+  "environment": "{\"vps_task\":{\"probe\":true,\"source\":\"task-environment-field\"}}"
+}
+```
+
+Semaphore passes the `environment` JSON object to Ansible as variables. The probe output showed:
+
+```json
+{
+  "vps_task": {
+    "probe": true,
+    "source": "task-environment-field"
+  }
+}
+```
+
+Worker implication:
+- `POST /vps` creates the Key Store entry and updates the inventory blob.
+- `POST /vps` triggers the onboard template with `environment: JSON.stringify({ vps_task })`.
+- Modify / remove / audit may use the same `environment` field when they need per-run `vps_task`; otherwise `{"template_id": N}` remains enough.
 
 ---
 
@@ -210,7 +231,7 @@ Configured via `wrangler.toml` (vars) and Cloudflare dashboard / `wrangler secre
 | `SEMAPHORE_PROJECT_ID` | var | Semaphore project integer ID |
 | `SEMAPHORE_INVENTORY_ID` | var | ID of the `targets-managed` Semaphore inventory |
 | `SEMAPHORE_AUDIT_TEMPLATE_ID` | var | ID of the audit task template |
-| `SEMAPHORE_ONBOARD_TEMPLATE_ID` | var | ID of the onboard task template (task launch stub §6) |
+| `SEMAPHORE_ONBOARD_TEMPLATE_ID` | var | ID of the onboard task template |
 | `SEMAPHORE_API_TOKEN` | **secret** | Semaphore Bearer token — never in source |
 
 ---
@@ -264,17 +285,17 @@ cf-worker/
 
 ---
 
-## 13. Open Questions Before Implementation
+## 13. Runtime Probe Closure
 
-| # | Question | Blocks |
+| # | Question | Result |
 |---|---|---|
-| 1 | What does `GET /inventory/{id}` actually return? Is `.inventory` the INI blob? | §4 getInventory, §5 algorithm |
-| 2 | Is `PUT /inventory/{id}` a whole-object replace or a patch? | §5 concurrency note |
-| 3 | Which task launch mechanism carries `vps_task.bootstrap`? | §6 stub (Phase 1 probe) |
-| 4 | What is the `SEMAPHORE_ONBOARD_TEMPLATE_ID`? | §8 env vars |
+| 1 | What does `GET /inventory/{id}` actually return? Is `.inventory` the INI blob? | For `static`, returns full object and `.inventory` is the INI blob. For current `file`, `.inventory` is the repo path. |
+| 2 | Is `PUT /inventory/{id}` a whole-object replace or a patch? | Whole-object update accepted; response is `204`, followed by GET showing the replacement blob. |
+| 3 | Which task launch mechanism carries `vps_task.bootstrap`? | Task-level `environment` string carrying JSON. |
+| 4 | What is the `SEMAPHORE_ONBOARD_TEMPLATE_ID`? | Set during Phase 2 implementation/bootstrap. |
 
-Questions 1-3 are answered by the Phase 1 live probe. Question 4 is set during bootstrap.
+Implementation can start with Questions 1-3 closed. Question 4 is a provisioning value, not an API-contract blocker.
 
 ---
 
-*Phase 2 implementation starts in the first session after Phase 1 probe closes §6.*
+*Phase 2 implementation can now start.*
