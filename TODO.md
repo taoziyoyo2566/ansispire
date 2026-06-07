@@ -47,7 +47,7 @@
     1. `[✓]` Phase 1 收尾：一次性 Semaphore 探针已答复 `phase2-worker-design.md §13` 的核心 open questions（`GET/PUT /inventory/{id}` 真实语义 + task launch `environment` 承载路径）
     2. `[✓]` Phase 2 详细设计：路由 / payload schema / Semaphore client / INI blob 算法 / runtime payload path（`phase2-worker-design.md`，2026-06-06）
     3. `[~]` Phase 2 实现（Worker + Semaphore client + wizard 已部署到 Cloudflare 并通过 probe `static` inventory CRUD；使用 task-level `environment` 承载 `vps_task`；待 real onboard/audit template IDs）
-    4. `[ ]` Phase 2 收敛修复：三入口矩阵已记录；Worker 已加临时 Basic Auth 堵住公开写入口，已拆分 register-managed / onboard-bare 基础模式，并已对非 `static` Semaphore inventory fail-closed；下一步先完成 onboard 成功后的 promotion、正式 REST API authz/Cloudflare Access 策略、`vps_task` schema/fixture、Semaphore credential mapping、Worker inventory parser/state/key-cleanup 硬化。详见 `onboard-execution-models-2026-06-07.md §8`。
+    4. `[ ]` Phase 2 收敛修复：三入口矩阵已记录；Worker 已加临时 Basic Auth 堵住公开写入口，已拆分 register-managed / onboard-bare 基础模式,已对非 `static` Semaphore inventory fail-closed,并已加 host-var 无损 round-trip + key-cleanup 补偿 + camelCase 修复(2026-06-07 提交)。**剩余残留已收口到** [`backlog-2026-06-07.md`](docs/reviews/feat-target-architecture/backlog-2026-06-07.md)——P1 关键路径:R1 Key Store→SSH 凭据映射 · R2 真实 onboard/audit 模板 provisioning · R3 非 `vps_targets` section 无损解析;其后 R5/R6(key 删除 + onboard promotion)、R7/R8(Access/observability)。
     5. `[ ]` Phase 3 迁移（依赖 Phase 2 完成）：`controller/semaphore/bootstrap.yml` `type:"file"` → `type:"static"` + blob；`bootstrap_preflight.yml` 扩展到 item 级 inventory CRUD + task launch probe
 - **建议子分支**（Phase 1 probe 通过后开）：`feat/cf-worker-wizard` → `refactor/semaphore-vps-cutover` → `feat/semaphore-prod-hardening`（全部 from `feat/target-architecture`）
 
