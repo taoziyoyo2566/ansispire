@@ -39,15 +39,16 @@
 
 ### Target Architecture — 回归 Ansible + Semaphore  ▶️ **P1 主线**
 - **目标**：以 `Semaphore Inventory + Key Store + Task API` 作为控制面真相；owner branch 已移除本地 `vps_manager` 调度层，并把保留的生命周期 playbook 迁到 `playbooks/vps/`。
-- **入口**：`docs/reviews/feat-target-architecture/`（`plan-2026-05-25.md` / `design-2026-05-26.md` / `phase2-worker-design.md` / `round1..7-*.changelog.md`）、`docs/reference/investigations/IVG-SEMAPHORE-INVENTORY-API.md`
-- **状态**：▶️ owner branch + cleanup 已落地；Phase 1 静态契约调查完成（IVG）且 **2026-06-06 运行态探针已关闭**；**Phase 2 详细设计已完成**（Q4 关闭：JS）；Worker 本地实现已落地，等待 live integration / template provisioning。
+- **入口**：`docs/reviews/feat-target-architecture/`（`plan-2026-05-25.md` / `design-2026-05-26.md` / `phase2-worker-design.md` / `round1..9-*.changelog.md`）、`docs/reference/investigations/IVG-SEMAPHORE-INVENTORY-API.md`
+- **状态**：▶️ owner branch + cleanup 已落地；Phase 1 静态契约调查完成（IVG）且 **2026-06-06 运行态探针已关闭**；**Phase 2 详细设计已完成**（Q4 关闭：JS）；Worker 本地实现、Cloudflare deploy、live Semaphore probe inventory CRUD 均已通过；等待 real template provisioning / production inventory migration。
 - **运行态探针结论（2026-06-06）**：Semaphore `static` inventory 支持 whole-blob CRUD；`PUT /inventory/{id}` 返回 `204`；任务运行时变量使用 task-level `environment` JSON string 承载嵌套 `vps_task`，不依赖 raw `extra_vars`。
 - **决策（2026-06-06 全部关闭）**：Q1 不加内部 TLS（docker 内部）· Q2 暂用 SQLite（后期升 Postgres，与 TASK-003 一并处理）· Q3 保持 Key Store（后续按需 Vault）· Q4 CF Worker = JS。详见 `design-2026-05-26.md §八`。
 - **下一步**：
     1. `[✓]` Phase 1 收尾：一次性 Semaphore 探针已答复 `phase2-worker-design.md §13` 的核心 open questions（`GET/PUT /inventory/{id}` 真实语义 + task launch `environment` 承载路径）
     2. `[✓]` Phase 2 详细设计：路由 / payload schema / Semaphore client / INI blob 算法 / runtime payload path（`phase2-worker-design.md`，2026-06-06）
-    3. `[~]` Phase 2 实现（Worker + Semaphore client + wizard 已本地实现；使用 task-level `environment` 承载 `vps_task`；待 live integration / real template IDs）
-    4. `[ ]` Phase 3 迁移（依赖 Phase 2 完成）：`controller/semaphore/bootstrap.yml` `type:"file"` → `type:"static"` + blob；`bootstrap_preflight.yml` 扩展到 item 级 inventory CRUD + task launch probe
+    3. `[~]` Phase 2 实现（Worker + Semaphore client + wizard 已部署到 Cloudflare 并通过 probe `static` inventory CRUD；使用 task-level `environment` 承载 `vps_task`；待 real onboard/audit template IDs）
+    4. `[ ]` Phase 2 收敛修复：三入口矩阵已记录；Worker 已加临时 Basic Auth 堵住公开写入口，已拆分 register-managed / onboard-bare 基础模式，并已对非 `static` Semaphore inventory fail-closed；下一步先完成 onboard 成功后的 promotion、正式 REST API authz/Cloudflare Access 策略、`vps_task` schema/fixture、Semaphore credential mapping、Worker inventory parser/state/key-cleanup 硬化。详见 `onboard-execution-models-2026-06-07.md §8`。
+    5. `[ ]` Phase 3 迁移（依赖 Phase 2 完成）：`controller/semaphore/bootstrap.yml` `type:"file"` → `type:"static"` + blob；`bootstrap_preflight.yml` 扩展到 item 级 inventory CRUD + task launch probe
 - **建议子分支**（Phase 1 probe 通过后开）：`feat/cf-worker-wizard` → `refactor/semaphore-vps-cutover` → `feat/semaphore-prod-hardening`（全部 from `feat/target-architecture`）
 
 ### TASK-009 — Dependency / Image Security Governance  🟡 **P1（并行，不阻塞主线）**
@@ -85,6 +86,15 @@
 ---
 
 ## 🔵 待规划 (Backlog)
+
+### TASK-010 — VPS Offboard / Reverse Playbook  *(Target Architecture 相关)*
+- **目标**：提供「真正还原」能力——把已托管节点回退到 bare 态（或删除某个特定 managed 用户），区别于现有 `remove.yml`（仅从 inventory 移除 + 可选删 sshd drop-in，**默认保留用户与密钥**）。
+- **背景**：onboard 无自动回滚，失败靠「修因 + 幂等重跑」恢复；删除 ≠ 还原（删除只是系统遗忘，服务器改动照旧）。详见 [`docs/reviews/feat-target-architecture/onboard-execution-models-2026-06-07.md`](docs/reviews/feat-target-architecture/onboard-execution-models-2026-06-07.md) §5/§9。
+- **拆解**：
+    1. `[ ]` 设计 offboard 模型（整机还原 vs 仅删指定用户；端口/sshd lockdown 回退顺序）
+    2. `[ ]` 实现 `playbooks/vps/offboard.yml`
+    3. `[ ]` Worker/wizard 暴露入口（可选）
+- **优先级**：P3（独立块，不阻塞 onboard 主线）・**建议分支**：`feat/vps-offboard`
 
 ### TASK-005 — Production Deployment Blueprint  *(scope 已收缩)*
 - **现状**：Round 4 已实现 Path A 真部署（`make hub-deploy HUB_NODE=...`）+ 完整 operator-guide；原 scope 大部分被 TASK-001 吸收。
@@ -139,4 +149,4 @@ Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-202
 - **CLAUDE.md 三层**：`~/.claude/CLAUDE.md` / `~/workspace/CLAUDE.md` / `./CLAUDE.md`
 
 ---
-*Last updated: 2026-06-06 (Round 8: Phase 2 CF Worker local implementation landed; live integration and template provisioning remain open).*
+*Last updated: 2026-06-07 (Round 9: CF Worker deployed to Cloudflare and verified against live Semaphore probe static inventory; template provisioning and production inventory migration remain open).*

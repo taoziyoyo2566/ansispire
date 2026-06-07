@@ -103,6 +103,9 @@ export function normalizeHost(input) {
     port,
     user
   };
+  if (input.vars && typeof input.vars === "object") {
+    host.vars = { ...input.vars };
+  }
   if (input.keyId !== undefined && input.keyId !== null) {
     host.keyId = Number(input.keyId);
   }
@@ -123,6 +126,7 @@ function parseHostLine(line) {
   }
   const host = {
     alias: parts[0],
+    vars,
     ip: vars.ansible_host || parts[0],
     port: Number(vars.ansible_port || 22),
     user: vars.ansible_user || "ansible"
@@ -134,15 +138,16 @@ function parseHostLine(line) {
 }
 
 function formatHostLine(host) {
-  const vars = [
-    ["ansible_host", host.ip],
-    ["ansible_port", String(host.port)],
-    ["ansible_user", host.user]
-  ];
+  const vars = {
+    ...(host.vars || {}),
+    ansible_host: host.ip,
+    ansible_port: String(host.port),
+    ansible_user: host.user
+  };
   if (host.keyId !== undefined && Number.isFinite(Number(host.keyId))) {
-    vars.push(["ansible_ssh_private_key_id", String(host.keyId)]);
+    vars.ansible_ssh_private_key_id = String(host.keyId);
   }
-  return `${host.alias} ${vars.map(([key, value]) => `${key}=${quoteIfNeeded(value)}`).join(" ")}`;
+  return `${host.alias} ${Object.entries(vars).map(([key, value]) => `${key}=${quoteIfNeeded(value)}`).join(" ")}`;
 }
 
 function hostToResponse(host) {

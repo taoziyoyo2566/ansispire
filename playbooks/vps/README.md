@@ -21,6 +21,9 @@ Semaphore-ready `extra_vars` examples.
 
 ## Retained Actions
 
+This table is the **canonical** per-playbook list for the VPS lifecycle content;
+the operations reference and the feature map link here instead of repeating it.
+
 | Playbook | Purpose |
 |---|---|
 | `onboard.yml` | Bootstrap a new or reinstalled VPS, create the managed user, switch to a non-22 SSH management port, and apply the security baseline. |
@@ -34,10 +37,12 @@ Semaphore-ready `extra_vars` examples.
 expected to reuse `onboard.yml` with bootstrap-capable access and the right
 `vps_task` payload.
 
-## Examples
+## Examples & Manual Use
 
 - `examples/*.yml` are `extra_vars` payloads meant for Semaphore Task API or
   manual `ansible-playbook -e @file` usage.
+- End-to-end manual onboarding from a control node (the break-glass path):
+  [`docs/operations/vps-onboard-runbook.md`](../../docs/operations/vps-onboard-runbook.md).
 - `make vps-lifecycle-syntax` runs native Ansible syntax checks across all six
   playbooks.
 

@@ -29,6 +29,15 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branches `feat/target-architecture` + `feat/vps-manager-plugin` + `feat/multi-os-target-fleet`
 
+### CF Worker VPS wizard / API + edge auth (2026-06-07)
+
+Branch `feat/target-architecture`. New control-plane access layer for browser/REST-driven VPS lifecycle over Semaphore.
+
+- **New `cf-worker/` Cloudflare Worker**: same-origin browser wizard + REST API (`GET/POST /vps`, `PUT/DELETE /vps/:alias`, `POST /vps/:alias/audit`, `GET /config`, `GET /health`) over the Semaphore **static** Inventory + Key Store + Task API. Task payloads are carried via task-level `environment` JSON (`vps_task`).
+- **Two create modes**: `register-managed` (writes managed user/port, default `ansible`/`39222`) and `onboard-bare` (writes bootstrap state, triggers the onboard task). `register-managed` rejects `root@22` to prevent registering a bare channel as managed.
+- **Security policy**: HTTP Basic Auth gates every route except `/health` (interim; credentials via `WORKER_AUTH_USER` / `WORKER_AUTH_PASSWORD` secrets, constant-time compare). SSH key / password are written to the Semaphore Key Store and discarded in-memory; the Semaphore API token is never exposed to the browser. A static-inventory guard refuses to write any inventory whose type is not `static` (prevents clobbering `file`-type production inventories).
+- **Safe defaults**: shipped `wrangler.toml` `[vars]` use a non-production placeholder (`semaphore.example.invalid`, inventory id `3`); real URL/inventory are set via `wrangler secret` / `--var` at deploy time. `cf-worker/.dev.vars` is gitignored.
+
 ### Scope lock + project hygiene (2026-06-05)
 
 Branch `feat/target-architecture`. Direction decisions + resource cleanup; no runtime behaviour change beyond the OS-guard message.

@@ -82,9 +82,14 @@
 ### 3.5 CF Worker Wizard (`cf-worker/`)
 - **`cf-worker/`** — Phase 2 Wizard/API layer for Semaphore-first VPS lifecycle:
   - routes: `GET /`, `GET /health`, `GET/POST /vps`, `PUT/DELETE /vps/:alias`, `POST /vps/:alias/audit`
-  - source of truth: Semaphore `static` inventory blob + Key Store + Task API
+  - create modes (`POST /vps`): `register-managed` (writes managed user/port, rejects `root@22`) vs `onboard-bare` (writes bootstrap state + triggers onboard task)
+  - source of truth: Semaphore `static` inventory blob + Key Store + Task API; a static-inventory guard refuses to write non-`static` inventories
   - task payload: task-level `environment` JSON string carrying top-level `vps_task`
-  - local verification: `npm test --prefix cf-worker`, `npm run deploy:dry-run --prefix cf-worker`
+  - entry-point policy: Browser Wizard and REST API must converge on Semaphore `static` inventory; Manual CLI remains bootstrap/emergency input and must register managed hosts back through Worker/API
+  - auth: interim HTTP Basic Auth gates all routes except `/health` (`WORKER_AUTH_USER` / `WORKER_AUTH_PASSWORD` secrets, constant-time compare). REST API is not yet approved as a public external integration surface — Cloudflare Access + service tokens remain the planned production auth
+  - verification: `npm test --prefix cf-worker`, `npm run deploy:dry-run --prefix cf-worker`, `npm run integration:live --prefix cf-worker` (local handler), `npm run smoke:deployed --prefix cf-worker` (live deployed build)
+  - deploy / config / validate runbook: [`docs/operations/cf-worker-deployment.md`](../../operations/cf-worker-deployment.md)
+  - live status: deployed as `ansispire-vps-worker.taoziyoyo.workers.dev` and verified against probe static inventory id `3`
 
 ---
 
@@ -187,7 +192,7 @@
 - ⚠ **Stag 环境真机**（结构就绪等接入）
 - ⚠ **多 OS target fleet**（占位组就绪，等 4 台 VPS 上线）
 - ⚠ **`molecule/hub/` scenario**（hub role 目前无独立 molecule 测试，靠 `make hub-deploy-check` 间接 dry-run）
-- ⚠ **Semaphore-first VPS lifecycle wiring 未完全闭环**（`cf-worker/` 本地实现已落地；live integration、real template provisioning、以及 Phase 3 production inventory migration 仍待后续 phase）
+- ⚠ **Semaphore-first VPS lifecycle wiring 未完全闭环**（`cf-worker/` 已部署并通过 probe static inventory live CRUD；real template provisioning、以及 Phase 3 production inventory migration 仍待后续 phase）
 
 ---
-*最后更新：2026-06-06 | 对应分支：`feat/target-architecture`*
+*最后更新：2026-06-07 | 对应分支：`feat/target-architecture`*

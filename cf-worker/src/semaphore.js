@@ -17,7 +17,7 @@ export class SemaphoreClient {
     }
     this.url = url.replace(/\/+$/, "");
     this.token = token;
-    this.fetch = fetchImpl;
+    this.fetchImpl = fetchImpl.bind(globalThis);
   }
 
   getInventory(projectId, inventoryId) {
@@ -25,17 +25,10 @@ export class SemaphoreClient {
   }
 
   async updateInventory(projectId, inventory) {
-    const sshKeyId = inventory.ssh_key_id ?? inventory.sshKeyId;
+    assertStaticInventory(inventory);
     await this.request(`/api/project/${projectId}/inventory/${inventory.id}`, {
       method: "PUT",
-      body: {
-        id: Number(inventory.id),
-        name: inventory.name,
-        project_id: Number(projectId),
-        inventory: inventory.inventory,
-        type: "static",
-        ssh_key_id: Number(sshKeyId)
-      },
+      body: inventoryUpdateBody(projectId, inventory),
       expectNoContent: true
     });
   }
@@ -64,6 +57,13 @@ export class SemaphoreClient {
     });
   }
 
+  deleteKey(projectId, keyId) {
+    return this.request(`/api/project/${projectId}/keys/${keyId}`, {
+      method: "DELETE",
+      expectNoContent: true
+    });
+  }
+
   triggerTask(projectId, templateId, vpsTask, options = {}) {
     const body = { template_id: Number(templateId) };
     if (options.limit) {
@@ -87,7 +87,7 @@ export class SemaphoreClient {
       headers["Content-Type"] = "application/json";
       init.body = JSON.stringify(body);
     }
-    const response = await this.fetch(`${this.url}${path}`, init);
+    const response = await this.fetchImpl(`${this.url}${path}`, init);
     const text = await response.text();
     if (!response.ok) {
       throw new SemaphoreError(extractError(text) || response.statusText, response.status, text);
@@ -101,6 +101,29 @@ export class SemaphoreClient {
       return text;
     }
   }
+}
+
+function assertStaticInventory(inventory) {
+  if (inventory?.type !== "static") {
+    throw new Error(`Refusing to update non-static Semaphore inventory ${inventory?.id ?? "(unknown)"}`);
+  }
+}
+
+function inventoryUpdateBody(projectId, inventory) {
+  const body = {
+    id: Number(inventory.id),
+    name: inventory.name,
+    project_id: Number(projectId),
+    inventory: inventory.inventory,
+    type: "static"
+  };
+  const hasSnakeKey = Object.hasOwn(inventory, "ssh_key_id");
+  const hasCamelKey = Object.hasOwn(inventory, "sshKeyId");
+  if (hasSnakeKey || hasCamelKey) {
+    const sshKeyId = hasSnakeKey ? inventory.ssh_key_id : inventory.sshKeyId;
+    body.ssh_key_id = sshKeyId === null ? null : Number(sshKeyId);
+  }
+  return body;
 }
 
 function extractError(text) {

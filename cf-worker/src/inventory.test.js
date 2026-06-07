@@ -10,7 +10,7 @@ import {
 } from "./inventory.js";
 
 const SAMPLE = `[vps_targets]
-alpha ansible_host=203.0.113.10 ansible_port=1156 ansible_user=ansible ansible_ssh_private_key_id=7
+alpha ansible_host=203.0.113.10 ansible_port=1156 ansible_user=ansible lifecycle_state=managed ansible_ssh_private_key_id=7
 
 [vps_targets:vars]
 ansible_python_interpreter=/usr/bin/python3
@@ -25,6 +25,13 @@ test("parseInventory extracts target hosts and vars", () => {
       ip: "203.0.113.10",
       port: 1156,
       user: "ansible",
+      vars: {
+        ansible_host: "203.0.113.10",
+        ansible_port: "1156",
+        ansible_user: "ansible",
+        lifecycle_state: "managed",
+        ansible_ssh_private_key_id: "7"
+      },
       keyId: 7
     }
   ]);
@@ -38,6 +45,17 @@ test("serializeInventory writes stable vps_targets inventory", () => {
   assert.match(text, /\[vps_targets]/);
   assert.match(text, /beta ansible_host=203\.0\.113\.11 ansible_port=2222 ansible_user=ansible ansible_ssh_private_key_id=9/);
   assert.match(text, /\[vps_targets:vars]/);
+});
+
+test("upsertHost preserves unknown host variables on update", () => {
+  const updated = upsertHost(SAMPLE, {
+    ...findHost(SAMPLE, "alpha"),
+    ip: "203.0.113.99"
+  });
+
+  assert.match(updated, /alpha .*ansible_host=203\.0\.113\.99/);
+  assert.match(updated, /alpha .*lifecycle_state=managed/);
+  assert.match(updated, /alpha .*ansible_ssh_private_key_id=7/);
 });
 
 test("upsertHost adds and updates a host", () => {
