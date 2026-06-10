@@ -13,6 +13,7 @@
 | IVG-EDA-RULEBOOK-MIGRATION | 2026-05-18 | Audit / Reaction-plane | 架构探索 / 可行性 | 评估自研 reactor (235 行) vs upstream `ansible-rulebook` (Apache-2.0 v1.3.0)；功能等价但运行时 ×5-8 (JVM)、镜像 ×4-5、当前 2 条规则不构成迁移收益；推荐**暂不迁移**，记录 4 项触发条件清单 | Active | — | [Link](./IVG-EDA-RULEBOOK-MIGRATION.md) |
 | IVG-EXECUTION-PLANE-RUNNER | 2026-05-18 | Control + Data-plane | 架构探索 / 可行性 | 评估引入 Semaphore OSS Runner 拆分 controller/executor；OSS 完全支持基础 Runner（tag-routing 是 Pro，不可吸收）；当前 1 job/min + 0 真实 fleet 节点不构成拆分收益；推荐**暂不引入**，记录 5 项触发条件 + 6-Gate 落地路径草案 | Active | — | [Link](./IVG-EXECUTION-PLANE-RUNNER.md) |
 | IVG-SEMAPHORE-INVENTORY-API | 2026-06-03 / runtime addendum 2026-06-06 | Control-plane / VPS lifecycle | API 契约调查 / 架构探索 | 核清 `feat/target-architecture` 的 Semaphore Inventory / Task API 方向：当前 repo 仍是 `file` inventory；runtime probe 已确认 `static` whole-blob CRUD；task payload 使用 task-level `environment` JSON string 承载嵌套 `vps_task`，不依赖 raw `extra_vars` | Active | — | [Link](./IVG-SEMAPHORE-INVENTORY-API.md) |
+| IVG-SEMAPHORE-DB-BACKEND | 2026-06-10 | Control-plane | 可行性研究 / 架构探索 | SQLite vs Postgres：代码 diff 不随时间变化；v2.17+ 官方 export/import 工具存在但 backup 不含 secrets（Key Store 需重录，fleet-key 下 1–2 把）；2.18.x 无 SQLite 运行态阻塞 bug；结论**维持 Q2：先 SQLite**，Postgres 归口 TASK-003，3 项切换触发条件 + 迁移 runbook 骨架已记录 | Applied | [design-2026-05-26.md §八](../../reviews/feat-target-architecture/design-2026-05-26.md) | [Link](./IVG-SEMAPHORE-DB-BACKEND.md) |
 
 ---
 
@@ -20,9 +21,9 @@
 
 任何 RCA / 可行性研究 / 性能调查 / 架构探索都遵循以下契约（之前以分散形式存在于 `CLAUDE.md`，2026-05-11 起统一收纳到此处）：
 
-1. **文件位置 / 命名**：`docs/reference/investigations/IVG-<TASK_ID>-<SLUG>.md`
-   - `<TASK_ID>` 为关联任务编号或主题标识（`TASK-001` / `TOOLENV-REGISTRY` …）
-   - `<SLUG>` 为 kebab-case 简称，可省略
+1. **文件位置 / 命名**：`docs/reference/investigations/IVG-<SCOPE>-<SLUG>.md`（规则详见 [`.agents/rules/file-naming.md`](../../../.agents/rules/file-naming.md)）
+   - `<SCOPE>` 为大写域标签（`SEMAPHORE` / `EDA` / `RUNNER` …）
+   - `<SLUG>` 为大写简称（`INVENTORY-API` / `RULEBOOK-MIGRATION` …）
 2. **必须使用模板**：每份 IVG 必须基于 [`TEMPLATE.md`](./TEMPLATE.md) 起草，覆盖 §1–§7 字段（概览 / 背景 / 假设与实验 / 证据 / 发现 / 结论 / 关联验证）
 3. **必须登记**：新增 IVG 后在本表追加一行（不登记 = 不存在 → 未来 agent 找不到）
 4. **Findings 落地后改 `Applied`**：当结论被吸收进 `CLAUDE.md` / `ARCHITECTURE.md` / `docs/governance/*` / 代码注释等，把状态改为 `Applied` 并在「应用位置」列填入指向规则落点的链接，让未来 agent 可以跳过深读
