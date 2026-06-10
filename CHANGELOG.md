@@ -29,6 +29,22 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branches `feat/target-architecture` + `feat/vps-manager-plugin` + `feat/multi-os-target-fleet`
 
+### Per-host environment capability registry (2026-06-10)
+
+Branch `feat/target-architecture`. New dev-tooling: each machine's command/daemon
+capabilities are probed into a committed registry so agents and operators stop
+re-discovering (or mis-remembering) what a host can run.
+
+- **New `make env-probe`**: runs `scripts/env_probe.sh`, writes
+  `.agents/env/<hostname -s>.yml` (docker daemon, ansible toolchain, gh/git-push,
+  linters, scanners; plus host-conditional execution hints).
+- **New `make env-probe-check`**: fails if this host's registry is missing or
+  older than the TTL (default 7 days; `ENV_PROBE_TTL_DAYS=N` to override) —
+  intended as a session-start gate; first session on a new machine runs
+  `make env-probe` first.
+- Behavior rule: `.agents/rules/environment-truth.md`; Claude sessions get an
+  `/env-sync` skill and a SessionStart hook wired to the check.
+
 ### CF Worker VPS wizard / API + edge auth (2026-06-07)
 
 Branch `feat/target-architecture`. New control-plane access layer for browser/REST-driven VPS lifecycle over Semaphore.

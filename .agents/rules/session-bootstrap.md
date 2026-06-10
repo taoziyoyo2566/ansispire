@@ -35,15 +35,16 @@ current before basing anything on it:
 ## Environment probe
 
 If the upcoming work depends on environment capabilities (Docker, ansible
-toolchain, credentials), probe them now instead of trusting memory or prior
-session notes — capability claims are dated snapshots
+toolchain, credentials), check the per-host capability registry instead of
+trusting memory or prior session notes — capability claims are dated snapshots
 (`.agents/rules/environment-truth.md`):
 
-- `docker version` / `docker ps` for container work
-- `command -v ansible-playbook` for host-side Ansible
-- `gh auth status` / `git ls-remote origin HEAD` for remote git capability
+- `make env-probe-check` — passes if `.agents/env/<host>.yml` exists and is fresh
+- on failure (new machine / stale): `make env-probe` regenerates it
+- then read the registry for what is runnable here and which host overrides apply
 
-Report probe results in the status summary when they differ from recorded state.
+Report capability flips (available ↔ absent vs the previous registry state) in
+the status summary — stale plans or memories may depend on the old state.
 
 ## Report shape
 

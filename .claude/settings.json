@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "out=$(bash scripts/env_probe.sh --check 2>&1) || printf '{\"systemMessage\":%s,\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":%s}}' \"$(printf '%s' \"$out\" | jq -Rs .)\" \"$(printf '%s — run: make env-probe (rule: .agents/rules/environment-truth.md)' \"$out\" | jq -Rs .)\"",
+            "timeout": 15,
+            "statusMessage": "Checking host capability registry freshness"
+          }
+        ]
+      }
+    ]
+  }
+}

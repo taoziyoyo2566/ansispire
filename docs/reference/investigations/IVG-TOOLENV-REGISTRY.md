@@ -167,3 +167,22 @@ AI 要执行命令 X
 ---
 
 *Generated: 2026-04-27 | Status: Active | 应用位置: —*
+
+---
+
+## Update 2026-06-10 — Implemented (per-host layer added)
+
+The registry landed with two deltas vs the 2026-04-27 draft:
+
+1. **Per-host + timestamp layer** (user decision 2026-06-10): one committed file per
+   machine — `.agents/env/<hostname -s>.yml` with `probed_at` + `ttl_days` — instead
+   of a single shared `TOOLENV.md`. Multi-machine clones see each host's真实能力;
+   freshness is gated by `scripts/env_probe.sh --check` (`make env-probe-check`).
+2. **Probe-generated, not hand-curated**: entries come from `scripts/env_probe.sh`
+   (single probe-logic source); the self-update protocol is event-driven — any
+   mid-session capability surprise re-probes and commits in the same round.
+
+Behavior rule: `.agents/rules/environment-truth.md` (+ session-bootstrap hook,
+Claude `/env-sync` skill, SessionStart hook). Task→command SSOT remains
+`docs/governance/testing-governance.md §3–§4`; the registry carries host-conditional
+overrides only — the original "关注点分离" principle held.
