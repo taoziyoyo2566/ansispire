@@ -1,5 +1,7 @@
 # Boundaries
 
+## Editing boundaries
+
 Before editing, answer:
 
 1. What files are in scope?
@@ -14,3 +16,18 @@ Before editing, answer:
 - Do not silently change operator workflows documented in `docs/operations/` or `docs/user-guide/` without syncing those docs.
 - Do not treat an investigation document as an implementation mandate unless current plans or TODO entries still point to it.
 - Preserve historical records in `docs/reviews/_archive/` and investigation files.
+
+## Execution boundaries (remote hosts)
+
+Triggering a playbook or Semaphore task **mutates real machines** — treat the
+controller API token as a destructive capability, not a read credential.
+
+- Mutating runs against **throwaway / test hosts** designated by an approved plan
+  are covered by that plan's approval; keep provider console access as fallback.
+- Mutating runs against **managed fleet inventory** require explicit per-run user
+  confirmation until a standing fleet-authorization policy exists.
+- Read-only runs (`--check`, `--syntax-check`, audit-style playbooks with no
+  state change) follow normal verification rules.
+- If a run's blast radius is unclear (which hosts match the pattern?), resolve
+  the inventory match list first — `ansible-inventory --graph` or the Semaphore
+  inventory blob — before triggering.

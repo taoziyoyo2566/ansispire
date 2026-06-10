@@ -21,19 +21,46 @@ If the current branch name maps to a topic directory, read the latest relevant f
 - `plan-*.md` for active intent and scope
 - latest `round*.changelog.md` for what landed, what is blocked, and next steps
 
+## Freshness check (multi-machine)
+
+When resuming substantial work (not a quick question), also verify this clone is
+current before basing anything on it:
+
+- `git fetch origin` — allowed here despite the general no-mutation rule below;
+  state "bootstrap freshness check" as the reason (`git.md` review-required).
+- `git log --oneline HEAD..origin/<branch>` — non-empty means this clone is
+  behind; surface it in the status report **before** proposing new work.
+  See `.agents/rules/branching.md` §Multi-machine sync.
+
+## Environment probe
+
+If the upcoming work depends on environment capabilities (Docker, ansible
+toolchain, credentials), probe them now instead of trusting memory or prior
+session notes — capability claims are dated snapshots
+(`.agents/rules/environment-truth.md`):
+
+- `docker version` / `docker ps` for container work
+- `command -v ansible-playbook` for host-side Ansible
+- `gh auth status` / `git ls-remote origin HEAD` for remote git capability
+
+Report probe results in the status summary when they differ from recorded state.
+
 ## Report shape
 
 Summarize:
 
 - current branch
 - clean or dirty working tree
+- behind/ahead of `origin/<branch>` (from the freshness check, if run)
 - active topic and owner branch, if identifiable
 - prerequisite branches that still need to merge into `dev`
 - immediate next steps
 - blocked items
 - deferrable items
 
-Do not edit files, stage changes, commit, switch branches, fetch, pull, or push during bootstrap unless the user explicitly asks.
+Do not edit files, stage changes, commit, switch branches, pull, or push during
+bootstrap unless the user explicitly asks. `git fetch` is permitted only as the
+freshness check above.
 
 ## Capability refresh
 

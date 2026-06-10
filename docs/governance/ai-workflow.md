@@ -36,7 +36,7 @@ We classify every task by its **Blast Radius** to determine the required level o
 ### 🔍 [L1.5] Investigation (Empirical)
 - **Scope**: Root Cause Analysis (RCA), performance spikes, compatibility research, or feasibility studies.
 - **Workflow**:
-  1. AI creates `docs/reference/investigations/IVG-<TASK_ID>-<SLUG>.md` based on `TEMPLATE.md`.
+  1. AI creates `docs/reference/investigations/IVG-<SCOPE>-<SLUG>.md` based on `TEMPLATE.md` (naming per `.agents/rules/file-naming.md`).
   2. Document all hypotheses, experiments, and terminal logs in the file.
   3. **Lazy-loading**: These reports are loaded in future turns ONLY if they are relevant to the current bug or subsystem.
   4. Final conclusion must provide a clear recommendation (e.g., "Implement Fix X" or "Task is unfeasible").
@@ -44,9 +44,10 @@ We classify every task by its **Blast Radius** to determine the required level o
 ### 🔴 [L2] Strict (Architecture)
 - **Scope**: New subsystems, cross-component interface changes, `controller/` logic, RBAC/Audit shifts, or NFR changes.
 - **Workflow**:
-  1. **Mandatory Plan**: AI creates a plan in `docs/reviews/feat-<topic>/plan-YYYY-MM-DD.md`.
-  2. **User Approval**: Implementation starts ONLY after the user approves the plan.
-  3. **Evidence-based Changelog**: A final changelog must be created with actual terminal output proving successful validation.
+  1. **Mandatory Plan**: AI creates a plan in `docs/reviews/<kind>-<topic>/plan-<slug>-YYYY-MM-DD.md` (follow `.agents/rules/file-naming.md`).
+  2. **Plan Structure**: plan must follow `.agents/rules/plan-structure.md` (status block, scope, gates, verification, closure checklist).
+  3. **User Approval**: Implementation starts ONLY after the user approves the plan.
+  4. **Evidence-based Changelog**: A final changelog must be created with actual terminal output proving successful validation.
 
 ---
 

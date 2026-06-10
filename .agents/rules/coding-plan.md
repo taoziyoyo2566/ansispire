@@ -23,14 +23,16 @@ At minimum:
 4. Check whether the framework/tool already has a native or recommended approach.
    Use project usage first, then official docs or external references when the answer depends on current framework behavior or best practice.
 5. Check `.agents/rules/codex-capabilities.md` for a better execution method before defaulting to manual/basic implementation.
-6. Record any uncertainty, blocked prerequisite, or direction risk before proposing edits.
+6. If the change creates, moves, or consumes secret material, read `.agents/rules/secrets-handling.md` and follow its placement conventions.
+7. If a plan prerequisite rests on an environment capability claim (tool present, daemon up, credentials), probe it per `.agents/rules/environment-truth.md` — do not copy the claim from memory or older docs.
+8. Record any uncertainty, blocked prerequisite, or direction risk before proposing edits.
 
 Do not treat the user's initial wording as proof that the requested direction is correct.
 
 ## Plan form
 
 - Small / narrow coding tasks may use an inline plan in the response.
-- Larger, architectural, cross-surface, or multi-step coding tasks need a persistent plan under `docs/reviews/<kind>-<topic>/plan-YYYY-MM-DD.md` before implementation.
+- Larger, architectural, cross-surface, or multi-step coding tasks need a persistent plan under `docs/reviews/<kind>-<topic>/plan-<slug>-YYYY-MM-DD.md` before implementation (naming per `.agents/rules/file-naming.md`, structure per `.agents/rules/plan-structure.md`).
 - If a persistent plan already exists, update or reference it instead of creating a parallel plan.
 
 ## Plan header
