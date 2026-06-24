@@ -37,19 +37,20 @@
 
 ## 🟡 进行中 / 下一轮可立刻启动 (Active / Next-up)
 
-### Target Architecture — 回归 Ansible + Semaphore  ▶️ **P1 主线**
-- **目标**：以 `Semaphore Inventory + Key Store + Task API` 作为控制面真相；owner branch 已移除本地 `vps_manager` 调度层，并把保留的生命周期 playbook 迁到 `playbooks/vps/`。
-- **入口**：`docs/reviews/feat-target-architecture/`（`plan-2026-05-25.md` / `design-2026-05-26.md` / `phase2-worker-design.md` / `round1..9-*.changelog.md`）、`docs/reference/investigations/IVG-SEMAPHORE-INVENTORY-API.md`
-- **状态**：▶️ owner branch + cleanup 已落地；Phase 1 静态契约调查完成（IVG）且 **2026-06-06 运行态探针已关闭**；**Phase 2 详细设计已完成**（Q4 关闭：JS）；Worker 本地实现、Cloudflare deploy、live Semaphore probe inventory CRUD 均已通过；等待 real template provisioning / production inventory migration。
+### Target Architecture / Saberu MVP — Semaphore-native VPS takeover  ▶️ **P1 主线**
+- **目标**：以 `Semaphore Inventory + Key Store + Task API + Semaphore UI` 作为近期控制面真相；先在当前 `ansispire` 跑通 Saberu MVP 的第一条执行证明链路：audit → onboard → managed-channel audit `0 changed`。owner branch 已移除本地 `vps_manager` 调度层，并把保留的生命周期 playbook 迁到 `playbooks/vps/`。
+- **产品方向（2026-06-23 已确认）**：产品名 **Saberu**；短期目标是个人多 VPS 标准化接管/加固/软件安装/服务配置；短期实施图为 [`new-vps-takeover-implementation-steps-2026-06-23.drawio`](docs/reviews/feat-product-redesign/new-vps-takeover-implementation-steps-2026-06-23.drawio)；领域模型为 `Node` / `NodeGroup` / `Credential` / `BaselineProfile` / `ServiceProfile` / `TaskPlan` / `TaskRun` / `AuditEvent` / `Service`。
+- **MVP surface 决策（D2 关闭）**：**Semaphore UI first**。官方能力覆盖 MVP 控制台基础面（Inventory / Key Store / Repositories / Task Templates / Tasks+logs / Schedules / API tokens / Teams-RBAC 入口）；自研 UI/API 和新仓蓝图 deferred，直到 onboard/audit 闭环跑通且具体 gap 出现。
+- **入口**：方向/执行主线 [`docs/reviews/feat-target-architecture/plan-semaphore-native-onboard-2026-06-10.md`](docs/reviews/feat-target-architecture/plan-semaphore-native-onboard-2026-06-10.md)（APPROVED，方向与父执行范围已定）；细节拆解 [`plan-saberu-vps-takeover-execution-2026-06-24.md`](docs/reviews/feat-target-architecture/plan-saberu-vps-takeover-execution-2026-06-24.md)（PENDING_APPROVAL，仅阻塞该 addendum 的执行细节）；产品治理 [`docs/reviews/feat-product-redesign/plan-product-redesign-2026-06-23.md`](docs/reviews/feat-product-redesign/plan-product-redesign-2026-06-23.md)；D2 决策 [`decision-mvp-surface-semaphore-ui-first-2026-06-23.md`](docs/reviews/feat-product-redesign/decision-mvp-surface-semaphore-ui-first-2026-06-23.md)；`docs/reference/investigations/IVG-SEMAPHORE-INVENTORY-API.md`。
+- **状态**：▶️ owner branch + cleanup 已落地；Phase 1 静态契约调查完成（IVG）且 **2026-06-06 运行态探针已关闭**；Worker 本地实现、Cloudflare deploy、live Semaphore probe inventory CRUD 均已通过，但 **Worker / 自研薄层现在不是执行主线**。当前 active work 是 Jun-10 Semaphore-native onboard plan。
 - **运行态探针结论（2026-06-06）**：Semaphore `static` inventory 支持 whole-blob CRUD；`PUT /inventory/{id}` 返回 `204`；任务运行时变量使用 task-level `environment` JSON string 承载嵌套 `vps_task`，不依赖 raw `extra_vars`。
 - **决策（2026-06-06 全部关闭）**：Q1 不加内部 TLS（docker 内部）· Q2 暂用 SQLite（后期升 Postgres，与 TASK-003 一并处理）· Q3 保持 Key Store（后续按需 Vault）· Q4 CF Worker = JS。详见 `design-2026-05-26.md §八`。
-- **下一步**：
-    1. `[✓]` Phase 1 收尾：一次性 Semaphore 探针已答复 `phase2-worker-design.md §13` 的核心 open questions（`GET/PUT /inventory/{id}` 真实语义 + task launch `environment` 承载路径）
-    2. `[✓]` Phase 2 详细设计：路由 / payload schema / Semaphore client / INI blob 算法 / runtime payload path（`phase2-worker-design.md`，2026-06-06）
-    3. `[~]` Phase 2 实现（Worker + Semaphore client + wizard 已部署到 Cloudflare 并通过 probe `static` inventory CRUD；使用 task-level `environment` 承载 `vps_task`；待 real onboard/audit template IDs）
-    4. `[ ]` Phase 2 收敛修复：三入口矩阵已记录；Worker 已加临时 Basic Auth 堵住公开写入口，已拆分 register-managed / onboard-bare 基础模式,已对非 `static` Semaphore inventory fail-closed,并已加 host-var 无损 round-trip + key-cleanup 补偿 + camelCase 修复(2026-06-07 提交)。**剩余残留已收口到** [`backlog-2026-06-07.md`](docs/reviews/feat-target-architecture/backlog-2026-06-07.md)——P1 关键路径:R1 Key Store→SSH 凭据映射 · R2 真实 onboard/audit 模板 provisioning · R3 非 `vps_targets` section 无损解析;其后 R5/R6(key 删除 + onboard promotion)、R7/R8(Access/observability)。
-    5. `[ ]` Phase 3 迁移（依赖 Phase 2 完成）：`controller/semaphore/bootstrap.yml` `type:"file"` → `type:"static"` + blob；`bootstrap_preflight.yml` 扩展到 item 级 inventory CRUD + task launch probe
-- **建议子分支**（Phase 1 probe 通过后开）：`feat/cf-worker-wizard` → `refactor/semaphore-vps-cutover` → `feat/semaphore-prod-hardening`（全部 from `feat/target-architecture`）
+- **下一步（按 Jun-10 approved plan 执行，不另开新仓）**：
+    1. `[ ]` Phase 0：账本同步 + 复探 Docker/Semaphore runtime + 容器内 `ansible-playbook --syntax-check playbooks/vps/onboard.yml`，确认 vendored collections 在 Semaphore 执行环境可解析。
+    2. `[ ]` Phase 1：`controller/semaphore/bootstrap.yml` 新增 `vps-fleet` static inventory、`vps-fleet-key` 占位、`VPS Audit` 模板和 audit Environment；用户在 Semaphore UI 注入真实 key 后，对测试 VPS 跑通 audit。
+    3. `[ ]` Phase 2：修 `onboard.yml` 容器凭据契约（`public_key_content` 分支 + managed 私钥只读 volume mount），同步 examples，新增 `VPS Onboard` 模板和 preflight 断言。
+    4. `[ ]` Phase 3：真实 onboard → 切 managed 通道 → 重跑 audit，必须 `status=success` 且 repeat audit `0 changed`；新增 `controller-vps-smoke`、TSVS 和 round changelog 证据。
+- **Deferred**：Worker R3–R12、production inventory migration、自研 UI/API / 新 `saberu` 仓蓝图、AI Copilot(D3)、Profile catalog 等都等上述闭环证明后再评估。
 
 ### TASK-009 — Dependency / Image Security Governance  🟡 **P1（并行，不阻塞主线）**
 - **目标**：把当前「版本治理骨架」补成真正可审计的安全 / 兼容性闭环：覆盖 Python 依赖、容器镜像、Semaphore 上游版本、兼容性矩阵、以及 waiver 机制。
@@ -118,13 +119,13 @@
 
 ## ❓ 待用户决策汇总 (Open Decisions — 阻塞下游)
 
-Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-2026-05-26.md §八`）：Q1 不加内部 TLS · Q2 暂用 SQLite（Postgres 升级归口 TASK-003）· Q3 保持 Key Store · Q4 CF Worker = JS。剩余开放项：
+Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-2026-05-26.md §八`）：Q1 不加内部 TLS · Q2 暂用 SQLite（Postgres 升级归口 TASK-003）· Q3 保持 Key Store · Q4 CF Worker = JS。Saberu 产品 D1/D2 已于 2026-06-23 关闭：D1 名称 = Saberu；D2 MVP surface = Semaphore UI first。剩余开放项：
 
 | # | 决策 | 阻塞的任务 | 选项 |
 |---|---|---|---|
 | D1 | hub_remote 去留 | TASK-007.C | 拨新机 / 清空 local-only / 重部署到 d13 |
 | D2 | DB failover 模型 + 是否有演练 db 拓扑 | TASK-008 | 主备切换 / 提升 standby / DNS 切换 |
-| ENV | 提供一个有 Docker runtime 的环境 | Target Arch Phase 1 收尾（**P1 critical path**） | 安装/恢复本机 Docker CLI + daemon / 换执行环境；Ansible 可用但需 `ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote` |
+| ENV | 执行前复探 Docker/Semaphore runtime | Target Arch / Saberu MVP Phase 0 | 按 `.agents/rules/environment-truth.md` 复探；不要沿用旧环境记忆 |
 
 ---
 
@@ -133,8 +134,8 @@ Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-202
 - **当前分支**：`feat/target-architecture`（owner / planning branch for 回归-Semaphore 方向）
 - **合并目标**：**仅 `dev`**（feat→dev，§4 规则）。**永不进 `master`**（2026-06-05 决策）。
 - **同步状态**（2026-06-06 实测）：已 merge `origin/dev`（含 baseline PR #19/#20/#21），CLAUDE.md 冲突已解（merge commit `66e2bb8`）。
-- **本分支已落地**：owner-branch bootstrap（`3cf02fe`）+ Phase 1 IVG 调查 + scope 整理（Alpine 下线 / todo 分支退役 / reference 副本清理 / 文档同步）+ dev 同步 merge + **Phase 2 CF Worker 详细设计 + Q1–Q4 决策关闭（2026-06-06 Round 6）** + **Phase 1 runtime probe closure（2026-06-06 Round 7）**。
-- **环境状态（2026-06-06）**：用户侧 Docker / Semaphore runtime 已可用并完成 Phase 1 live probe。Codex shell 仍不能直接访问 Docker socket，涉及 Docker runtime 的命令继续由用户 shell 执行或另行授权。
+- **本分支已落地**：owner-branch bootstrap（`3cf02fe`）+ Phase 1 IVG 调查 + scope 整理（Alpine 下线 / todo 分支退役 / reference 副本清理 / 文档同步）+ dev 同步 merge + **Phase 2 CF Worker 详细设计 + Q1–Q4 决策关闭（2026-06-06 Round 6）** + **Phase 1 runtime probe closure（2026-06-06 Round 7）** + **Saberu 产品方向 / D2 Semaphore UI first / Jun-10 execution plan approval（2026-06-23 docs round）**。
+- **环境状态**：执行 Phase 0 前必须按 environment-truth 复探 Docker/Semaphore runtime；不要沿用 2026-06-06 或 2026-06-10 的旧能力快照。
 
 ---
 
@@ -149,4 +150,4 @@ Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-202
 - **CLAUDE.md 三层**：`~/.claude/CLAUDE.md` / `~/workspace/CLAUDE.md` / `./CLAUDE.md`
 
 ---
-*Last updated: 2026-06-07 (Round 9: CF Worker deployed to Cloudflare and verified against live Semaphore probe static inventory; template provisioning and production inventory migration remain open).*
+*Last updated: 2026-06-24 (rules reflection added plan hierarchy / evidence-backed planning / execution-time reflection; Saberu direction remains approved, detail addendum is pending approval).*

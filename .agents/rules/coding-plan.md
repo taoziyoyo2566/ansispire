@@ -10,6 +10,11 @@ Before writing the plan, investigate enough to avoid choosing the wrong directio
 - **Direction pass**: current project architecture, active branch/topic, TODO/review docs, ownership boundaries, and whether the task belongs here.
 - **Implementation pass**: current code shape, existing patterns, framework/tool best practice, and whether the proposed change would extend an anti-pattern.
 
+For non-trivial plans, also apply `.agents/rules/evidence-backed-planning.md`:
+separate repo facts from external facts, check current primary sources for
+third-party behavior and security-sensitive guidance, and classify unknowns
+instead of hiding them as assumptions.
+
 At minimum:
 
 1. Read the current repo truth for the touched surface:
@@ -22,6 +27,8 @@ At minimum:
 3. Check whether the implementation would layer onto an existing anti-pattern; if yes, surface that before planning the patch.
 4. Check whether the framework/tool already has a native or recommended approach.
    Use project usage first, then official docs or external references when the answer depends on current framework behavior or best practice.
+   If the answer may have changed since the model's training data, browse or
+   otherwise verify current primary sources before writing implementation guidance.
 5. Check `.agents/rules/codex-capabilities.md` for a better execution method before defaulting to manual/basic implementation.
 6. If the change creates, moves, or consumes secret material, read `.agents/rules/secrets-handling.md` and follow its placement conventions.
 7. If a plan prerequisite rests on an environment capability claim (tool present, daemon up, credentials), probe it per `.agents/rules/environment-truth.md` — do not copy the claim from memory or older docs.
@@ -62,4 +69,7 @@ The plan body must include:
 - Use the plan as the baseline for judging completion.
 - If investigation proves the plan direction wrong, stop and revise the plan before editing.
 - If implementation must deviate materially from the plan, report the deviation and update the plan or changelog evidence.
+- If implementation-time research contradicts the plan, classify the cause per
+  `.agents/rules/execution-reflection.md` and update the plan/rules before
+  continuing.
 - At closeout, compare the final diff and verification results against the plan's goal, expected effect, and acceptance checks.

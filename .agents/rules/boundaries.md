@@ -31,3 +31,7 @@ controller API token as a destructive capability, not a read credential.
 - If a run's blast radius is unclear (which hosts match the pattern?), resolve
   the inventory match list first — `ansible-inventory --graph` or the Semaphore
   inventory blob — before triggering.
+- For live infrastructure operations that can change SSH, firewall, users,
+  packages, services, or provider resources, apply the final go/no-go gate in
+  `.agents/rules/execution-reflection.md` even when the implementation plan is
+  already approved.

@@ -1,0 +1,204 @@
+<mxfile host="diagram.saberu.app">
+  <diagram name="Multi-VPS Standardized Management" id="multi-vps-standardized-management-2026-06-23">
+    <mxGraphModel dx="1430" dy="920" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="多 VPS 标准化管理模块 - 深度设计" vertex="1">
+          <mxGeometry height="50" width="1420" x="90" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=14;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="这是 saberu.drawio 总览图中 MVP 控制平面的一个模块：把一套部署、加固、安装、配置、验证、审计流程标准化后应用到多台 VPS" vertex="1">
+          <mxGeometry height="34" width="1380" x="110" y="82" as="geometry" />
+        </mxCell>
+
+        <mxCell id="lane-input" parent="1" style="swimlane;html=1;rounded=1;whiteSpace=wrap;fillColor=#fafafa;strokeColor=#9ca3af;fontSize=16;fontStyle=1;startSize=36;" value="入口 / 意图收集" vertex="1">
+          <mxGeometry height="760" width="260" x="60" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-plan" parent="1" style="swimlane;html=1;rounded=1;whiteSpace=wrap;fillColor=#eff6ff;strokeColor=#2563eb;fontSize=16;fontStyle=1;startSize=36;" value="计划 / 标准化策略" vertex="1">
+          <mxGeometry height="760" width="330" x="350" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-exec" parent="1" style="swimlane;html=1;rounded=1;whiteSpace=wrap;fillColor=#f3f4f6;strokeColor=#6b7280;fontSize=16;fontStyle=1;startSize=36;" value="执行平面" vertex="1">
+          <mxGeometry height="760" width="280" x="710" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-fleet" parent="1" style="swimlane;html=1;rounded=1;whiteSpace=wrap;fillColor=#f8fafc;strokeColor=#64748b;fontSize=16;fontStyle=1;startSize=36;" value="目标 Fleet / VPS 节点" vertex="1">
+          <mxGeometry height="760" width="280" x="1020" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-evidence" parent="1" style="swimlane;html=1;rounded=1;whiteSpace=wrap;fillColor=#fefce8;strokeColor=#ca8a04;fontSize=16;fontStyle=1;startSize=36;" value="证据 / 反馈" vertex="1">
+          <mxGeometry height="760" width="250" x="1330" y="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="input-vps-list" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#374151;fontSize=13;fontStyle=1;" value="VPS 列表录入&lt;br&gt;IP / 端口 / 用户 / Provider / 备注" vertex="1">
+          <mxGeometry height="78" width="190" x="95" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="input-ai" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#9333ea;fontSize=13;fontStyle=1;" value="AI 辅助解析&lt;br&gt;粘贴信息 → 字段建议" vertex="1">
+          <mxGeometry height="74" width="190" x="95" y="335" as="geometry" />
+        </mxCell>
+        <mxCell id="input-group" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#374151;fontSize=13;" value="分组 / 标签&lt;br&gt;provider / env / role / OS / service" vertex="1">
+          <mxGeometry height="78" width="190" x="95" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="input-profile" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#374151;fontSize=13;" value="选择 Profile&lt;br&gt;BaselineProfile / ServiceProfile" vertex="1">
+          <mxGeometry height="78" width="190" x="95" y="545" as="geometry" />
+        </mxCell>
+        <mxCell id="input-confirm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=13;fontStyle=1;" value="用户确认&lt;br&gt;参数 / 风险 / 目标节点" vertex="1">
+          <mxGeometry height="78" width="190" x="95" y="690" as="geometry" />
+        </mxCell>
+
+        <mxCell id="plan-node-registry" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;fontSize=13;fontStyle=1;" value="Node Registry&lt;br&gt;节点、状态、OS、标签" vertex="1">
+          <mxGeometry height="76" width="220" x="405" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="plan-groups" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;fontSize=13;" value="NodeGroup&lt;br&gt;按 provider / env / role / service 组织" vertex="1">
+          <mxGeometry height="76" width="220" x="405" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="plan-baseline" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;fontSize=13;" value="BaselineProfile&lt;br&gt;用户、SSH、Firewall、更新策略" vertex="1">
+          <mxGeometry height="76" width="220" x="405" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="plan-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;fontSize=13;" value="ServiceProfile&lt;br&gt;Docker / Nginx / Caddy / DB / Agent" vertex="1">
+          <mxGeometry height="76" width="220" x="405" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="plan-taskplan" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#9333ea;fontSize=13;fontStyle=1;" value="TaskPlan&lt;br&gt;目标节点 + Profile + 风险 + 预期变更" vertex="1">
+          <mxGeometry height="84" width="230" x="400" y="630" as="geometry" />
+        </mxCell>
+        <mxCell id="plan-approval" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=13;fontStyle=1;" value="Approval Gate&lt;br&gt;确认后才允许写操作" vertex="1">
+          <mxGeometry height="74" width="220" x="405" y="770" as="geometry" />
+        </mxCell>
+
+        <mxCell id="exec-semaphore" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f4f6;strokeColor=#6b7280;fontSize=13;fontStyle=1;" value="Semaphore&lt;br&gt;Inventory / Key Store / Task API" vertex="1">
+          <mxGeometry height="82" width="200" x="750" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="exec-templates" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f4f6;strokeColor=#6b7280;fontSize=13;" value="Job Templates&lt;br&gt;onboard / audit / install / deploy" vertex="1">
+          <mxGeometry height="82" width="200" x="750" y="365" as="geometry" />
+        </mxCell>
+        <mxCell id="exec-ansible" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f4f6;strokeColor=#6b7280;fontSize=13;fontStyle=1;" value="Ansible&lt;br&gt;playbooks/vps + roles" vertex="1">
+          <mxGeometry height="82" width="200" x="750" y="485" as="geometry" />
+        </mxCell>
+        <mxCell id="exec-cred" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;fontSize=13;" value="Credential Contract&lt;br&gt;Key Store 引用 + runtime secret mount" vertex="1">
+          <mxGeometry height="82" width="200" x="750" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="exec-validate" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f4f6;strokeColor=#6b7280;fontSize=13;" value="Validation Tasks&lt;br&gt;SSH / service / audit / idempotency" vertex="1">
+          <mxGeometry height="82" width="200" x="750" y="735" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fleet-nodes" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontSize=13;fontStyle=1;" value="VPS Fleet&lt;br&gt;node-1 / node-2 / node-N" vertex="1">
+          <mxGeometry height="82" width="200" x="1060" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="fleet-baseline" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontSize=13;" value="统一安全基线&lt;br&gt;managed user / SSH / firewall" vertex="1">
+          <mxGeometry height="82" width="200" x="1060" y="365" as="geometry" />
+        </mxCell>
+        <mxCell id="fleet-software" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontSize=13;" value="标准软件层&lt;br&gt;Docker / Nginx / Caddy / DB / Agent" vertex="1">
+          <mxGeometry height="82" width="200" x="1060" y="485" as="geometry" />
+        </mxCell>
+        <mxCell id="fleet-services" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontSize=13;" value="服务实例&lt;br&gt;按模板部署 / 配置 / 验证" vertex="1">
+          <mxGeometry height="82" width="200" x="1060" y="605" as="geometry" />
+        </mxCell>
+        <mxCell id="fleet-drift" parent="1" style="rounded=1;dashed=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#ea580c;fontSize=13;" value="后续增强&lt;br&gt;漂移检测 / 批量修复 / Offboard" vertex="1">
+          <mxGeometry height="82" width="200" x="1060" y="755" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ev-taskrun" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=13;fontStyle=1;" value="TaskRun&lt;br&gt;状态 / 日志 / Exit code" vertex="1">
+          <mxGeometry height="78" width="180" x="1365" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="ev-audit" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=13;" value="AuditEvent&lt;br&gt;谁 / 何时 / 对哪些节点 / 做了什么" vertex="1">
+          <mxGeometry height="82" width="180" x="1365" y="365" as="geometry" />
+        </mxCell>
+        <mxCell id="ev-validation" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=13;" value="Validation Result&lt;br&gt;服务可用 / 安全基线 / 0 changed" vertex="1">
+          <mxGeometry height="82" width="180" x="1365" y="485" as="geometry" />
+        </mxCell>
+        <mxCell id="ev-ai" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#9333ea;fontSize=13;" value="AI 解释&lt;br&gt;失败日志 / 风险 / 下一步建议" vertex="1">
+          <mxGeometry height="82" width="180" x="1365" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="ev-notify" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=13;" value="通知&lt;br&gt;Email / Telegram / Webhook" vertex="1">
+          <mxGeometry height="76" width="180" x="1365" y="740" as="geometry" />
+        </mxCell>
+
+        <mxCell id="future-provider" parent="1" style="rounded=1;dashed=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=13;fontStyle=1;" value="Phase 2 Hook&lt;br&gt;Provider Adapter / ResourcePlan" vertex="1">
+          <mxGeometry height="68" width="250" x="210" y="970" as="geometry" />
+        </mxCell>
+        <mxCell id="future-security" parent="1" style="rounded=1;dashed=1;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;fontSize=13;fontStyle=1;" value="Phase 3 Hook&lt;br&gt;Finding / Remediation / RelationshipGraph" vertex="1">
+          <mxGeometry height="68" width="300" x="500" y="970" as="geometry" />
+        </mxCell>
+        <mxCell id="future-ui" parent="1" style="rounded=1;dashed=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0284c7;fontSize=13;fontStyle=1;" value="UI Decision Hook&lt;br&gt;Semaphore UI / Wizard / Custom UI" vertex="1">
+          <mxGeometry height="68" width="280" x="840" y="970" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" edge="1" parent="1" source="input-vps-list" target="input-ai" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#9333ea;" value="解析">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="input-ai" target="plan-taskplan" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#9333ea;" value="字段建议">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="input-group" target="plan-groups" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#2563eb;" value="分组">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="input-profile" target="plan-baseline" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#2563eb;" value="选择基线">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="input-profile" target="plan-service" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#2563eb;" value="选择服务">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="plan-node-registry" target="plan-taskplan" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#2563eb;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="plan-groups" target="plan-taskplan" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#2563eb;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="plan-baseline" target="plan-taskplan" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#2563eb;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="plan-service" target="plan-taskplan" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#2563eb;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="input-confirm" target="plan-approval" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#16a34a;" value="确认">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="plan-taskplan" target="plan-approval" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#16a34a;" value="计划">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="plan-approval" target="exec-semaphore" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#6b7280;" value="启动任务">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" edge="1" parent="1" source="exec-semaphore" target="exec-templates" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#6b7280;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" edge="1" parent="1" source="exec-templates" target="exec-ansible" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#6b7280;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" edge="1" parent="1" source="exec-ansible" target="fleet-nodes" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#64748b;" value="SSH / Playbook">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" edge="1" parent="1" source="exec-cred" target="exec-ansible" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#dc2626;" value="凭据路径">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" edge="1" parent="1" source="fleet-nodes" target="fleet-baseline" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#64748b;" value="加固">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" edge="1" parent="1" source="fleet-baseline" target="fleet-software" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#64748b;" value="安装">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e19" edge="1" parent="1" source="fleet-software" target="fleet-services" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#64748b;" value="配置">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e20" edge="1" parent="1" source="exec-validate" target="fleet-services" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#6b7280;" value="验证">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e21" edge="1" parent="1" source="exec-semaphore" target="ev-taskrun" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#ca8a04;" value="状态/日志">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e22" edge="1" parent="1" source="ev-taskrun" target="ev-audit" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#ca8a04;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e23" edge="1" parent="1" source="exec-validate" target="ev-validation" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#ca8a04;" value="结果">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e24" edge="1" parent="1" source="ev-taskrun" target="ev-ai" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#9333ea;" value="解释">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e25" edge="1" parent="1" source="ev-audit" target="plan-node-registry" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#ca8a04;" value="回写状态">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e26" edge="1" parent="1" source="ev-validation" target="ev-notify" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#ca8a04;" value="通知">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

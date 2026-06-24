@@ -1,0 +1,179 @@
+<mxfile host="diagram.saberu.app">
+  <diagram name="New VPS Takeover Flow" id="new-vps-takeover-flow-2026-06-23">
+    <mxGraphModel dx="1420" dy="880" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="980" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="接管新 VPS 流程 - 模块深度设计" vertex="1">
+          <mxGeometry height="50" width="1320" x="90" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=14;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="范围：接管一个或多个新 VPS，从 bootstrap SSH 信息开始，完成安全基线、软件安装、服务配置、验证，并写入统一管理状态" vertex="1">
+          <mxGeometry height="34" width="1320" x="90" y="82" as="geometry" />
+        </mxCell>
+
+        <mxCell id="lane-input" parent="1" style="swimlane;html=1;rounded=1;whiteSpace=wrap;fillColor=#fafafa;strokeColor=#9ca3af;fontSize=16;fontStyle=1;startSize=36;" value="1. 输入 / 选择目标" vertex="1">
+          <mxGeometry height="690" width="235" x="50" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-preflight" parent="1" style="swimlane;html=1;rounded=1;whiteSpace=wrap;fillColor=#eff6ff;strokeColor=#2563eb;fontSize=16;fontStyle=1;startSize=36;" value="2. 预检 / 计划" vertex="1">
+          <mxGeometry height="690" width="250" x="315" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-takeover" parent="1" style="swimlane;html=1;rounded=1;whiteSpace=wrap;fillColor=#fff7ed;strokeColor=#ea580c;fontSize=16;fontStyle=1;startSize=36;" value="3. 接管 / 安全基线" vertex="1">
+          <mxGeometry height="690" width="260" x="595" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-service" parent="1" style="swimlane;html=1;rounded=1;whiteSpace=wrap;fillColor=#f0fdf4;strokeColor=#16a34a;fontSize=16;fontStyle=1;startSize=36;" value="4. 软件 / 服务配置" vertex="1">
+          <mxGeometry height="690" width="245" x="885" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-record" parent="1" style="swimlane;html=1;rounded=1;whiteSpace=wrap;fillColor=#fefce8;strokeColor=#ca8a04;fontSize=16;fontStyle=1;startSize=36;" value="5. 验证 / 入库 / 反馈" vertex="1">
+          <mxGeometry height="690" width="300" x="1160" y="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="input-list" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#374151;fontSize=13;fontStyle=1;" value="新 VPS 列表&lt;br&gt;1 台或多台" vertex="1">
+          <mxGeometry height="66" width="170" x="82" y="225" as="geometry" />
+        </mxCell>
+        <mxCell id="input-bootstrap" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#374151;fontSize=13;" value="Bootstrap SSH&lt;br&gt;host / port / user / key" vertex="1">
+          <mxGeometry height="74" width="170" x="82" y="325" as="geometry" />
+        </mxCell>
+        <mxCell id="input-meta" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#374151;fontSize=13;" value="节点元数据&lt;br&gt;provider / env / role / OS / tags" vertex="1">
+          <mxGeometry height="78" width="170" x="82" y="435" as="geometry" />
+        </mxCell>
+        <mxCell id="input-profile" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#374151;fontSize=13;" value="目标 Profile&lt;br&gt;安全基线 + 软件 + 服务模板" vertex="1">
+          <mxGeometry height="78" width="170" x="82" y="545" as="geometry" />
+        </mxCell>
+        <mxCell id="input-ai" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#9333ea;fontSize=13;" value="可选 AI 辅助&lt;br&gt;从粘贴信息提取字段" vertex="1">
+          <mxGeometry height="74" width="170" x="82" y="670" as="geometry" />
+        </mxCell>
+
+        <mxCell id="preflight-normalize" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;fontSize=13;fontStyle=1;" value="标准化输入&lt;br&gt;字段归一 / 缺项提示" vertex="1">
+          <mxGeometry height="72" width="180" x="350" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="preflight-reach" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;fontSize=13;" value="连通性预检&lt;br&gt;SSH 可达 / sudo / OS family" vertex="1">
+          <mxGeometry height="78" width="180" x="350" y="325" as="geometry" />
+        </mxCell>
+        <mxCell id="preflight-plan" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#9333ea;fontSize=13;fontStyle=1;" value="Takeover Plan&lt;br&gt;将执行什么 / 风险 / 回滚提示" vertex="1">
+          <mxGeometry height="84" width="185" x="347.5" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="preflight-confirm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=13;fontStyle=1;" value="确认 Gate&lt;br&gt;用户确认后才执行写操作" vertex="1">
+          <mxGeometry height="78" width="180" x="350" y="585" as="geometry" />
+        </mxCell>
+
+        <mxCell id="takeover-user" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;fontSize=13;fontStyle=1;" value="创建托管用户&lt;br&gt;managed user / sudo policy" vertex="1">
+          <mxGeometry height="76" width="185" x="632" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="takeover-key" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;fontSize=13;" value="配置 SSH Key&lt;br&gt;authorized_keys / key policy" vertex="1">
+          <mxGeometry height="76" width="185" x="632" y="325" as="geometry" />
+        </mxCell>
+        <mxCell id="takeover-ssh" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;fontSize=13;" value="SSH 安全设置&lt;br&gt;端口 / root login / password auth" vertex="1">
+          <mxGeometry height="78" width="185" x="632" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="takeover-firewall" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;fontSize=13;" value="Firewall 基线&lt;br&gt;允许管理端口 / 服务端口" vertex="1">
+          <mxGeometry height="78" width="185" x="632" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="takeover-managed-check" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;fontSize=13;fontStyle=1;" value="Managed 通道验证&lt;br&gt;新用户 + 新端口 + 新 key 可登录" vertex="1">
+          <mxGeometry height="86" width="190" x="630" y="660" as="geometry" />
+        </mxCell>
+
+        <mxCell id="service-packages" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=13;fontStyle=1;" value="系统更新 / 基础包&lt;br&gt;package update / common tools" vertex="1">
+          <mxGeometry height="76" width="180" x="917" y="225" as="geometry" />
+        </mxCell>
+        <mxCell id="service-runtime" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=13;" value="运行时安装&lt;br&gt;Docker / Compose / Agent" vertex="1">
+          <mxGeometry height="76" width="180" x="917" y="335" as="geometry" />
+        </mxCell>
+        <mxCell id="service-proxy" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=13;" value="服务基础设施&lt;br&gt;Nginx / Caddy / DB client" vertex="1">
+          <mxGeometry height="76" width="180" x="917" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="service-template" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=13;fontStyle=1;" value="服务模板执行&lt;br&gt;compose app / reverse proxy / env" vertex="1">
+          <mxGeometry height="82" width="185" x="914.5" y="555" as="geometry" />
+        </mxCell>
+        <mxCell id="service-health" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=13;" value="服务健康检查&lt;br&gt;port / HTTP / process / container" vertex="1">
+          <mxGeometry height="82" width="185" x="914.5" y="675" as="geometry" />
+        </mxCell>
+
+        <mxCell id="record-inventory" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=13;fontStyle=1;" value="写入统一状态&lt;br&gt;Node / NodeGroup / Service" vertex="1">
+          <mxGeometry height="78" width="210" x="1205" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="record-semaphore" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f4f6;strokeColor=#6b7280;fontSize=13;" value="执行后台&lt;br&gt;Semaphore Inventory / Key Store / Task API" vertex="1">
+          <mxGeometry height="82" width="210" x="1205" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="record-audit" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=13;" value="审计记录&lt;br&gt;谁 / 何时 / 哪些 VPS / 做了什么" vertex="1">
+          <mxGeometry height="82" width="210" x="1205" y="450" as="geometry" />
+        </mxCell>
+        <mxCell id="record-result" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=13;fontStyle=1;" value="接管结果&lt;br&gt;success / partial / failed / recovery hint" vertex="1">
+          <mxGeometry height="82" width="210" x="1205" y="570" as="geometry" />
+        </mxCell>
+        <mxCell id="record-next" parent="1" style="rounded=1;dashed=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#9333ea;fontSize=13;" value="AI 解释 / 下一步&lt;br&gt;失败日志解释 / 修复建议 / 再执行计划" vertex="1">
+          <mxGeometry height="86" width="210" x="1205" y="700" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" edge="1" parent="1" source="input-list" target="input-bootstrap" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#374151;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="input-bootstrap" target="input-meta" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#374151;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="input-meta" target="input-profile" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#374151;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="input-ai" target="preflight-normalize" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#9333ea;" value="字段建议">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="input-profile" target="preflight-normalize" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#2563eb;" value="目标配置">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="preflight-normalize" target="preflight-reach" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#2563eb;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="preflight-reach" target="preflight-plan" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#2563eb;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="preflight-plan" target="preflight-confirm" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#16a34a;" value="确认">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="preflight-confirm" target="takeover-user" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#ea580c;" value="执行">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="takeover-user" target="takeover-key" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#ea580c;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="takeover-key" target="takeover-ssh" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#ea580c;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="takeover-ssh" target="takeover-firewall" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#ea580c;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" edge="1" parent="1" source="takeover-firewall" target="takeover-managed-check" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#dc2626;" value="防锁死验证">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" edge="1" parent="1" source="takeover-managed-check" target="service-packages" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#16a34a;" value="managed 通道继续">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" edge="1" parent="1" source="service-packages" target="service-runtime" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#16a34a;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" edge="1" parent="1" source="service-runtime" target="service-proxy" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#16a34a;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" edge="1" parent="1" source="service-proxy" target="service-template" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#16a34a;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" edge="1" parent="1" source="service-template" target="service-health" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#16a34a;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e19" edge="1" parent="1" source="service-health" target="record-inventory" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#ca8a04;" value="成功/状态">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e20" edge="1" parent="1" source="record-inventory" target="record-audit" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#ca8a04;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e21" edge="1" parent="1" source="record-audit" target="record-result" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#ca8a04;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e22" edge="1" parent="1" source="record-result" target="record-next" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#9333ea;" value="解释">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e23" edge="1" parent="1" source="record-semaphore" target="preflight-reach" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#6b7280;dashed=1;" value="执行/状态 API">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

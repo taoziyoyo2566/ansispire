@@ -1,0 +1,100 @@
+<mxfile host="diagram.saberu.app">
+  <diagram name="New VPS Takeover Implementation Steps" id="new-vps-takeover-implementation-steps-2026-06-23">
+    <mxGraphModel dx="1200" dy="760" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="760" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=24;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="接管新 VPS - 功能实施步骤图" vertex="1">
+          <mxGeometry height="44" width="1180" x="60" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=13;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="用于项目实现排期：每个步骤都是可单独实现、验证、提交的功能块；不是整体架构图" vertex="1">
+          <mxGeometry height="30" width="1180" x="60" y="76" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#2563eb;fontSize=14;fontStyle=1;" value="1. VPS 输入草稿&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;录入 1 台或多台 VPS：host / port / user / key / provider / tags&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="245" x="80" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="step2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#2563eb;fontSize=14;fontStyle=1;" value="2. SSH 预检&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;只读验证：连通性、认证、OS family、sudo 能力&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="245" x="380" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="step3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#9333ea;fontSize=14;fontStyle=1;" value="3. 生成执行计划&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;展示将修改什么：用户、SSH、Firewall、软件、服务模板&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="245" x="680" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="step4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=14;fontStyle=1;" value="4. 用户确认&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;确认目标节点、风险、参数；确认前不执行写操作&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="245" x="980" y="145" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#ea580c;fontSize=14;fontStyle=1;" value="5. 接管与安全基线&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;创建 managed 用户、配置 key、SSH 策略、Firewall 基线&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="245" x="80" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="step6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;fontSize=14;fontStyle=1;" value="6. Managed 通道验证&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;用新用户、新端口、新 key 登录；防止 SSH 锁死&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="245" x="380" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="step7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontSize=14;fontStyle=1;" value="7. 软件与服务配置&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;安装 Docker / Nginx / Caddy / Agent；执行服务模板&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="245" x="680" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="step8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=14;fontStyle=1;" value="8. 验证、入库、审计&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;健康检查；写入 Node/Group/Service；保存日志和审计结果&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="245" x="980" y="340" as="geometry" />
+        </mxCell>
+
+        <mxCell id="deliver1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9ca3af;fontSize=12;" value="输出：VPS 草稿记录" vertex="1">
+          <mxGeometry height="42" width="180" x="112.5" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="deliver2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9ca3af;fontSize=12;" value="输出：预检结果" vertex="1">
+          <mxGeometry height="42" width="180" x="412.5" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="deliver3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9ca3af;fontSize=12;" value="输出：Takeover Plan" vertex="1">
+          <mxGeometry height="42" width="180" x="712.5" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="deliver4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9ca3af;fontSize=12;" value="输出：批准的执行请求" vertex="1">
+          <mxGeometry height="42" width="180" x="1012.5" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="deliver5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9ca3af;fontSize=12;" value="输出：安全基线已应用" vertex="1">
+          <mxGeometry height="42" width="180" x="112.5" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="deliver6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9ca3af;fontSize=12;" value="输出：managed 可登录" vertex="1">
+          <mxGeometry height="42" width="180" x="412.5" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="deliver7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9ca3af;fontSize=12;" value="输出：服务已部署" vertex="1">
+          <mxGeometry height="42" width="180" x="712.5" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="deliver8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9ca3af;fontSize=12;" value="输出：可管理 VPS 记录" vertex="1">
+          <mxGeometry height="42" width="180" x="1012.5" y="445" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontSize=13;" value="实现原则：先把每一步做成可复跑、可验证、可记录的最小功能。单台 VPS 是验证单元，多台 VPS 是同一流程的批量目标。" vertex="1">
+          <mxGeometry height="72" width="760" x="270" y="585" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" edge="1" parent="1" source="step1" target="step2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#374151;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="step2" target="step3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#374151;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="step3" target="step4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#374151;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="step4" target="step5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#374151;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1102" y="300" as="sourcePoint" />
+            <mxPoint x="202" y="320" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1102" y="300" />
+              <mxPoint x="202" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="step5" target="step6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#374151;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="step6" target="step7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#374151;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="step7" target="step8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;endArrow=block;endFill=1;strokeColor=#374151;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

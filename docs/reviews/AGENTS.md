@@ -6,6 +6,9 @@ Use this file when touching `docs/reviews/`.
 - `../../.agents/rules/docs-sync.md`
 - `../../.agents/rules/file-naming.md`
 - `../../.agents/rules/plan-structure.md`
+- `../../.agents/rules/plan-hierarchy.md` for parent/child/addendum plan relationships.
+- `../../.agents/rules/evidence-backed-planning.md` for plans that depend on external/current knowledge.
+- `../../.agents/rules/execution-reflection.md` for plans that will be executed against live infrastructure or external systems.
 - `../../TODO.md`
 - Treat review docs as execution evidence, not general documentation.
 - Keep the topic directory stable once a workstream exists.

@@ -1,11 +1,13 @@
 # Plan — Semaphore-Native VPS Onboard（去 Worker 化的功能主线闭环）
 
-> **Status**: PENDING_APPROVAL
+> **Status**: APPROVED
 > **Created**: 2026-06-10
 > **Branch**: feat/target-architecture
 > **Classification**: [L2] Architecture
 > **Supersedes**: `plan-phase-a-onboard-execution-2026-06-07.md`（吸收其 R1/R2 内容，移除 Worker 接线）；同时取代未入库的 change-file 草案 `plan-semaphore-first-wiring-2026-06-09.md`（吸收其 onboard.yml 修复与验证编排，移除 Postgres / API 探针 / 自定义镜像默认化）
+> **Approved**: 2026-06-23
 > **Updated**: 2026-06-10 — 环境约束修正（Docker daemon 实测可用，W-R24 探针）+ §7 补 testing-governance 同步项；重新呈批
+> **Updated**: 2026-06-23 — Saberu 产品方向确认后，本 plan 被定为近期 active execution plan；D2 关闭为 Semaphore UI first，自研 UI/API / 新仓蓝图 deferred，先证明 Semaphore-native audit → onboard → managed-audit `0 changed` 闭环。
 
 ---
 
@@ -14,6 +16,7 @@
 1. **什么缺失**：Semaphore 作为控制面从未真正跑通过一次 VPS onboard——容器内凭据契约未接线（managed 验证私钥文件不存在、`authorized_keys` 的 `lookup('file')` 在容器内必然失败）、onboard/audit Job Template 未创建、VPS 节点真相还在 repo file inventory 而非 Semaphore static inventory。
 2. **为什么重要**：本地 `vps_manager` 已删除，Semaphore 容器内 Ansible 是唯一执行路径。接线不通，目标架构停留在"设计已确认但不可用"，后续所有功能（批量导入、offboard、Worker 回归）都没有可信基线。
 3. **为什么现在**：2026-06-10 方向决策——Worker 暂缓（未对外开放、安全非优先），重点转向功能实现。这一刀解除了 R3（Worker blob 无损解析）对 inventory 迁移的前置绑定，功能主线障碍清单缩短为 4 项，全部可立即推进。
+4. **Saberu 对齐（2026-06-23）**：产品名已定为 Saberu，短期产品目标是多 VPS 标准化接管/加固/软件安装/服务配置；MVP 操作面已关闭为 **Semaphore UI first**。因此本 plan 是 Saberu MVP 的第一条执行证明链路，不新建自研 UI/API 项目，不绕开 Semaphore。
 
 ---
 

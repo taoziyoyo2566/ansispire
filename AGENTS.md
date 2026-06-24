@@ -74,6 +74,9 @@ Do not modify files during bootstrap.
 
 - `.agents/rules/git.md`
 - `.agents/rules/branching.md`
+- `.agents/rules/plan-hierarchy.md` when plans have parent/child/addendum relationships.
+- `.agents/rules/evidence-backed-planning.md` when plan content depends on external knowledge or current best practice.
+- `.agents/rules/execution-reflection.md` when executing or planning live infrastructure work.
 - `docs/AGENTS.md`
 
 ## Path-specific Routing

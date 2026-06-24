@@ -6,6 +6,16 @@ Historical plans are not required to be backfilled unless they are being edited.
 "Materially rewritten" means scope, implementation approach, or verification criteria changed.
 Wording-only edits do not trigger this rule.
 
+Also read:
+
+- `.agents/rules/plan-hierarchy.md` when a plan has a parent, child, addendum,
+  or decision-record relationship.
+- `.agents/rules/evidence-backed-planning.md` when external knowledge, current
+  best practice, third-party APIs/tools, security guidance, or live
+  infrastructure behavior influences the plan.
+- `.agents/rules/execution-reflection.md` when the plan will later be executed
+  against live infrastructure or external systems.
+
 A reader who has never seen the codebase should be able to understand:
 - what broke or is missing
 - why it matters now
@@ -27,6 +37,16 @@ A metadata block at the very top, before any prose:
 > **Branch**: <kind>/<topic>
 > **Classification**: [L2] Architecture
 > **Supersedes**: <path to older plan if this replaces one, else omit>
+```
+
+When applicable, add the approval scope metadata from
+`.agents/rules/plan-hierarchy.md`:
+
+```
+> **Plan type**: Direction plan | Execution plan | Detail addendum | Decision record | Runbook
+> **Approval scope**: direction | implementation approach | named details | live operation | closeout
+> **Parent plan**: <path>
+> **Blocks implementation**: yes | no | only <named phases/details>
 ```
 
 Status lifecycle:
@@ -74,6 +94,9 @@ A factual snapshot of what exists now, before changes:
 - constraints (versions, env requirements, blockers)
 
 Distinguish clearly between **confirmed facts** and **assumptions**. If not runtime-verified, say so.
+If a claim depends on external knowledge, classify it per
+`.agents/rules/evidence-backed-planning.md` as a verified external fact,
+assumption, research item, runtime probe, or operator decision.
 
 ---
 
@@ -85,6 +108,8 @@ Two explicit lists:
 - **Out of scope** - what this plan explicitly does not touch.
 
 If open decisions must be resolved before implementation starts, list each with owner and trigger/deadline.
+If unknowns are intentionally deferred to implementation, name the phase/gate
+where each unknown will be closed.
 
 ---
 
@@ -128,6 +153,8 @@ Rules:
   | Field missing | update IVG with finding, reassess design before continuing |
 
 - Phases/WUs should be independently committable.
+- Phases that execute live infrastructure changes must include or reference the
+  live infrastructure gate in `.agents/rules/execution-reflection.md`.
 
 ---
 
@@ -144,6 +171,9 @@ Define done criteria per phase/WU:
 - If live environment is required but may be unavailable, provide fallback verification.
 - "It should work" is not a verification method.
 - Evidence artifact must be committed to the repo before the phase is considered closed, recorded in `round<N>-YYYY-MM-DD.changelog.md`. Sensitive output (real IPs, hostnames, credentials-adjacent strings) must be redacted to placeholders before committing — a sanitized excerpt with a note "sensitive fields redacted" is sufficient.
+- Verification claims that rely on tool output must name the observable source:
+  command output, API response, task id/status, Ansible recap, log path, or
+  screenshot.
 
 ---
 
@@ -167,6 +197,8 @@ After all phases/WUs pass, explicitly list:
 - changelog to write (`round<N>-YYYY-MM-DD.changelog.md`)
 - advance this plan's `§0 Status` to `COMPLETED` and add `> **Completed**: YYYY-MM-DD` on the next line
 - next work unlocked by this plan
+- reflection outcome if implementation contradicted the plan or exposed a rules
+  gap, per `.agents/rules/execution-reflection.md`
 
 ---
 
@@ -183,6 +215,15 @@ After all phases/WUs pass, explicitly list:
 - **Plan completed but §0 still shows APPROVED** - future readers cannot tell if the plan was ever executed.
 - **PENDING_APPROVAL revised in place without reverting to DRAFT** - approval state becomes ambiguous; user may approve a version they did not review.
 - **Contradicting a previously closed decision without declaring it** - if the plan reverses a decision recorded in a design doc or TODO, it must name that decision and state that it supersedes it; silent reversal leaves two conflicting truths.
+- **Flat approval semantics** - treating a pending child/detail plan as if it
+  invalidates an approved parent direction, or treating an approved direction as
+  if it authorizes every live/destructive run.
+- **Unverified external knowledge** - encoding current third-party behavior,
+  security practice, or API details from memory when they should be checked
+  against primary sources.
+- **Hidden unknowns** - leaving "implementation will investigate later" as prose
+  without naming the close phase and fallback if the investigation contradicts
+  the plan.
 
 ---
 

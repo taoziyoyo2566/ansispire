@@ -30,3 +30,9 @@ Use this when a change creates, moves, or consumes secret material
   hostnames) to placeholders before committing (`plan-structure.md §5`).
 - A new secret location requires: gitignore entry + `.env.example`/README note +
   this table updated — in the same change.
+- A plan that stores or consumes the same secret in multiple places must record
+  why duplication is necessary, who can access each copy, how rotation works,
+  and what future change can remove the duplication.
+- When execution creates or changes secret-backed external resources, record only
+  ids/names/lifecycle metadata per `.agents/rules/execution-reflection.md`; never
+  record secret values.
