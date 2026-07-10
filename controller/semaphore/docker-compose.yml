@@ -53,6 +53,11 @@ services:
 
       # Ansible-related
       ANSIBLE_HOST_KEY_CHECKING: "False"
+      # Use the container-scoped ansible.cfg (no vault_password_file): the
+      # VPS onboard/audit path is vault-free by design, so ansible must not
+      # eager-load the host .vault_pass (uid1000/600) which uid1001 can't read.
+      # See controller/semaphore/ansible.cfg for the full rationale.
+      ANSIBLE_CONFIG: "/workspace/controller/semaphore/ansible.cfg"
     volumes:
       # Control-plane state (database, uploaded vault keys, tmp)
       - semaphore-data:/var/lib/semaphore
