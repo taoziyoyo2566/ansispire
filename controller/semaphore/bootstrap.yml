@@ -184,6 +184,20 @@
       ansible.builtin.set_fact:
         repo_id: "{{ (repos_list.json | selectattr('name', 'equalto', repo_name) | list | first).id }}"
 
+    # Pre-create inventory snapshot — used by the when-guards on every
+    # inventory create below so re-running bootstrap does not duplicate
+    # inventories. Semaphore v2.18.2 does NOT reject a duplicate inventory
+    # name (POST returns 201, not a 400 'already exists'), so the failed_when
+    # 'already exists' check alone is insufficient for idempotency.
+    - name: List inventories (pre-create idempotency guard)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/inventory"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: invs_pre
+
     - name: Create inventory '{{ inventory_name }}'
       ansible.builtin.uri:
         url: "{{ semaphore_url }}/api/project/{{ project_id }}/inventory"
@@ -199,8 +213,10 @@
           ssh_key_id: "{{ none_key_id | int }}"
         status_code: [201, 204, 400]
       register: inv_create
+      when: (invs_pre.json | selectattr('name', 'equalto', inventory_name) | list | length) == 0
       failed_when: >
-        inv_create.status not in [201, 204]
+        inv_create.status is defined
+        and inv_create.status not in [201, 204]
         and 'already exists' not in (inv_create.content | default(''))
 
     - name: List inventories
@@ -234,8 +250,10 @@
           ssh_key_id: "{{ none_key_id | int }}"
         status_code: [201, 204, 400]
       register: inv_targets_create
+      when: (invs_pre.json | selectattr('name', 'equalto', 'targets-managed') | list | length) == 0
       failed_when: >
-        inv_targets_create.status not in [201, 204]
+        inv_targets_create.status is defined
+        and inv_targets_create.status not in [201, 204]
         and 'already exists' not in (inv_targets_create.content | default(''))
 
     - name: Resolve targets-managed inventory id
@@ -257,6 +275,18 @@
         targets_inventory_id: "{{ (invs_list_after.json | selectattr('name', 'equalto', 'targets-managed') | list | first).id }}"
       when: targets_inventory_id | int == 0
 
+    # Pre-create environment snapshot — when-guard source for every
+    # environment create below (same v2.18.2 duplicate-name caveat as
+    # inventories above).
+    - name: List environments (pre-create idempotency guard)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/environment"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: envs_pre
+
     - name: Create empty environment (no extra vars)
       ansible.builtin.uri:
         url: "{{ semaphore_url }}/api/project/{{ project_id }}/environment"
@@ -270,8 +300,10 @@
           json: "{}"
         status_code: [201, 204, 400]
       register: env_create
+      when: (envs_pre.json | selectattr('name', 'equalto', 'default') | list | length) == 0
       failed_when: >
-        env_create.status not in [201, 204]
+        env_create.status is defined
+        and env_create.status not in [201, 204]
         and 'already exists' not in (env_create.content | default(''))
 
     - name: List environments
@@ -652,6 +684,209 @@
         ping_targets_tpl_create.status is defined
         and ping_targets_tpl_create.status not in [201, 204]
         and 'already exists' not in (ping_targets_tpl_create.content | default(''))
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Saberu Phase 1 — VPS fleet audit resources
+    # (plan-saberu-vps-takeover-execution-2026-06-24 §4 P1.1). Semaphore-
+    # native path to run playbooks/vps/audit.yml against a real VPS over the
+    # bootstrap channel:
+    #   vps-fleet-key (SSH placeholder) → vps-fleet (static inventory) →
+    #   vps-audit-env (audit defaults) → VPS Audit template.
+    # Real key material + the first test host are injected by the operator
+    # via the Semaphore UI (P1.5/P1.6). Nothing sensitive is created here.
+    # ═══════════════════════════════════════════════════════════════════
+
+    - name: List main-project keys (vps-fleet-key idempotency)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/keys"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: main_keys_list
+
+    - name: Create placeholder SSH key 'vps-fleet-key' (idempotent)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/keys"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          name: vps-fleet-key
+          type: ssh
+          project_id: "{{ project_id | int }}"
+          ssh:
+            login: ""
+            passphrase: ""
+            private_key: "-----BEGIN OPENSSH PRIVATE KEY-----\nREPLACE-VIA-UI\n-----END OPENSSH PRIVATE KEY-----\n"
+        status_code: [201, 204, 400]
+      register: vps_fleet_key_create
+      when: (main_keys_list.json | selectattr('name', 'equalto', 'vps-fleet-key') | list | length) == 0
+      failed_when: >
+        vps_fleet_key_create.status is defined and
+        vps_fleet_key_create.status == 400 and
+        'already exists' not in (vps_fleet_key_create.content | default(''))
+
+    - name: Re-list main-project keys (resolve vps-fleet-key id)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/keys"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: main_keys_list_after
+
+    - name: Resolve vps-fleet-key id
+      ansible.builtin.set_fact:
+        vps_fleet_key_id: "{{ (main_keys_list_after.json | selectattr('name', 'equalto', 'vps-fleet-key') | list | first).id }}"
+
+    - name: Create 'vps-fleet' static inventory (idempotent)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/inventory"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          name: "vps-fleet"
+          project_id: "{{ project_id | int }}"
+          type: "static"
+          ssh_key_id: "{{ vps_fleet_key_id | int }}"
+          inventory: |
+            # vps-fleet — Saberu managed fleet (Phase 1, static inventory)
+            # Operator (P1.6): add EXACTLY ONE first-test host under
+            # [vps_targets], e.g.
+            #   test-vps ansible_host=<ip> ansible_user=root ansible_port=22
+            # Target must be Debian-family or RHEL-family; the bootstrap
+            # account must trust the vps-fleet public key.
+            [vps_targets]
+        status_code: [201, 204, 400]
+      register: vps_fleet_inv_create
+      when: (invs_pre.json | selectattr('name', 'equalto', 'vps-fleet') | list | length) == 0
+      failed_when: >
+        vps_fleet_inv_create.status is defined
+        and vps_fleet_inv_create.status not in [201, 204]
+        and 'already exists' not in (vps_fleet_inv_create.content | default(''))
+
+    - name: List inventories (resolve vps-fleet id)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/inventory"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: invs_list_vps
+
+    - name: Resolve vps-fleet inventory id
+      ansible.builtin.set_fact:
+        vps_fleet_inventory_id: "{{ (invs_list_vps.json | selectattr('name', 'equalto', 'vps-fleet') | list | first).id }}"
+
+    - name: Create 'vps-audit-env' environment (audit defaults) (idempotent)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/environment"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          name: "vps-audit-env"
+          project_id: "{{ project_id | int }}"
+          # Audit defaults sourced from playbooks/vps/examples/audit.yml (SSOT)
+          # and carried as a task-level extra-vars JSON string (runtime probe
+          # 2026-06-06: nested vps_task rides the environment JSON, not raw
+          # extra_vars).
+          json: "{{ (lookup('ansible.builtin.file', playbook_dir + '/../../playbooks/vps/examples/audit.yml') | from_yaml) | to_json }}"
+        status_code: [201, 204, 400]
+      register: vps_audit_env_create
+      when: (envs_pre.json | selectattr('name', 'equalto', 'vps-audit-env') | list | length) == 0
+      failed_when: >
+        vps_audit_env_create.status is defined
+        and vps_audit_env_create.status not in [201, 204]
+        and 'already exists' not in (vps_audit_env_create.content | default(''))
+
+    - name: List environments (resolve vps-audit-env id)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/environment"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: envs_list_vps
+
+    - name: Resolve vps-audit-env id
+      ansible.builtin.set_fact:
+        vps_audit_env_id: "{{ (envs_list_vps.json | selectattr('name', 'equalto', 'vps-audit-env') | list | first).id }}"
+
+    - name: List main-project templates (VPS Audit idempotency)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: tpl_list_vps
+
+    - name: Register 'VPS Audit' template (idempotent)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          project_id: "{{ project_id | int }}"
+          inventory_id: "{{ vps_fleet_inventory_id | int }}"
+          repository_id: "{{ repo_id | int }}"
+          environment_id: "{{ vps_audit_env_id | int }}"
+          name: "VPS Audit"
+          playbook: "playbooks/vps/audit.yml"
+          description: >-
+            Saberu Phase 1 — read-only health audit (disk/memory/failed-
+            services/reboot-required) against [vps_targets] over the bootstrap
+            SSH channel. Performs NO takeover changes. Uses the 'vps-fleet'
+            static inventory + 'vps-audit-env' defaults; inject the real fleet
+            key and add one test host via the UI before first run.
+          arguments: "[]"
+          allow_override_args_in_task: false
+          app: "ansible"
+        status_code: [201, 204, 400]
+      when: (tpl_list_vps.json | selectattr('name', 'equalto', 'VPS Audit') | list | length) == 0
+      register: vps_audit_tpl_create
+      failed_when: >
+        vps_audit_tpl_create.status is defined
+        and vps_audit_tpl_create.status not in [201, 204]
+        and 'already exists' not in (vps_audit_tpl_create.content | default(''))
+
+    # ── Saberu Phase 1 post-condition gate (P1.2) ─────────────────────
+    # Make the Phase 1 contract explicit. The create/list/resolve tasks
+    # above already fail loudly if a resource is missing; these asserts add
+    # the load-bearing property checks (esp. inventory type == static, which
+    # the managed-channel model in later phases depends on). Placed here as a
+    # POST-condition — not in bootstrap_preflight.yml, which runs BEFORE any
+    # resource is created and only gates upstream API-shape drift.
+    - name: Re-list templates (P1.2 VPS Audit existence)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: tpl_list_vps_after
+
+    - name: Assert Phase 1 VPS audit resources exist and are well-formed
+      ansible.builtin.assert:
+        that:
+          - vps_fleet_key_id | int > 0
+          - vps_fleet_inventory_id | int > 0
+          - vps_audit_env_id | int > 0
+          - (invs_list_vps.json | selectattr('name', 'equalto', 'vps-fleet') | list | first).type == 'static'
+          - (tpl_list_vps_after.json | selectattr('name', 'equalto', 'VPS Audit') | list | length) == 1
+        success_msg: "Phase 1 OK: vps-fleet (static) + vps-fleet-key + vps-audit-env + VPS Audit template."
+        fail_msg: >-
+          Phase 1 VPS audit resources incomplete/malformed. Expected a static
+          'vps-fleet' inventory, 'vps-fleet-key', 'vps-audit-env', and a 'VPS
+          Audit' template. Inspect the create tasks above.
 
     - name: Bootstrap complete
       ansible.builtin.debug:
