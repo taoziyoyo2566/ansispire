@@ -46,7 +46,7 @@
 - **运行态探针结论（2026-06-06）**：Semaphore `static` inventory 支持 whole-blob CRUD；`PUT /inventory/{id}` 返回 `204`；任务运行时变量使用 task-level `environment` JSON string 承载嵌套 `vps_task`，不依赖 raw `extra_vars`。
 - **决策（2026-06-06 全部关闭）**：Q1 不加内部 TLS（docker 内部）· Q2 暂用 SQLite（后期升 Postgres，与 TASK-003 一并处理）· Q3 保持 Key Store（后续按需 Vault）· Q4 CF Worker = JS。详见 `design-2026-05-26.md §八`。
 - **下一步（按 Jun-10 approved plan 执行，不另开新仓）**：
-    1. `[ ]` Phase 0：账本同步 + 复探 Docker/Semaphore runtime + 容器内 `ansible-playbook --syntax-check playbooks/vps/onboard.yml`，确认 vendored collections 在 Semaphore 执行环境可解析。
+    1. `[~]` Phase 0（2026-07-11 推进中）：**collections 解析已验证**——`make controller-up`（Semaphore v2.18.2 / ansible 13.5.0）+ 容器内 `--syntax-check playbooks/vps/{onboard,audit}.yml` 均 `exit 0`，4 个所需 collection（community.general/mysql/docker、ansible.posix）镜像自带，**无需烘焙 Dockerfile**。账本同步本次补齐（TODO/backlog/phase-a）。顺带修复 `ansible.cfg` 全局 `vault_password_file` 使容器急切加载 host `.vault_pass`（uid1000/600）失败的 bug——commit `0b68119`，新增容器专用 `controller/semaphore/ansible.cfg` + `ANSIBLE_CONFIG`（该 bug 原会咬到 Phase 1）。剩余：Phase 0 Gate 正式关闭 → 进 Phase 1。
     2. `[ ]` Phase 1：`controller/semaphore/bootstrap.yml` 新增 `vps-fleet` static inventory、`vps-fleet-key` 占位、`VPS Audit` 模板和 audit Environment；用户在 Semaphore UI 注入真实 key 后，对测试 VPS 跑通 audit。
     3. `[ ]` Phase 2：修 `onboard.yml` 容器凭据契约（`public_key_content` 分支 + managed 私钥只读 volume mount），同步 examples，新增 `VPS Onboard` 模板和 preflight 断言。
     4. `[ ]` Phase 3：真实 onboard → 切 managed 通道 → 重跑 audit，必须 `status=success` 且 repeat audit `0 changed`；新增 `controller-vps-smoke`、TSVS 和 round changelog 证据。

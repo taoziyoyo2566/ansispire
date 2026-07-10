@@ -3,7 +3,7 @@
 **Date**: 2026-06-07
 **Branch**: `feat/target-architecture`
 **Level**: [L2] Architecture
-**Status**: **PLAN — awaiting approval + an R1 decision.** No implementation until approved (`CLAUDE.md §1`).
+**Status**: **SUPERSEDED (2026-06-10 direction decision)** by [`plan-semaphore-native-onboard-2026-06-10.md`](plan-semaphore-native-onboard-2026-06-10.md) — the Semaphore-native onboard plan absorbs R1/R2, and the CF Worker is no longer the execution path. Kept for historical rationale only; **do not implement from this doc**.
 **Backlog source**: [`backlog-2026-06-07.md`](backlog-2026-06-07.md) items R1 + R2 (the P1 critical path).
 
 ---
