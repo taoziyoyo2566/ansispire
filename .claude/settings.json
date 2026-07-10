@@ -1,4 +1,13 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(getent *)",
+      "Bash(git config --show-origin *)",
+      "Bash(docker compose config *)",
+      "Bash(git config user.name)",
+      "Bash(git config user.email)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
