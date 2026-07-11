@@ -71,6 +71,15 @@ services:
       # Note: Semaphore can also git-clone, but bind-mounting makes repo edits
       # immediately visible during learning sessions.
       - ../..:/workspace:ro
+
+      # Read-only fleet SSH private key(s) for onboard managed-channel validation
+      # (onboard.yml shells out to `ssh -i <path>`). The host directory is
+      # gitignored — key material never enters git. Operator drops the real key at
+      # controller/semaphore/secrets/<name>; onboard's
+      # vps_task.managed.ansible_key.private_key references /etc/ansispire/keys/<name>.
+      # Directory mount (not a single-file mount) so a missing key file cannot make
+      # Docker auto-create a directory in its place. See controller/semaphore/secrets/README.md.
+      - ./secrets:/etc/ansispire/keys:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/ping"]
       interval: 30s

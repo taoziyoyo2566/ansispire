@@ -110,9 +110,18 @@
     - name: Install managed user authorized keys
       ansible.posix.authorized_key:
         user: "{{ vps_managed.user }}"
+        # Prefer inline public_key_content (Semaphore-container contract, no host
+        # file needed); fall back to the public_key file path (local-exec compat).
+        # Explicit if/else — never `content | default(lookup(...))`, which would
+        # eagerly evaluate the file lookup even when inline content is present and
+        # fail if the path is absent.
         key: |
           {% for key_item in vps_managed.authorized_keys -%}
+          {% if key_item.public_key_content is defined and (key_item.public_key_content | length) > 0 -%}
+          {{ key_item.public_key_content }}
+          {% else -%}
           {{ lookup('ansible.builtin.file', key_item.public_key) }}
+          {% endif -%}
           {% endfor %}
         state: present
         exclusive: false

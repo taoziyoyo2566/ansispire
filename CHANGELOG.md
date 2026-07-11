@@ -29,6 +29,25 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branches `feat/target-architecture` + `feat/vps-manager-plugin` + `feat/multi-os-target-fleet`
 
+### Semaphore-native VPS Onboard wiring — Saberu Phase 2 (2026-07-11)
+
+Branch `feat/target-architecture`. The takeover onboard path is now runnable from
+the Semaphore container (no live onboard yet — that is Phase 3).
+
+- **New control-plane resources** (`controller/semaphore/bootstrap.yml`):
+  `vps-onboard-env` + the **`VPS Onboard`** template (`playbooks/vps/onboard.yml`),
+  bound to its `ANSIBLE_CONFIG` environment like `VPS Audit` (the Phase 1 vault-abort
+  lesson).
+- **Onboard credential contract** (`playbooks/vps/onboard.yml`): managed
+  `authorized_keys` accepts inline `public_key_content` (no host file), preferred
+  over the `public_key` file-path branch which stays as compat.
+- **Fleet private-key mount** (`controller/semaphore/docker-compose.yml`):
+  read-only `./secrets:/etc/ansispire/keys` for onboard's `ssh -i` managed-login
+  validation. Key material is gitignored; see `controller/semaphore/secrets/README.md`
+  for the Key-Store-vs-mounted-file lifecycle, access, and rotation.
+- **Examples** (`playbooks/vps/examples/onboard.{minimal,standard}.yml`) updated to
+  the container contract (`public_key_content` + `/etc/ansispire/keys/...`).
+
 ### Semaphore-native VPS Audit — Saberu Phase 1 (2026-07-11)
 
 Branch `feat/target-architecture`. Operators can now run a read-only fleet health

@@ -943,7 +943,148 @@
         return_content: true
       register: vps_audit_tpl_after
 
-    - name: Assert Phase 1 VPS audit resources exist and are well-formed
+    # ── Saberu Phase 2: VPS Onboard resources (P2.4) ──────────────────
+    # Mirror the audit env/template pattern exactly, including the Phase 1 lesson:
+    # the template MUST be bound to an environment that carries ANSIBLE_CONFIG (the
+    # env var reused from vps_audit_env_vars), or the onboard run auto-loads the
+    # repo-root vault-demanding ansible.cfg and aborts. Reference payload comes from
+    # examples/onboard.minimal.yml (demo target is TEST-NET/unroutable — operators
+    # override the real vps_task per run; nothing here triggers a live onboard).
+    - name: Compute vps-onboard-env desired json
+      ansible.builtin.set_fact:
+        vps_onboard_env_json: "{{ (lookup('ansible.builtin.file', playbook_dir + '/../../playbooks/vps/examples/onboard.minimal.yml') | from_yaml) | to_json }}"
+
+    - name: Create 'vps-onboard-env' environment (idempotent)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/environment"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          name: "vps-onboard-env"
+          project_id: "{{ project_id | int }}"
+          json: "{{ vps_onboard_env_json }}"
+          env: "{{ vps_audit_env_vars }}"
+        status_code: [201, 204, 400]
+      register: vps_onboard_env_create
+      when: (envs_list_vps.json | selectattr('name', 'equalto', 'vps-onboard-env') | list | length) == 0
+      failed_when: >
+        vps_onboard_env_create.status is defined
+        and vps_onboard_env_create.status not in [201, 204]
+        and 'already exists' not in (vps_onboard_env_create.content | default(''))
+
+    - name: List environments (resolve vps-onboard-env id)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/environment"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: envs_list_onboard
+
+    - name: Resolve vps-onboard-env id
+      ansible.builtin.set_fact:
+        vps_onboard_env_id: "{{ (envs_list_onboard.json | selectattr('name', 'equalto', 'vps-onboard-env') | list | first).id }}"
+
+    - name: Ensure vps-onboard-env carries the ANSIBLE_CONFIG env (converge)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/environment/{{ vps_onboard_env_id | int }}"
+        method: PUT
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          id: "{{ vps_onboard_env_id | int }}"
+          name: "vps-onboard-env"
+          project_id: "{{ project_id | int }}"
+          json: "{{ vps_onboard_env_json }}"
+          env: "{{ vps_audit_env_vars }}"
+        status_code: [200, 204]
+
+    - name: List templates (VPS Onboard idempotency)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: tpl_list_onboard
+
+    - name: Register 'VPS Onboard' template (idempotent)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates"
+        method: POST
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          project_id: "{{ project_id | int }}"
+          inventory_id: "{{ vps_fleet_inventory_id | int }}"
+          repository_id: "{{ repo_id | int }}"
+          environment_id: "{{ vps_onboard_env_id | int }}"
+          name: "VPS Onboard"
+          playbook: "playbooks/vps/onboard.yml"
+          description: >-
+            Saberu Phase 2 — takeover onboard (managed user/key/sudo, firewall,
+            fail2ban, non-22 managed SSH port) against [vps_targets] over the
+            bootstrap channel. MODIFIES the target. Uses 'vps-fleet' +
+            'vps-onboard-env'; supply the real vps_task per run (the baked example
+            target is TEST-NET/unroutable). Requires the fleet private key mounted
+            at /etc/ansispire/keys and injected into the Key Store.
+          arguments: "[]"
+          allow_override_args_in_task: false
+          app: "ansible"
+        status_code: [201, 204, 400]
+      when: (tpl_list_onboard.json | selectattr('name', 'equalto', 'VPS Onboard') | list | length) == 0
+      register: vps_onboard_tpl_create
+      failed_when: >
+        vps_onboard_tpl_create.status is defined
+        and vps_onboard_tpl_create.status not in [201, 204]
+        and 'already exists' not in (vps_onboard_tpl_create.content | default(''))
+
+    - name: Re-list templates (resolve VPS Onboard id)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: tpl_list_onboard_after
+
+    - name: Resolve VPS Onboard template id
+      ansible.builtin.set_fact:
+        vps_onboard_tpl_id: "{{ (tpl_list_onboard_after.json | selectattr('name', 'equalto', 'VPS Onboard') | list | first).id }}"
+
+    - name: Ensure VPS Onboard is bound to vps-onboard-env (converge)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates/{{ vps_onboard_tpl_id | int }}"
+        method: PUT
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          id: "{{ vps_onboard_tpl_id | int }}"
+          project_id: "{{ project_id | int }}"
+          inventory_id: "{{ vps_fleet_inventory_id | int }}"
+          repository_id: "{{ repo_id | int }}"
+          environment_id: "{{ vps_onboard_env_id | int }}"
+          name: "VPS Onboard"
+          playbook: "playbooks/vps/onboard.yml"
+          arguments: "[]"
+          app: "ansible"
+        status_code: [200, 204]
+
+    - name: Re-fetch VPS Onboard template (confirm binding)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates/{{ vps_onboard_tpl_id | int }}"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: vps_onboard_tpl_after
+
+    - name: Assert Phase 1 + Phase 2 VPS resources exist and are well-formed
       ansible.builtin.assert:
         that:
           - vps_fleet_key_id | int > 0
@@ -952,12 +1093,18 @@
           - (invs_list_vps.json | selectattr('name', 'equalto', 'vps-fleet') | list | first).type == 'static'
           - (tpl_list_vps_after.json | selectattr('name', 'equalto', 'VPS Audit') | list | length) == 1
           - vps_audit_tpl_after.json.environment_id | int == vps_audit_env_id | int
-        success_msg: "Phase 1 OK: vps-fleet (static) + vps-fleet-key + vps-audit-env (ANSIBLE_CONFIG) + VPS Audit template bound to vps-audit-env."
+          - vps_onboard_env_id | int > 0
+          - (tpl_list_onboard_after.json | selectattr('name', 'equalto', 'VPS Onboard') | list | length) == 1
+          - vps_onboard_tpl_after.json.environment_id | int == vps_onboard_env_id | int
+        success_msg: >-
+          Phase 1+2 OK: vps-fleet (static) + vps-fleet-key + vps-audit-env/VPS
+          Audit + vps-onboard-env/VPS Onboard, both templates bound to their
+          ANSIBLE_CONFIG env.
         fail_msg: >-
-          Phase 1 VPS audit resources incomplete/malformed. Expected a static
-          'vps-fleet' inventory, 'vps-fleet-key', 'vps-audit-env', and a 'VPS
-          Audit' template BOUND to vps-audit-env (environment_id). Inspect the
-          create/converge tasks above.
+          Phase 1/2 VPS resources incomplete/malformed. Expected a static
+          'vps-fleet', 'vps-fleet-key', and both 'VPS Audit' + 'VPS Onboard'
+          templates BOUND to 'vps-audit-env' / 'vps-onboard-env' (environment_id).
+          Inspect the create/converge tasks above.
 
     - name: Bootstrap complete
       ansible.builtin.debug:

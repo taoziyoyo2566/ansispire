@@ -9,6 +9,11 @@ controller/audit/e2e/.env.*
 controller/audit/e2e/.secrets
 controller/audit/e2e/.secrets.*
 controller/audit/e2e/hosts.*.ini
+# Fleet SSH private keys mounted into the Semaphore container (onboard validation).
+# Directory is tracked only via its own .gitignore + README; key material never commits.
+controller/semaphore/secrets/*
+!controller/semaphore/secrets/.gitignore
+!controller/semaphore/secrets/README.md
 
 # Project-root junk
 loop_status.tmp

@@ -13,10 +13,12 @@ vps_task:
       - sudo
       - ssh-users
     authorized_keys:
-      - public_key: ~/.ssh/ansispire_ed25519.pub
-      - public_key: ~/.ssh/id_ed25519.pub
+      # Inline content is the Semaphore-container contract (no host file needed).
+      # The file-path form `- public_key: ~/.ssh/foo.pub` still works for local runs.
+      - public_key_content: "ssh-ed25519 REPLACE-WITH-FLEET-PUBLIC-KEY ansible@ansispire"
     ansible_key:
-      private_key: ~/.ssh/ansispire_ed25519
+      # Container path from the read-only secrets mount; see controller/semaphore/secrets/README.md.
+      private_key: /etc/ansispire/keys/vps-fleet-key
     sudo:
       nopasswd: true
   ssh:
