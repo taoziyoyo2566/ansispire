@@ -5,8 +5,8 @@ and you take a fresh Debian/RHEL VPS from "bootstrap SSH only" to "fully managed
 audited" through the Semaphore control plane — no local `ansible-playbook`, no
 hand-editing inventory blobs.
 
-Picture it first: [`diagrams/`](diagrams/) — the [as-built](diagrams/as-built/)
-set is what these steps actually exercise.
+Picture it first: the system architecture lives in [`../architecture/`](../architecture/)
+— the [as-built](../architecture/as-built/) set is what these steps actually exercise.
 
 ---
 
@@ -142,7 +142,7 @@ make controller-vps-smoke     # runs VPS Audit, asserts success + changed=0 on e
 
 ## References
 
-- **Design + as-built diagrams**: [`diagrams/`](diagrams/)
+- **Design + as-built diagrams**: [`../architecture/`](../architecture/)
 - **Why/what landed (evidence)**: [`../reviews/feat-target-architecture/`](../reviews/feat-target-architecture/) — `round10`–`round12-2026-07-11.changelog.md`
 - **Test spec**: `docs/reference/test-specs/vps-onboard-managed-audit-e2e.md` (TSVS-VPS-ONBOARD-E2E-001)
 - **Playbooks**: `playbooks/vps/{audit,onboard}.yml` · **bootstrap**: `controller/semaphore/bootstrap.yml`

@@ -9,7 +9,7 @@ control plane), instead of the retired local `vps_manager` surface.
 | I want to… | Go to |
 |---|---|
 | **operate it** — take a VPS from bootstrap → managed → audited | **[`operator-guide.md`](operator-guide.md)** ← step by step |
-| see how it fits together | [`diagrams/`](diagrams/) — [target](diagrams/) vs [as-built](diagrams/as-built/) |
+| see how it fits together | [`../architecture/`](../architecture/) — the system architecture ([target](../architecture/) vs [as-built](../architecture/as-built/)) |
 | know why/what landed (evidence) | [`../reviews/feat-target-architecture/`](../reviews/feat-target-architecture/) — plans + `round10`–`round12` changelogs |
 | the verification spec | `docs/reference/test-specs/vps-onboard-managed-audit-e2e.md` |
 
