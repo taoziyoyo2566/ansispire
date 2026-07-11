@@ -9,6 +9,9 @@
 Ansispire is a **Multi-Server Management Control System** for high-availability infrastructure operations. It upgrades standard Ansible from "ad-hoc scripts" into a reliable, audit-ready, and reactive automation engine.
 
 ## 2. Architectural Blueprint
+
+> **Visual**: [`docs/architecture/`](docs/architecture/) — PlantUML source for the component/collaboration map, the VPS takeover sequence, and the audit self-healing data flow.
+
 - **Control Plane** (`controller/`): Go-based (Semaphore) management interface; deployed via Ansible role (`ansispire_hub`) or directly via docker compose.
 - **Audit Plane** (`controller/audit/`): Real-time event tracking + non-repudiation logging (sink + relay + reactor).
 - **Data Plane** (`roles/`, `playbooks/`): Idempotent server state definitions.

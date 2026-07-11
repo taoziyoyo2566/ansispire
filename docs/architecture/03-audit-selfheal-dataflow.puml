@@ -1,0 +1,46 @@
+@startuml ansispire-audit-selfheal-dataflow
+title Audit + Self-Healing Data Flow (controller/audit/ + EDA)
+skinparam shadowing false
+skinparam defaultTextAlignment center
+
+|Semaphore|
+start
+:task runs (any template)\nemits task events;
+|Relay (relay.py)|
+:cursor-based paginated pull\n/api/events  (heartbeat 60s,\nresumable across restarts);
+:POST events;
+|Sink (sink.py)|
+:HTTP receiver (host 3310 / ctr 3010);
+:append to **events.jsonl**\n(non-repudiation, append-only);
+|Reactor (reactor.py v2.3)|
+:tail events.jsonl;
+if (event matches rules.json?) then (yes)
+  if (per-rule cooldown elapsed?\n(default 600s)) then (yes)
+    if (rule enabled?) then (yes)
+      :resolve template_name → template_id;
+      :authenticate with **Bearer token**\n(no plaintext admin);
+      |Semaphore|
+      :trigger remediation template\n(Task API);
+      :run remediation playbook\n(e.g. disk_cleanup.yml;\ndb_failover.yml — placeholder/TASK-008);
+      note right
+        loop closes: the remediation run
+        itself emits events → relay → sink,
+        auditable end-to-end.
+      end note
+      stop
+    else (no)
+      |Reactor (reactor.py v2.3)|
+      :skip (soft-disabled: enabled=false);
+      stop
+    endif
+  else (no)
+    |Reactor (reactor.py v2.3)|
+    :suppress (in cooldown);
+    stop
+  endif
+else (no)
+  |Reactor (reactor.py v2.3)|
+  :ignore (no rule);
+  stop
+endif
+@enduml

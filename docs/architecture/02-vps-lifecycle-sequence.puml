@@ -1,0 +1,57 @@
+@startuml ansispire-vps-lifecycle-sequence
+title Saberu VPS Takeover — Onboard → Managed Channel → Re-Audit (processing order + data flow)
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+
+actor Operator as OP
+participant "Semaphore\n(control plane)" as SEM
+database "Key Store\nvps-fleet-key" as KS
+participant "ansible-playbook\n(in container, uid 1001)" as ANS
+participant "Target VPS\nbootstrap: root@22" as BOOT
+participant "Target VPS\nmanaged: user@39222" as MGD
+participant "make controller-vps-smoke" as SMOKE
+
+== Prerequisite (one-time, per fleet) ==
+OP -> SEM : inject fleet private key → Key Store
+OP -> SEM : add host to vps-fleet (root@22)\nfleet public key trusted on target
+note right of SEM : templates bound to env carrying\nANSIBLE_CONFIG (vault-free) + vps_task
+
+== Phase 2/3: Onboard (takeover) ==
+OP -> SEM : Run **VPS Onboard**  (strategy: free)
+SEM -> KS : materialize key (transient temp file)
+SEM -> ANS : exec onboard.yml\n(-e env=vps-onboard-env, --private-key)
+activate ANS
+ANS -> BOOT : connect root@22 (bootstrap)
+ANS -> BOOT : packages, EPEL(RHEL)+fail2ban, UFW
+ANS -> BOOT : create managed user + authorized_keys\n(**public_key_content** = fleet pubkey), sudo
+ANS -> BOOT : install sshd drop-in → managed port,\nreload sshd  (transitional: 22 + 39222 open)
+ANS -> MGD : **managed-channel validation**\n(task-level ansible_user/ansible_port,\nreuse the run's key — no mounted file)
+MGD --> ANS : sudo -n true  ✔
+ANS -> BOOT : final lockdown sshd\n(disable root/password), close port 22
+ANS -> MGD : final managed login ✔
+deactivate ANS
+SEM --> OP : task status = success\n(tcp/22 closed, tcp/39222 open)
+
+== Cut inventory to managed channel ==
+OP -> SEM : vps-fleet → managed_user @ 39222
+
+== Phase 3 gate: Re-Audit over managed channel ==
+OP -> SEM : Run **VPS Audit**
+SEM -> ANS : exec audit.yml (managed inventory)
+activate ANS
+ANS -> MGD : connect managed_user@39222 (sudo)
+ANS -> MGD : disk / memory / failed-services / reboot (read-only)
+MGD --> ANS : facts
+deactivate ANS
+SEM --> OP : status=success, **changed=0** (idempotent)
+
+== Automation ==
+SMOKE -> SEM : trigger VPS Audit via REST,\nassert success + changed=0 / failed=0
+SEM --> SMOKE : PASS
+
+note over BOOT, MGD
+  Recovery: onboard has no auto-rollback — the managed
+  validation runs BEFORE the bootstrap port is closed, so a
+  failure leaves root@22 open and the host re-runnable.
+end note
+@enduml
