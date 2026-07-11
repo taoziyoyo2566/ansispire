@@ -29,6 +29,40 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branches `feat/target-architecture` + `feat/vps-manager-plugin` + `feat/multi-os-target-fleet`
 
+### Semaphore-native VPS Audit — Saberu Phase 1 (2026-07-11)
+
+Branch `feat/target-architecture`. Operators can now run a read-only fleet health
+audit from the Semaphore UI, no takeover changes.
+
+- **New control-plane resources** (`controller/semaphore/bootstrap.yml`): `vps-fleet`
+  static inventory, `vps-fleet-key` SSH placeholder (real key injected via UI),
+  `vps-audit-env`, and the **`VPS Audit`** template running `playbooks/vps/audit.yml`
+  (disk / memory / failed-services / reboot-required; `changed=0`).
+- **Fix — task-run vault abort**: the Semaphore task runner does not inherit the
+  container's `ANSIBLE_CONFIG`, so template runs auto-loaded the repo-root
+  `ansible.cfg` and aborted on the unreadable host `.vault_pass`. `vps-audit-env`
+  now carries `env.ANSIBLE_CONFIG` (vault-free container profile) and the `VPS Audit`
+  template is bound to it, both applied via idempotent converge PUT so existing
+  mis-created installs self-heal. See `controller/semaphore/README.md` (Template
+  Authoring GOTCHA).
+
+### Env-capability registry hoisted to the workspace layer (2026-07-11)
+
+Branch `refactor/env-registry-hoist`. The per-host registry mechanism + data moved
+out of this repo to the shared workspace layer (IVG-TOOLENV-REGISTRY §4.2), so every
+project under `~/workspace` uses one probe instead of duplicating it.
+
+- **Moved to `~/workspace`** (workspace-meta repo): `scripts/env_probe.sh`,
+  `.agents/rules/environment-truth.md`, `.agents/env/<host>.yml`, and the
+  `env-probe` / `env-probe-check` logic.
+- **`make env-probe` / `env-probe-check` still work here** — now thin shims that
+  delegate to `make -C ~/workspace …`.
+- **Harness bits** (env-sync skill, SessionStart freshness hook) install per-host
+  under `~/.claude/`.
+- **New project override** `.agents/env/README.md`: the bare-host probe reports
+  ansible/ansible-lint/yamllint absent, but ansispire provides them via `.venv/bin/` —
+  do not read the host-level `false` as "cannot lint here."
+
 ### Per-host environment capability registry (2026-06-10)
 
 Branch `feat/target-architecture`. New dev-tooling: each machine's command/daemon

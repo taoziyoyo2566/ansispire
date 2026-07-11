@@ -37,11 +37,14 @@ current before basing anything on it:
 If the upcoming work depends on environment capabilities (Docker, ansible
 toolchain, credentials), check the per-host capability registry instead of
 trusting memory or prior session notes — capability claims are dated snapshots
-(`.agents/rules/environment-truth.md`):
+(`~/workspace/.agents/rules/environment-truth.md`; the registry is shared at the
+workspace layer):
 
-- `make env-probe-check` — passes if `.agents/env/<host>.yml` exists and is fresh
+- `make env-probe-check` (or `make -C ~/workspace env-probe-check`) — passes if
+  `~/workspace/.agents/env/<host>.yml` exists and is fresh
 - on failure (new machine / stale): `make env-probe` regenerates it
-- then read the registry for what is runnable here and which host overrides apply
+- then read the registry for what is runnable here and which host overrides apply;
+  for ansispire venv tools (ansible/lint) see `.agents/env/README.md`
 
 Report capability flips (available ↔ absent vs the previous registry state) in
 the status summary — stale plans or memories may depend on the old state.

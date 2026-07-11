@@ -84,11 +84,15 @@ ansible-lint: ## Run ansible-lint
 check-claude-links: ## Lint repo-tracked CLAUDE.md for memory-namespace wikilinks
 	@bash scripts/check_claude_md_links.sh
 
-env-probe: ## Probe host capabilities into .agents/env/<host>.yml (rule: .agents/rules/environment-truth.md)
-	@bash scripts/env_probe.sh
+WM_ROOT := $(HOME)/workspace
 
-env-probe-check: ## Fail if this host's capability registry is missing or stale (TTL 7d; override ENV_PROBE_TTL_DAYS=N)
-	@bash scripts/env_probe.sh --check
+env-probe: ## Probe host capabilities (delegates to the shared workspace registry: ~/workspace/.agents/env/<host>.yml)
+	@test -f "$(WM_ROOT)/Makefile" || { echo "env-probe: workspace-meta not found at $(WM_ROOT) — clone it there and run 'make -C $(WM_ROOT) bootstrap' first (see .agents/env/README.md)."; exit 1; }
+	@$(MAKE) -C $(WM_ROOT) env-probe
+
+env-probe-check: ## Check host capability registry freshness (delegates to ~/workspace; TTL 7d, override ENV_PROBE_TTL_DAYS=N)
+	@test -f "$(WM_ROOT)/Makefile" || { echo "env-probe-check: workspace-meta not found at $(WM_ROOT) — clone it there and run 'make -C $(WM_ROOT) bootstrap' first (see .agents/env/README.md)."; exit 1; }
+	@$(MAKE) -C $(WM_ROOT) env-probe-check
 
 review-local: ## Local "what am I about to push" — diff stat / files / whitespace check vs upstream (or origin/dev fallback)
 	@REF=$$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || true); \

@@ -782,6 +782,14 @@
       ansible.builtin.set_fact:
         vps_fleet_inventory_id: "{{ (invs_list_vps.json | selectattr('name', 'equalto', 'vps-fleet') | list | first).id }}"
 
+    - name: Compute vps-audit-env desired json + env
+      ansible.builtin.set_fact:
+        # Audit defaults sourced from playbooks/vps/examples/audit.yml (SSOT);
+        # nested vps_task rides the environment JSON (runtime probe 2026-06-06).
+        vps_audit_env_json: "{{ (lookup('ansible.builtin.file', playbook_dir + '/../../playbooks/vps/examples/audit.yml') | from_yaml) | to_json }}"
+        # Process env for the task runner — vault-free container ansible.cfg.
+        vps_audit_env_vars: "{{ {'ANSIBLE_CONFIG': '/workspace/controller/semaphore/ansible.cfg'} | to_json }}"
+
     - name: Create 'vps-audit-env' environment (audit defaults) (idempotent)
       ansible.builtin.uri:
         url: "{{ semaphore_url }}/api/project/{{ project_id }}/environment"
@@ -792,11 +800,16 @@
         body:
           name: "vps-audit-env"
           project_id: "{{ project_id | int }}"
-          # Audit defaults sourced from playbooks/vps/examples/audit.yml (SSOT)
-          # and carried as a task-level extra-vars JSON string (runtime probe
-          # 2026-06-06: nested vps_task rides the environment JSON, not raw
-          # extra_vars).
-          json: "{{ (lookup('ansible.builtin.file', playbook_dir + '/../../playbooks/vps/examples/audit.yml') | from_yaml) | to_json }}"
+          json: "{{ vps_audit_env_json }}"
+          # Process env vars for the task runner. ANSIBLE_CONFIG points at the
+          # vault-free container profile: the Semaphore task runner does NOT
+          # inherit the container's ANSIBLE_CONFIG (docker-compose env), so it
+          # must ride the bound Environment's `env` or ansible-playbook auto-
+          # loads the repo-root ansible.cfg whose global `vault_password_file`
+          # aborts on the host-only .vault_pass (uid mismatch — GOTCHA 1). This
+          # env is only effective when the template is bound to it (see the
+          # environment_id converge task below).
+          env: "{{ vps_audit_env_vars }}"
         status_code: [201, 204, 400]
       register: vps_audit_env_create
       when: (envs_pre.json | selectattr('name', 'equalto', 'vps-audit-env') | list | length) == 0
@@ -817,6 +830,25 @@
     - name: Resolve vps-audit-env id
       ansible.builtin.set_fact:
         vps_audit_env_id: "{{ (envs_list_vps.json | selectattr('name', 'equalto', 'vps-audit-env') | list | first).id }}"
+
+    # Converge (idempotent PUT): heal installs whose vps-audit-env predates the
+    # ANSIBLE_CONFIG env fix — the create guard above is create-only, so an env
+    # made before this fix would keep env=null and every audit would abort on
+    # the vault_password_file demand. PUT is idempotent; runs every bootstrap.
+    - name: Ensure vps-audit-env carries the ANSIBLE_CONFIG env (converge)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/environment/{{ vps_audit_env_id | int }}"
+        method: PUT
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          id: "{{ vps_audit_env_id | int }}"
+          name: "vps-audit-env"
+          project_id: "{{ project_id | int }}"
+          json: "{{ vps_audit_env_json }}"
+          env: "{{ vps_audit_env_vars }}"
+        status_code: [200, 204]
 
     - name: List main-project templates (VPS Audit idempotency)
       ansible.builtin.uri:
@@ -874,6 +906,43 @@
         return_content: true
       register: tpl_list_vps_after
 
+    - name: Resolve VPS Audit template id
+      ansible.builtin.set_fact:
+        vps_audit_tpl_id: "{{ (tpl_list_vps_after.json | selectattr('name', 'equalto', 'VPS Audit') | list | first).id }}"
+
+    # Converge (idempotent PUT): bind VPS Audit → vps-audit-env. The create above
+    # is create-only; a template made before the binding was reliable keeps
+    # environment_id=0, so the bound env (and its ANSIBLE_CONFIG) never reaches
+    # the task runner and every audit aborts on the vault demand. PUT rejects the
+    # read-only fields the GET returns, so send only the writable template shape.
+    - name: Ensure VPS Audit is bound to vps-audit-env (converge)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates/{{ vps_audit_tpl_id | int }}"
+        method: PUT
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        body_format: json
+        body:
+          id: "{{ vps_audit_tpl_id | int }}"
+          project_id: "{{ project_id | int }}"
+          inventory_id: "{{ vps_fleet_inventory_id | int }}"
+          repository_id: "{{ repo_id | int }}"
+          environment_id: "{{ vps_audit_env_id | int }}"
+          name: "VPS Audit"
+          playbook: "playbooks/vps/audit.yml"
+          arguments: "[]"
+          app: "ansible"
+        status_code: [200, 204]
+
+    - name: Re-fetch VPS Audit template (confirm binding)
+      ansible.builtin.uri:
+        url: "{{ semaphore_url }}/api/project/{{ project_id }}/templates/{{ vps_audit_tpl_id | int }}"
+        method: GET
+        headers:
+          Cookie: "{{ semaphore_cookie }}"
+        return_content: true
+      register: vps_audit_tpl_after
+
     - name: Assert Phase 1 VPS audit resources exist and are well-formed
       ansible.builtin.assert:
         that:
@@ -882,11 +951,13 @@
           - vps_audit_env_id | int > 0
           - (invs_list_vps.json | selectattr('name', 'equalto', 'vps-fleet') | list | first).type == 'static'
           - (tpl_list_vps_after.json | selectattr('name', 'equalto', 'VPS Audit') | list | length) == 1
-        success_msg: "Phase 1 OK: vps-fleet (static) + vps-fleet-key + vps-audit-env + VPS Audit template."
+          - vps_audit_tpl_after.json.environment_id | int == vps_audit_env_id | int
+        success_msg: "Phase 1 OK: vps-fleet (static) + vps-fleet-key + vps-audit-env (ANSIBLE_CONFIG) + VPS Audit template bound to vps-audit-env."
         fail_msg: >-
           Phase 1 VPS audit resources incomplete/malformed. Expected a static
           'vps-fleet' inventory, 'vps-fleet-key', 'vps-audit-env', and a 'VPS
-          Audit' template. Inspect the create tasks above.
+          Audit' template BOUND to vps-audit-env (environment_id). Inspect the
+          create/converge tasks above.
 
     - name: Bootstrap complete
       ansible.builtin.debug:

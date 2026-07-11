@@ -55,6 +55,7 @@
 ### 3.1 Semaphore Web UI (`controller/semaphore/`)
 - **功能**：基于 Docker Compose 的可视化管理界面（默认 host 端口 3320）
 - **自动化**：`bootstrap.yml` 实现零点击创建 Project / Inventory / Environment / Job 模板 / RBAC
+- **Saberu VPS 舰队 (Phase 1, gate PASSED 2026-07-11)**：`bootstrap.yml` 额外创建 `vps-fleet`（static inventory）+ `vps-fleet-key`（SSH，UI 注入）+ `vps-audit-env`（审计默认 + `env.ANSIBLE_CONFIG`）+ `VPS Audit` 模板（跑 `playbooks/vps/audit.yml`，只读）。首次真机 audit 对 Ubuntu24/Rocky9/Debian13 `status=success`。**模板必须绑定带 `ANSIBLE_CONFIG` env 的 Environment**——Semaphore 任务运行器不继承容器 env，否则触发 vault 中止（见 `controller/semaphore/README.md` 「Template Authoring GOTCHA」+ `round10-2026-07-11.changelog.md`）
 - **API 契约保护 (post-WU-4)**：`bootstrap_preflight.yml` 在 `bootstrap.yml` 顶部 `import_playbook`。schema mode（默认 ~2 s）验证 `/api/auth/login` + `/api/projects` + `/api/users` 的字段形状；full mode（`make test-api-contract`，~30–60 s）在临时 `__preflight__` 项目上走完所有 5 个 project-scoped GETs + token mint。CI 矩阵 `[pinned, latest]` 跑 full mode，`latest` 配 `continue-on-error` —— 上游 schema 漂移作为预警，不阻断主合并。`-e skip_preflight=true` 可逐次跳过（仅用于刻意探测未 bootstrap 的实例的测试）
 
 ### 3.2 审计与自愈链路 (`controller/audit/`)
@@ -170,7 +171,7 @@
 | **Vault** | `vault-edit FILE=...` / `vault-encrypt` | Vault 操作包装 |
 | **EE** | `ee-build` / `navigator` / `navigator-local` | Execution Environment 模式 |
 | **SSOT** | `manifest-sync` / `ports-sync` (deprecated alias) | 见 §6 |
-| **环境注册表** | `env-probe` / `env-probe-check` | per-host 能力探针 → `.agents/env/<host>.yml`（规则：`.agents/rules/environment-truth.md`） |
+| **环境注册表** | `env-probe` / `env-probe-check`（本仓 shim → `~/workspace`） | per-host 能力探针，2026-07-11 上移 workspace 层 → `~/workspace/.agents/env/<host>.yml`（规则：`~/workspace/.agents/rules/environment-truth.md`）；ansispire 项目 override 见 `.agents/env/README.md` |
 
 ---
 

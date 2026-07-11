@@ -18,7 +18,7 @@ Before starting a phase, check:
 - repo state still matches the plan's file/path assumptions;
 - external docs/API behavior still supports the planned action when that action
   depends on current third-party behavior;
-- environment capabilities are fresh per `environment-truth.md`;
+- environment capabilities are fresh per `~/workspace/.agents/rules/environment-truth.md`;
 - operator decisions or credentials required by the phase are available;
 - live target scope is known.
 
