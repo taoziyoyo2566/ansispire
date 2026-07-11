@@ -2,7 +2,8 @@
 
 Canonical, version-controlled diagrams of the Ansispire / Saberu system. Source is
 PlantUML (`.puml`) so diffs are reviewable and diagrams travel with the code.
-Design truth remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md); these render it.
+Design truth remains [`ARCHITECTURE.md`](../../../ARCHITECTURE.md); these render it.
+Operating instructions: [`../operator-guide.md`](../operator-guide.md).
 
 > **Two views** — pick the one you need:
 > - **This directory = TARGET (as-designed)**: the full intended architecture,

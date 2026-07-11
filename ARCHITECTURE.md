@@ -10,7 +10,7 @@ Ansispire is a **Multi-Server Management Control System** for high-availability 
 
 ## 2. Architectural Blueprint
 
-> **Visual**: [`docs/architecture/`](docs/architecture/) — PlantUML source for the component/collaboration map, the VPS takeover sequence, and the audit self-healing data flow.
+> **Visual + operate**: [`docs/feat-target-architecture/`](docs/feat-target-architecture/) — the Saberu feature hub: component/sequence/data-flow diagrams (target + as-built) **and the operator guide** for running the VPS takeover loop end to end.
 
 - **Control Plane** (`controller/`): Go-based (Semaphore) management interface; deployed via Ansible role (`ansispire_hub`) or directly via docker compose.
 - **Audit Plane** (`controller/audit/`): Real-time event tracking + non-repudiation logging (sink + relay + reactor).
