@@ -41,12 +41,16 @@ the Semaphore container (no live onboard yet — that is Phase 3).
 - **Onboard credential contract** (`playbooks/vps/onboard.yml`): managed
   `authorized_keys` accepts inline `public_key_content` (no host file), preferred
   over the `public_key` file-path branch which stays as compat.
-- **Fleet private-key mount** (`controller/semaphore/docker-compose.yml`):
-  read-only `./secrets:/etc/ansispire/keys` for onboard's `ssh -i` managed-login
-  validation. Key material is gitignored; see `controller/semaphore/secrets/README.md`
-  for the Key-Store-vs-mounted-file lifecycle, access, and rotation.
-- **Examples** (`playbooks/vps/examples/onboard.{minimal,standard}.yml`) updated to
-  the container contract (`public_key_content` + `/etc/ansispire/keys/...`).
+- **Managed-channel validation reuses the Key Store key** (no mounted key file):
+  onboard validates managed login over ansible's own connection, re-pointed to
+  `managed_user @ managed_port` via task-level connection vars — reusing the private
+  key the run was invoked with. Live-proven: onboard → SSH cutover to the managed
+  port → managed-channel `VPS Audit` = `success` + `changed=0` on Ubuntu 24.04 +
+  Debian 13.5. (The earlier mounted-key approach hit a container-uid permission
+  mismatch and was replaced — see round12 changelog.)
+- **fail2ban on RHEL**: install `epel-release` before `fail2ban` (RedHat family).
+- **Examples** (`playbooks/vps/examples/onboard.{minimal,standard}.yml`) use
+  `public_key_content`; no private-key path needed.
 
 ### Semaphore-native VPS Audit — Saberu Phase 1 (2026-07-11)
 

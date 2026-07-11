@@ -1030,8 +1030,8 @@
             fail2ban, non-22 managed SSH port) against [vps_targets] over the
             bootstrap channel. MODIFIES the target. Uses 'vps-fleet' +
             'vps-onboard-env'; supply the real vps_task per run (the baked example
-            target is TEST-NET/unroutable). Requires the fleet private key mounted
-            at /etc/ansispire/keys and injected into the Key Store.
+            target is TEST-NET/unroutable). Managed-channel validation reuses the
+            Key Store key over ansible's own connection — no mounted key file.
           arguments: "[]"
           allow_override_args_in_task: false
           app: "ansible"

@@ -27,12 +27,14 @@
           - vps_ssh.managed_port | int <= 65535
         fail_msg: "ssh.managed_port must be a non-22 high port."
 
-    - name: Assert managed validation key is provided
+    - name: Assert managed authorized key is provided
       ansible.builtin.assert:
         that:
-          - vps_managed.ansible_key.private_key is defined
-          - vps_managed.ansible_key.private_key | length > 0
-        fail_msg: "managed.ansible_key.private_key is required for managed SSH validation."
+          - (vps_managed.authorized_keys | default([])) | length > 0
+        fail_msg: >-
+          managed.authorized_keys must provide at least one key (public_key_content
+          or public_key) — the managed user needs it to be loginable, and the
+          managed-channel validation connects as that user with the run's SSH key.
 
     - name: Collect service facts
       ansible.builtin.service_facts:
@@ -246,6 +248,15 @@
         - vps_network_tuning.enabled | default(false) | bool
         - vps_network_tuning.mtu_probing | default(false) | bool
 
+    - name: Ensure EPEL is available on RHEL family (fail2ban lives in EPEL)
+      ansible.builtin.package:
+        name: epel-release
+        state: present
+      when:
+        - vps_fail2ban.enabled | default(false) | bool
+        - ansible_facts.os_family == 'RedHat'
+        - not (vps_base_packages_enabled and 'fail2ban' in vps_package_install_list)
+
     - name: Install fail2ban
       ansible.builtin.package:
         name: fail2ban
@@ -452,25 +463,18 @@
       become: false
       when: not ansible_check_mode
 
-    - name: Validate managed user sudo on new SSH port
+    # Validate the managed channel over ansible's OWN connection, re-pointed to
+    # managed_user @ managed_port via task-level connection vars. Reuses the private
+    # key the run was invoked with (Semaphore Key Store `--private-key`, or a local
+    # `--private-key`) — no mounted key file, no uid juggling. Task-scoped vars keep
+    # the bootstrap connection (root @ bootstrap port) intact for surrounding tasks.
+    - name: Validate managed user passwordless sudo on the managed channel
       ansible.builtin.command:
-        argv:
-          - ssh
-          - -i
-          - "{{ vps_managed.ansible_key.private_key }}"
-          - -p
-          - "{{ vps_ssh.managed_port | string }}"
-          - -o
-          - BatchMode=yes
-          - -o
-          - StrictHostKeyChecking=no
-          - -o
-          - UserKnownHostsFile=/dev/null
-          - "{{ vps_managed.user }}@{{ ansible_host }}"
-          - sudo
-          - -n
-          - "true"
-      delegate_to: localhost
+        argv: [sudo, -n, "true"]
+      vars:
+        ansible_user: "{{ vps_managed.user }}"
+        ansible_port: "{{ vps_ssh.managed_port | int }}"
+        ansible_ssh_common_args: "-o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
       become: false
       changed_when: false
       check_mode: false
@@ -539,23 +543,13 @@
         - vps_bootstrap.port | int != vps_ssh.managed_port | int
         - not ansible_check_mode
 
-    - name: Validate final managed login
+    - name: Validate final managed login on the managed channel
       ansible.builtin.command:
-        argv:
-          - ssh
-          - -i
-          - "{{ vps_managed.ansible_key.private_key }}"
-          - -p
-          - "{{ vps_ssh.managed_port | string }}"
-          - -o
-          - BatchMode=yes
-          - -o
-          - StrictHostKeyChecking=no
-          - -o
-          - UserKnownHostsFile=/dev/null
-          - "{{ vps_managed.user }}@{{ ansible_host }}"
-          - "true"
-      delegate_to: localhost
+        argv: ["true"]
+      vars:
+        ansible_user: "{{ vps_managed.user }}"
+        ansible_port: "{{ vps_ssh.managed_port | int }}"
+        ansible_ssh_common_args: "-o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
       become: false
       changed_when: false
       check_mode: false
