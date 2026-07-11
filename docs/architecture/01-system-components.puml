@@ -1,5 +1,5 @@
 @startuml ansispire-system-components
-title Ansispire / Saberu — System Components & Collaboration (2026-07-11)
+title Ansispire / Saberu — System Components & Collaboration — TARGET (as-designed)
 skinparam componentStyle rectangle
 skinparam shadowing false
 skinparam defaultTextAlignment center

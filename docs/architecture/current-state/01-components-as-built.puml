@@ -1,0 +1,72 @@
+@startuml ansispire-components-as-built
+title Ansispire / Saberu — AS-BUILT (live-validated) Components, 2026-07-12
+caption Only components proven working on real machines. Target-only pieces are in ../01-system-components.puml.
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultTextAlignment center
+left to right direction
+
+actor Operator as OP
+
+package "SSOT" #eef {
+  file "config/manifest.yml" as MAN
+  file ".env  (make manifest-sync)" as ENV
+  MAN --> ENV
+}
+
+package "Control Plane  (controller/semaphore/)  ✅ live" as CP #eaffea {
+  component "Semaphore v2.18.2\n(docker compose, SQLite)" as SEM
+  component "bootstrap.yml\n(+ bootstrap_preflight.yml)" as BOOT
+  database "Key Store\nvps-fleet-key (SSH)" as KS
+  component "vps-fleet\n(static inventory)" as INV
+  component "vps-audit-env / vps-onboard-env\n(ANSIBLE_CONFIG + vps_task)" as ENVR
+  component "Templates:\n**VPS Audit** ✅ · **VPS Onboard** ✅" as TPL
+  BOOT --> SEM : provisions (REST)
+  SEM *-- KS
+  SEM *-- INV
+  SEM *-- ENVR
+  SEM *-- TPL
+}
+
+package "Data Plane  (playbooks/vps/, roles/)  ✅ live" as DP #eef6ff {
+  component "audit.yml  ✅ (read-only health)" as AUD
+  component "onboard.yml  ✅ (takeover)" as ONB
+  collections "roles/\ncommon · infra_baseline · ...\n(idempotent state)" as ROLES
+}
+
+package "Audit + Self-Heal  (controller/audit/)  ✅ (e2e-tested)" as AP #ffeef0 {
+  component "relay.py" as RELAY
+  component "sink.py" as SINK
+  file "events.jsonl" as EJL
+  component "reactor.py (v2.3)" as REACT
+  file "rules.json\n(Disk Cleanup ✅ enabled)" as RULES
+  RELAY --> SINK --> EJL
+  REACT ..> EJL
+  REACT ..> RULES
+}
+
+node "Managed VPS Fleet  (validated: u24 + d13)" as FLEET #f4f4f4 {
+  component "bootstrap channel\nroot @ 22" as BC
+  component "managed channel\nmanaged_user @ 39222" as MC
+}
+
+component "make controller-vps-smoke\n(managed audit idempotency ✅)" as SMOKE
+
+OP --> SEM : run templates (UI)
+ENV --> SEM
+SEM --> AUD : task runner\n(ANSIBLE_CONFIG from bound env,\n--private-key from Key Store)
+SEM --> ONB
+ONB --> BC : onboard (root@22)
+BC ..> MC : SSH cutover
+AUD --> MC : managed audit (changed=0)
+SEM --> RELAY : /api/events
+REACT --> SEM : trigger remediation (Task API)
+SMOKE ..> SEM : assert audit success + changed=0
+
+note as N #fdf6e3
+  **Not yet in AS-BUILT** (see target diagram):
+  ⊘ cf-worker Access Layer — deferred, not the main line
+  ▱ DB-failover remediation — placeholder (enabled=false, TASK-008)
+  ~ RHEL full onboard (r9) — blocked on that VPS's EPEL reachability
+end note
+@enduml

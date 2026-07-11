@@ -4,6 +4,12 @@ Canonical, version-controlled diagrams of the Ansispire / Saberu system. Source 
 PlantUML (`.puml`) so diffs are reviewable and diagrams travel with the code.
 Design truth remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md); these render it.
 
+> **Two views** — pick the one you need:
+> - **This directory = TARGET (as-designed)**: the full intended architecture,
+>   including deferred/planned pieces (cf-worker Access Layer, DB-failover, etc.).
+> - **[`current-state/`](current-state/) = AS-BUILT**: only what is proven working
+>   on real machines today. Use this to see "what actually runs now."
+
 | File | Kind | Shows |
 |---|---|---|
 | [`01-system-components.puml`](01-system-components.puml) | Component / collaboration | All components across the Control / Access / Data / Audit-Reaction planes, who talks to whom, and the responsibility split (control vs data). |

@@ -1,5 +1,5 @@
 @startuml ansispire-audit-selfheal-dataflow
-title Audit + Self-Healing Data Flow (controller/audit/ + EDA)
+title Audit + Self-Healing Data Flow — TARGET (as-designed)
 skinparam shadowing false
 skinparam defaultTextAlignment center
 

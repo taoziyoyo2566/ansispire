@@ -1,5 +1,5 @@
 @startuml ansispire-vps-lifecycle-sequence
-title Saberu VPS Takeover — Onboard → Managed Channel → Re-Audit (processing order + data flow)
+title Saberu VPS Takeover — Onboard → Managed → Re-Audit — TARGET (as-designed)
 skinparam shadowing false
 skinparam sequenceMessageAlign center
 

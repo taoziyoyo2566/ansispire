@@ -1,0 +1,44 @@
+@startuml ansispire-vps-lifecycle-as-built
+title Saberu Onboard → Managed → Re-Audit — AS-BUILT (real VPS, 2026-07-12)
+caption Proven on test-vps-u24 (Ubuntu 24.04) + test-vps-d13 (Debian 13.5). r9 (Rocky) excluded — EPEL-blocked.
+skinparam shadowing false
+
+actor Operator as OP
+participant "Semaphore" as SEM
+database "Key Store\nvps-fleet-key" as KS
+participant "ansible-playbook\n(container)" as ANS
+participant "Target\nroot@22 (bootstrap)" as BOOT
+participant "Target\nuser@39222 (managed)" as MGD
+
+== Onboard (VPS Onboard template, strategy: free) ==
+OP -> SEM : Run VPS Onboard
+SEM -> KS : materialize key (transient temp file)
+SEM -> ANS : onboard.yml  (-e vps-onboard-env, --private-key)
+activate ANS
+ANS -> BOOT : root@22 · packages · UFW · fail2ban(+EPEL on RHEL)
+ANS -> BOOT : managed user + authorized_keys\n(public_key_content = fleet pubkey) + sudo
+ANS -> BOOT : sshd drop-in → managed port, reload\n(transitional: 22 + 39222 open)
+ANS -> MGD : managed validation — task-level ansible_user/ansible_port,\n**reuse the run's key (no mounted file)** → sudo -n true ✔
+ANS -> BOOT : final lockdown · close port 22
+ANS -> MGD : final managed login ✔
+deactivate ANS
+SEM --> OP : success  (tcp/22 closed, tcp/39222 open)
+
+== Cut inventory to managed channel ==
+OP -> SEM : vps-fleet → user@39222
+
+== Re-audit over managed channel (the gate) ==
+OP -> SEM : Run VPS Audit
+SEM -> ANS : audit.yml (managed inventory)
+activate ANS
+ANS -> MGD : connect user@39222 (sudo) · read-only checks
+MGD --> ANS : facts
+deactivate ANS
+SEM --> OP : **success, changed=0**  (idempotent — Phase 3 gate met)
+
+note over BOOT, MGD
+  Managed validation runs BEFORE port 22 is closed, so an onboard
+  failure leaves root@22 open and the host re-runnable (no auto-rollback).
+  make controller-vps-smoke re-asserts success + changed=0 on demand.
+end note
+@enduml
