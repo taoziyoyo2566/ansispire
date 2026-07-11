@@ -29,6 +29,23 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branches `feat/target-architecture` + `feat/vps-manager-plugin` + `feat/multi-os-target-fleet`
 
+### Semaphore-native VPS Audit — Saberu Phase 1 (2026-07-11)
+
+Branch `feat/target-architecture`. Operators can now run a read-only fleet health
+audit from the Semaphore UI, no takeover changes.
+
+- **New control-plane resources** (`controller/semaphore/bootstrap.yml`): `vps-fleet`
+  static inventory, `vps-fleet-key` SSH placeholder (real key injected via UI),
+  `vps-audit-env`, and the **`VPS Audit`** template running `playbooks/vps/audit.yml`
+  (disk / memory / failed-services / reboot-required; `changed=0`).
+- **Fix — task-run vault abort**: the Semaphore task runner does not inherit the
+  container's `ANSIBLE_CONFIG`, so template runs auto-loaded the repo-root
+  `ansible.cfg` and aborted on the unreadable host `.vault_pass`. `vps-audit-env`
+  now carries `env.ANSIBLE_CONFIG` (vault-free container profile) and the `VPS Audit`
+  template is bound to it, both applied via idempotent converge PUT so existing
+  mis-created installs self-heal. See `controller/semaphore/README.md` (Template
+  Authoring GOTCHA).
+
 ### Per-host environment capability registry (2026-06-10)
 
 Branch `feat/target-architecture`. New dev-tooling: each machine's command/daemon

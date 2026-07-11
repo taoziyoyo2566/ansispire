@@ -114,6 +114,31 @@ docker run --rm \
 
 ---
 
+## Template Authoring — Required env binding (GOTCHA)
+
+**The Semaphore task runner does NOT inherit the container process environment.**
+`ANSIBLE_CONFIG` set in `docker-compose.yml` (the semaphore service env) reaches
+`docker exec` / `make controller-bootstrap`, but **not** a template run: Semaphore
+launches each task's `ansible-playbook` with its own constructed environment. With
+CWD `/workspace`, that run auto-loads the repo-root `ansible.cfg`, whose global
+`vault_password_file = .vault_pass` aborts on the host-only secret (uid mismatch —
+see `ansible.cfg` header). This bit Phase 1's first live `VPS Audit` (see
+`docs/reviews/feat-target-architecture/round10-2026-07-11.changelog.md`).
+
+**So every VPS template (audit, onboard, …) MUST:**
+
+1. bind to an **Environment** (`environment_id`, not `0`), and
+2. that Environment's **`env`** must carry
+   `{"ANSIBLE_CONFIG": "/workspace/controller/semaphore/ansible.cfg"}`
+   (the vault-free container profile).
+
+`bootstrap.yml` does both via **create-body + an unconditional converge PUT** — the
+create-only idempotency guard alone will not heal a template/env made before the
+binding existed, so the converge PUT is load-bearing, not redundant. Copy that
+pattern when adding new templates; do not rely on the container `ANSIBLE_CONFIG`.
+
+---
+
 ## FAQ
 
 **Q: Why SQLite instead of MySQL/Postgres?**
