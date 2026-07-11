@@ -362,6 +362,9 @@ controller-rbac-smoke: ## Verify RBAC demo: guest-403, task_runner can run but n
 controller-loop-smoke: ## Verify Semaphore action → relay → audit JSONL (≤20s)
 	@bash controller/audit/loop-smoke.sh
 
+controller-vps-smoke: ## Saberu managed-fleet audit smoke: VPS Audit over vps-fleet must be success + changed=0
+	@bash controller/semaphore/vps-smoke.sh
+
 # ── Utilities ────────────────────────────────────────────────────────────────
 ping: ## Test connectivity to all hosts
 	$(BIN)ansible all -m ansible.builtin.ping

@@ -28,7 +28,7 @@
 | `TSVS-VPS-MANAGER-UNIT-001` | 2026-05-14 | `plugins/vps_manager/`（本地 task lifecycle，历史表面） | L1 | `make test-vps-manager` | Retired | [vps-manager-unit.md](vps-manager-unit.md) |
 | `TSVS-AUDIT-LOOP-001` | 2026-04-27 | Semaphore API → reactor → relay → sink | L5 | `make controller-loop-smoke` | Active | [audit-loopback-functional.md](audit-loopback-functional.md) |
 | `TSVS-RBAC-SMOKE-001` | 2026-04-27 | `controller/rbac/`（三角色权限边界） | L5 | `make controller-rbac-smoke` | Active | [rbac-functional-smoke.md](rbac-functional-smoke.md) |
-| `TSVS-VPS-ONBOARD-E2E-001` | 2026-07-11 | `VPS Onboard` → managed 通道 `VPS Audit`（接管闭环 + 幂等） | L5 | 手动 + API（`controller-vps-smoke` 待建） | Active | [vps-onboard-managed-audit-e2e.md](vps-onboard-managed-audit-e2e.md) |
+| `TSVS-VPS-ONBOARD-E2E-001` | 2026-07-11 | `VPS Onboard` → managed 通道 `VPS Audit`（接管闭环 + 幂等） | L5 | `make controller-vps-smoke`（managed 审计幂等段）；onboard 段手动 + API | Active | [vps-onboard-managed-audit-e2e.md](vps-onboard-managed-audit-e2e.md) |
 
 ---
 

@@ -55,6 +55,6 @@
 - **r9 阻塞**:非代码——该 VPS 无法到达 EPEL 镜像,`dnf install fail2ban` hung;`epel-release` 前置任务正确,待该机 EPEL 可达后重跑。
 
 ## 7. 覆盖边界 / 待补 (Coverage gaps)
-- 尚无自动化 carrier(`controller-vps-smoke` make target 未建);当前为**手动 + API 驱动**的 e2e。
+- **managed 审计幂等段已有自动化 carrier**:`make controller-vps-smoke`（`VPS Audit` 断言 `success` + 每台 `changed=0`;2026-07-11 对 u24+d13 PASS)。**onboard 接管段仍手动 + API**（接管是破坏性,不做重复冒烟）。
 - RHEL 系全链路待 r9(或另一台 EPEL 可达的 RHEL)补齐。
 - 未覆盖 offboard/还原(TASK-010)。
