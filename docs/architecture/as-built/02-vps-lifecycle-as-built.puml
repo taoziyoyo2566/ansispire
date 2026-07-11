@@ -18,9 +18,9 @@ activate ANS
 ANS -> BOOT : root@22 · packages · UFW · fail2ban(+EPEL on RHEL)
 ANS -> BOOT : managed user + authorized_keys\n(public_key_content = fleet pubkey) + sudo
 ANS -> BOOT : sshd drop-in → managed port, reload\n(transitional: 22 + 39222 open)
-ANS -> MGD : managed validation — task-level ansible_user/ansible_port,\n**reuse the run's key (no mounted file)** → sudo -n true ✔
+ANS -> MGD : managed validation — task-level ansible_user/ansible_port,\n**reuse the run's key (no mounted file)** → sudo -n true OK
 ANS -> BOOT : final lockdown · close port 22
-ANS -> MGD : final managed login ✔
+ANS -> MGD : final managed login OK
 deactivate ANS
 SEM --> OP : success  (tcp/22 closed, tcp/39222 open)
 

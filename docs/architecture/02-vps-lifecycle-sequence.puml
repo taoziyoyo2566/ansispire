@@ -26,9 +26,9 @@ ANS -> BOOT : packages, EPEL(RHEL)+fail2ban, UFW
 ANS -> BOOT : create managed user + authorized_keys\n(**public_key_content** = fleet pubkey), sudo
 ANS -> BOOT : install sshd drop-in → managed port,\nreload sshd  (transitional: 22 + 39222 open)
 ANS -> MGD : **managed-channel validation**\n(task-level ansible_user/ansible_port,\nreuse the run's key — no mounted file)
-MGD --> ANS : sudo -n true  ✔
+MGD --> ANS : sudo -n true  OK
 ANS -> BOOT : final lockdown sshd\n(disable root/password), close port 22
-ANS -> MGD : final managed login ✔
+ANS -> MGD : final managed login OK
 deactivate ANS
 SEM --> OP : task status = success\n(tcp/22 closed, tcp/39222 open)
 

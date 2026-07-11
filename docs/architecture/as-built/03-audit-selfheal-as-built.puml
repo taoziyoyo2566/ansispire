@@ -16,7 +16,7 @@ start
 if (event matches an **enabled** rule\nAND cooldown elapsed?) then (yes)
   :resolve template_name → id · **Bearer** auth;
   |Semaphore|
-  :trigger remediation template (Task API)\ne.g. **Auto Remediation: Disk Cleanup** ✅;
+  :trigger remediation template (Task API)\ne.g. **Auto Remediation: Disk Cleanup**;
   :run disk_cleanup.yml → emits events\n(loop is auditable end-to-end);
   stop
 else (no)
@@ -27,7 +27,7 @@ endif
 
 note right
   Excluded from AS-BUILT:
-  ▱ "DB Connection Failure" rule — enabled=false,
+  - "DB Connection Failure" rule — enabled=false,
      db_failover.yml is a placeholder (TASK-008).
 end note
 @enduml

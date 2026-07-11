@@ -14,13 +14,13 @@ package "SSOT" #eef {
   MAN --> ENV
 }
 
-package "Control Plane  (controller/semaphore/)  ✅ live" as CP #eaffea {
+package "Control Plane  (controller/semaphore/)  live" as CP #eaffea {
   component "Semaphore v2.18.2\n(docker compose, SQLite)" as SEM
   component "bootstrap.yml\n(+ bootstrap_preflight.yml)" as BOOT
   database "Key Store\nvps-fleet-key (SSH)" as KS
   component "vps-fleet\n(static inventory)" as INV
   component "vps-audit-env / vps-onboard-env\n(ANSIBLE_CONFIG + vps_task)" as ENVR
-  component "Templates:\n**VPS Audit** ✅ · **VPS Onboard** ✅" as TPL
+  component "Templates:\n**VPS Audit** · **VPS Onboard**" as TPL
   BOOT --> SEM : provisions (REST)
   SEM *-- KS
   SEM *-- INV
@@ -28,19 +28,20 @@ package "Control Plane  (controller/semaphore/)  ✅ live" as CP #eaffea {
   SEM *-- TPL
 }
 
-package "Data Plane  (playbooks/vps/, roles/)  ✅ live" as DP #eef6ff {
-  component "audit.yml  ✅ (read-only health)" as AUD
-  component "onboard.yml  ✅ (takeover)" as ONB
+package "Data Plane  (playbooks/vps/, roles/)  live" as DP #eef6ff {
+  component "audit.yml  (read-only health)" as AUD
+  component "onboard.yml  (takeover)" as ONB
   collections "roles/\ncommon · infra_baseline · ...\n(idempotent state)" as ROLES
 }
 
-package "Audit + Self-Heal  (controller/audit/)  ✅ (e2e-tested)" as AP #ffeef0 {
+package "Audit + Self-Heal  (controller/audit/)  (e2e-tested)" as AP #ffeef0 {
   component "relay.py" as RELAY
   component "sink.py" as SINK
   file "events.jsonl" as EJL
   component "reactor.py (v2.3)" as REACT
-  file "rules.json\n(Disk Cleanup ✅ enabled)" as RULES
-  RELAY --> SINK --> EJL
+  file "rules.json\n(Disk Cleanup enabled)" as RULES
+  RELAY --> SINK
+  SINK --> EJL
   REACT ..> EJL
   REACT ..> RULES
 }
@@ -50,7 +51,7 @@ node "Managed VPS Fleet  (validated: u24 + d13)" as FLEET #f4f4f4 {
   component "managed channel\nmanaged_user @ 39222" as MC
 }
 
-component "make controller-vps-smoke\n(managed audit idempotency ✅)" as SMOKE
+component "make controller-vps-smoke\n(managed audit idempotency)" as SMOKE
 
 OP --> SEM : run templates (UI)
 ENV --> SEM
@@ -65,8 +66,8 @@ SMOKE ..> SEM : assert audit success + changed=0
 
 note as N #fdf6e3
   **Not yet in AS-BUILT** (see target diagram):
-  ⊘ cf-worker Access Layer — deferred, not the main line
-  ▱ DB-failover remediation — placeholder (enabled=false, TASK-008)
+  - cf-worker Access Layer — deferred, not the main line
+  - DB-failover remediation — placeholder (enabled=false, TASK-008)
   ~ RHEL full onboard (r9) — blocked on that VPS's EPEL reachability
 end note
 @enduml
