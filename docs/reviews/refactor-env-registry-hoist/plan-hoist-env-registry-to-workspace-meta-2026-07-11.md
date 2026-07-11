@@ -26,11 +26,16 @@ The env-capability registry records **host** facts (docker/ansible/gh/linters pr
 | `.claude/skills/env-sync/` | `~/.claude/skills/env-sync/` (host, all sessions) | harness — see §6 OQ-A |
 | `.claude/settings.json` SessionStart hook (env-probe-check) | `~/.claude/settings.json` (host) | harness — see §6 OQ-A |
 
-## 3. Out of scope (stays in ansispire)
+## 3. Out of scope (stays in ansispire) — the project override layer
 
 - **Project execution overrides**: `host_overrides` ("use container-side ansible / semaphore image"), `command_truth` → `docs/governance/testing-governance.md §3–§4` (the task→command SSOT was always project-local; "关注点分离" holds).
+- **🟡 REQUIRED (review finding 2026-07-11) — project-venv tool availability.** The hoisted host probe runs against the **bare host PATH**, so `ansible_playbook` / `ansible_lint` / `yamllint` now read `available: false` at the host layer even though ansispire provides them via `.venv/bin/`. This is correct for the *shared* layer (one project's venv must not flip a global flag), but a consumer reading only the host registry would wrongly conclude "cannot lint/syntax-check here" and mis-mark a gate blocked. **Phase 3 MUST add an ansispire project-override layer** that records these tools as available via `.venv/bin/` (or points at `testing-governance §3–§4` which already carries the `$(BIN)` command forms). Without it, the hoist regresses ansispire's ansible/lint signal from `true` → `false`.
 - The `IVG-TOOLENV-REGISTRY.md` record stays as ansispire history (append a "hoisted 2026-07-11" note).
 - No change to what the probe detects or the audit/onboard/controller runtime.
+
+## 3a. Review notes folded into the workspace-meta commit (2026-07-11)
+
+Landed in workspace-meta `115dfb6` (amended into the hoist commit before push): atomic registry write (temp + `mv`, no half-written "fresh" file); genericized the docker `host_override` wording (dropped ansispire-flavored "controller stacks"); documented that `git_push.remote_reachable` now probes **workspace-meta's** origin as a host-level git-reachability proxy, not any project's remote; softened the README's forward-reference to the (Phase 2) SessionStart hook.
 
 ## 4. Success criteria
 
@@ -56,7 +61,7 @@ The env-capability registry records **host** facts (docker/ansible/gh/linters pr
 - **Phase 0** — resolve OQ-A/B/C (done); branch = `refactor/env-registry-hoist` **stacked on `feat/target-architecture`** (the only base holding the env-probe prerequisites; W-R21 §b), merges back to that parent feat.
 - **Phase 1 — workspace-meta side (additive)**: add `env_probe.sh` (with OQ-C fix), Makefile targets, `.agents/rules/environment-truth.md`, `.agents/env/README.md` + data; add `!` whitelist entries to `~/workspace/.gitignore`; verify pre-commit guard; commit + push workspace-meta.
 - **Phase 2 — host side (OQ-A=a)**: place env-sync skill + SessionStart hook into `~/.claude/`; pipe-test fresh/stale.
-- **Phase 3 — ansispire side (removal + re-point)**: `git rm` the moved files; update the ~10 reference files to point at the workspace path; leave the override tail; append IVG "hoisted" note; sync INDEX/CHANGELOG/TODO; 3-gate.
+- **Phase 3 — ansispire side (removal + re-point)**: `git rm` the moved files; update the ~10 reference files to point at the workspace path; **add the project-override layer for `.venv/bin/` ansible/lint availability (§3 REQUIRED)** so the host-layer `false` does not mislead; append IVG "hoisted" note; sync INDEX/CHANGELOG/TODO; 3-gate.
 - **Phase 4 — closeout**: round changelog in this topic dir; Next-Steps.
 
 ## 8. Rollback
