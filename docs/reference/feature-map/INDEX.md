@@ -171,7 +171,7 @@
 | **Vault** | `vault-edit FILE=...` / `vault-encrypt` | Vault 操作包装 |
 | **EE** | `ee-build` / `navigator` / `navigator-local` | Execution Environment 模式 |
 | **SSOT** | `manifest-sync` / `ports-sync` (deprecated alias) | 见 §6 |
-| **环境注册表** | `env-probe` / `env-probe-check` | per-host 能力探针 → `.agents/env/<host>.yml`（规则：`.agents/rules/environment-truth.md`） |
+| **环境注册表** | `env-probe` / `env-probe-check`（本仓 shim → `~/workspace`） | per-host 能力探针，2026-07-11 上移 workspace 层 → `~/workspace/.agents/env/<host>.yml`（规则：`~/workspace/.agents/rules/environment-truth.md`）；ansispire 项目 override 见 `.agents/env/README.md` |
 
 ---
 

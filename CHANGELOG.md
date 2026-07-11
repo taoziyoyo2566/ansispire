@@ -46,6 +46,23 @@ audit from the Semaphore UI, no takeover changes.
   mis-created installs self-heal. See `controller/semaphore/README.md` (Template
   Authoring GOTCHA).
 
+### Env-capability registry hoisted to the workspace layer (2026-07-11)
+
+Branch `refactor/env-registry-hoist`. The per-host registry mechanism + data moved
+out of this repo to the shared workspace layer (IVG-TOOLENV-REGISTRY §4.2), so every
+project under `~/workspace` uses one probe instead of duplicating it.
+
+- **Moved to `~/workspace`** (workspace-meta repo): `scripts/env_probe.sh`,
+  `.agents/rules/environment-truth.md`, `.agents/env/<host>.yml`, and the
+  `env-probe` / `env-probe-check` logic.
+- **`make env-probe` / `env-probe-check` still work here** — now thin shims that
+  delegate to `make -C ~/workspace …`.
+- **Harness bits** (env-sync skill, SessionStart freshness hook) install per-host
+  under `~/.claude/`.
+- **New project override** `.agents/env/README.md`: the bare-host probe reports
+  ansible/ansible-lint/yamllint absent, but ansispire provides them via `.venv/bin/` —
+  do not read the host-level `false` as "cannot lint here."
+
 ### Per-host environment capability registry (2026-06-10)
 
 Branch `feat/target-architecture`. New dev-tooling: each machine's command/daemon

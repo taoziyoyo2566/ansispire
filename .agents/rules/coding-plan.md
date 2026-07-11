@@ -31,7 +31,7 @@ At minimum:
    otherwise verify current primary sources before writing implementation guidance.
 5. Check `.agents/rules/codex-capabilities.md` for a better execution method before defaulting to manual/basic implementation.
 6. If the change creates, moves, or consumes secret material, read `.agents/rules/secrets-handling.md` and follow its placement conventions.
-7. If a plan prerequisite rests on an environment capability claim (tool present, daemon up, credentials), probe it per `.agents/rules/environment-truth.md` — do not copy the claim from memory or older docs.
+7. If a plan prerequisite rests on an environment capability claim (tool present, daemon up, credentials), probe it per `~/workspace/.agents/rules/environment-truth.md` — do not copy the claim from memory or older docs.
 8. Record any uncertainty, blocked prerequisite, or direction risk before proposing edits.
 
 Do not treat the user's initial wording as proof that the requested direction is correct.

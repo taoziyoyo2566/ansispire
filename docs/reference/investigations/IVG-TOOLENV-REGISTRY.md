@@ -186,3 +186,26 @@ Behavior rule: `.agents/rules/environment-truth.md` (+ session-bootstrap hook,
 Claude `/env-sync` skill, SessionStart hook). Task→command SSOT remains
 `docs/governance/testing-governance.md §3–§4`; the registry carries host-conditional
 overrides only — the original "关注点分离" principle held.
+
+## Update 2026-07-11 — Hoisted to the workspace layer (OQ-1 resolved)
+
+The 2026-06-10 implementation put the mechanism + data inside this project repo,
+collapsing §4.2's three-layer model and leaving **OQ-1** (workspace vs `~/.claude`
+as the primary registry) open. Resolved 2026-07-11 (user decision) and executed:
+
+- **OQ-1 → workspace-meta.** Mechanism + host data moved out of ansispire to the
+  workspace layer: `~/workspace/scripts/env_probe.sh`, `~/workspace/Makefile`
+  (`env-probe[-check]`), `~/workspace/.agents/rules/environment-truth.md`,
+  `~/workspace/.agents/env/<host>.yml` (committed to the workspace-meta repo,
+  shared by every project). Landed there in `feat(env-registry)` (workspace-meta).
+- **Harness bits → host `~/.claude/`** (OQ-A): the `env-sync` skill and the
+  SessionStart freshness hook install per-machine, not synced by workspace-meta.
+- **Project override layer stays in ansispire** (§4.2 project tier):
+  `.agents/env/README.md` records that ansible/ansible-lint/yamllint are provided
+  via `.venv/bin/` even though the bare-host probe reports them absent.
+- **`docker.running_count`** replaced the raw container-name list so unrelated host
+  infra never enters the shared repo.
+
+The three-layer model (host-generic mechanism · shared host data · per-project
+override) is now realized as originally designed. Plan + evidence:
+`docs/reviews/refactor-env-registry-hoist/`.

@@ -125,7 +125,7 @@ Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-202
 |---|---|---|---|
 | D1 | hub_remote 去留 | TASK-007.C | 拨新机 / 清空 local-only / 重部署到 d13 |
 | D2 | DB failover 模型 + 是否有演练 db 拓扑 | TASK-008 | 主备切换 / 提升 standby / DNS 切换 |
-| ~~ENV~~ | ~~执行前复探 Docker/Semaphore runtime~~ | ~~Phase 0~~ | ✅ 已复探（2026-07-11，`.agents/env/mail.yml`）+ Phase 0/1 gate 已过；Phase 2 前再复探即可 |
+| ~~ENV~~ | ~~执行前复探 Docker/Semaphore runtime~~ | ~~Phase 0~~ | ✅ 已复探（2026-07-11，`~/workspace/.agents/env/mail.yml`，registry 已上移 workspace 层）+ Phase 0/1 gate 已过；Phase 2 前再复探即可 |
 
 ---
 

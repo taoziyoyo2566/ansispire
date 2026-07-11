@@ -22,7 +22,7 @@ Before finalizing a plan, build a small evidence inventory:
 | Repo facts | current code, TODO, prior plans, feature maps | inspect local files |
 | External tool behavior | Semaphore API/UI, Ansible modules, Docker behavior | check official docs or source |
 | Security practice | SSH hardening, key handling, secret storage | check official/vendor/standards guidance |
-| Runtime capability | daemon available, tool installed, service reachable | probe per `environment-truth.md` |
+| Runtime capability | daemon available, tool installed, service reachable | probe per `~/workspace/.agents/rules/environment-truth.md` |
 | Operator decision | real VPS, credential owner, destructive run approval | record owner and gate |
 
 The plan does not need to solve every unknown upfront, but it must not hide
