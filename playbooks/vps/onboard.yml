@@ -1,6 +1,10 @@
 ---
 - name: Onboard VPS into Ansispire management
   hosts: vps_targets
+  # Each host runs independently — a slow/hung host (e.g. a VPS that cannot reach a
+  # package mirror) must not block the rest of the fleet at a task barrier, as the
+  # linear default did. Onboard is fully per-host (no cross-host ordering).
+  strategy: free
   become: true
   gather_facts: true
   gather_subset:
