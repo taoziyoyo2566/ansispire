@@ -52,7 +52,7 @@
 | `test-vps-r9` | Rocky 9 | **blocked** | — | — |
 
 - **PASS(2/3)**:u24 + d13 满足全部预期断言(onboard success → 切 39222/关 22 → managed audit `success`+`changed=0`)。
-- **r9 阻塞**:非代码——该 VPS 无法到达 EPEL 镜像,`dnf install fail2ban` hung;`epel-release` 前置任务正确,待该机 EPEL 可达后重跑。
+- **r9 阻塞**:观察到的首个 blocker 是该 VPS 无法到达 EPEL 镜像，`dnf install fail2ban` hung；通过该点后仍需继续验证余下 RHEL 步骤。
 
 ## 7. 覆盖边界 / 待补 (Coverage gaps)
 - **managed 审计幂等段已有自动化 carrier**:`make controller-vps-smoke`（`VPS Audit` 断言 `success` + 每台 `changed=0`;2026-07-11 对 u24+d13 PASS)。**onboard 接管段仍手动 + API**（接管是破坏性,不做重复冒烟）。

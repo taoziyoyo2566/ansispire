@@ -9,9 +9,9 @@ control plane), instead of the retired local `vps_manager` surface.
 | I want to… | Go to |
 |---|---|
 | **operate it** — take a VPS from bootstrap → managed → audited | **[`operator-guide.md`](operator-guide.md)** ← step by step |
-| see how it fits together | [`../architecture/`](../architecture/) — the system architecture ([target](../architecture/) vs [as-built](../architecture/as-built/)) |
-| know why/what landed (evidence) | [`../reviews/feat-target-architecture/`](../reviews/feat-target-architecture/) — plans + `round10`–`round12` changelogs |
-| the verification spec | `docs/reference/test-specs/vps-onboard-managed-audit-e2e.md` |
+| see how it fits together | [`diagrams/`](diagrams/) — the branch architecture ([target](diagrams/) vs [as-built](diagrams/as-built/)) |
+| know why/what landed (evidence) | [`../reviews/feat-target-architecture/`](../reviews/feat-target-architecture/) — plans + `round10`–`round13` changelogs |
+| the verification spec | [`TSVS-VPS-ONBOARD-E2E-001`](../reference/test-specs/vps-onboard-managed-audit-e2e.md) |
 
 ## Status (as of 2026-07-12)
 
@@ -21,7 +21,7 @@ control plane), instead of the retired local `vps_manager` surface.
 | **VPS Audit** (read-only health) | ✅ real-VPS validated (Ubuntu 24 / Rocky 9 / Debian 13) |
 | **VPS Onboard** → managed cutover → re-audit `changed=0` | ✅ **2/3 real-VPS validated** (u24 + d13) |
 | `make controller-vps-smoke` (managed audit idempotency) | ✅ live PASS |
-| RHEL full onboard (r9) | ~ blocked on that VPS's EPEL mirror reachability (infra, not code) |
+| RHEL full onboard (r9) | ~ first blocked at EPEL mirror reachability; downstream RHEL steps remain unverified |
 | cf-worker Access Layer (Wizard/REST) | ⊘ built + probe-tested, **deferred** — not the current main line |
 | DB-failover self-heal rule | ▱ placeholder (`enabled=false`, TASK-008) |
 | Offboard / revert | backlog (TASK-010) |

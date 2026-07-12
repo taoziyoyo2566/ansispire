@@ -15,7 +15,7 @@
 Ansispire 的自愈是高度解耦的闭环系统：
 
 1. **产生信号 (Trigger)**：数据面发生故障 → 报错被审计平面捕获，落 `events.jsonl`。
-2. **内容识别 (Matching)**：`reactor.py` v2.3 用 `_contains` 匹配 `extensions/eda/rules.json`。
+2. **内容识别 (Matching)**：`reactor.py` v2.6 用 `_contains` 匹配 `extensions/eda/rules.json`，并持久化 JSONL byte cursor、隔离 malformed rules、处理 copytruncate。
 3. **身份通行 (Auth)**：Reactor 用 bootstrap 自动 mint 的 **Bearer Token** 调用 Semaphore API（无明文密码）。
 4. **远程调用 (Action)**：Reactor `POST /api/project/<id>/tasks`，按 `template_name` 动态解析 template_id。
 5. **物理修复 (Execution)**：Semaphore 启动 Ansible runner 跑 `playbooks/remediation/*.yml`。
@@ -92,7 +92,7 @@ docker logs -f ansispire-audit-reactor
 [reactor] remediation triggered: template=<id> (Auto Remediation: Disk Cleanup), status=201
 ```
 
-`template=<id>` 中的 `<id>` 由 Semaphore 在创建时分配，不是常量；reactor v2.3 按 `template_name` 动态解析。**不要把 `template=1` 写死为判定标准**——这是 Round 1 之前 Gemini 文档里的具体例子，不普遍。
+`template=<id>` 中的 `<id>` 由 Semaphore 在创建时分配，不是常量；reactor v2.6 按 `template_name` 动态解析。**不要把 `template=1` 写死为判定标准**——这是 Round 1 之前 Gemini 文档里的具体例子，不普遍。
 
 ### 2.5 在 Semaphore 端确认任务确实执行
 
@@ -118,11 +118,11 @@ curl -sS -H "Authorization: Bearer $TOKEN" \
 ### 2.6 测试金字塔 (L1+L2+L3+L4)
 
 ```bash
-make test-eda             # L1 (14) + L2 (9) + L3 (5)；< 1 秒；可进 verify
+make test-eda             # 46 tests + rules schema（L1+L2+L3，无 docker）
 make test-eda-e2e         # L4 (1)；真 docker；~60 秒；不进 verify
 ```
 
-L1 期望 `Ran 14 tests ... OK`，L2 9 cases，L3 5 cases。L4 在隔离的 `ansispire-e2e` compose project（端口 3320/3330）跑，不影响 dev 栈。
+当前组成：reactor L1 19、rules contract 11、reactor component 5、relay unit 6、sink unit 5，另加 rules schema。L4 在隔离的 `ansispire-e2e` compose project（端口 3320/3330）跑，不影响 dev 栈；它从 sink 注入，不覆盖 relay leg。
 
 ### 2.7 Syntax 校验（治理强制项）
 

@@ -3,10 +3,10 @@
 ## 1. 测试概览 (Overview)
 - **测试 ID**: `TEST-EDA-004`
 - **层级**: L4 — 端到端，**真** docker，真 Semaphore，真 ansible-runner
-- **测试类型**: 全链路验证 / smoke
+- **测试类型**: sink→reactor→remediation 路径集成 / smoke
 - **优先级**: 高（但不强制 CI）
-- **测试目的**: 在隔离的 disposable docker compose 项目里完整验证「故障注入 → reactor → Semaphore 模板 → ansible 执行 → 任务成功」闭环。一次 cold-start 下来 < 90 秒。
-- **不在范围**: 性能基线、规模化（多事件并发）、故障注入路径上的 fault-injection（两者属 Phase 5+）。
+- **测试目的**: 在隔离的 disposable docker compose 项目里验证「sink 注入 → reactor → Semaphore 模板 → ansible 执行 → 任务成功」路径。一次 cold-start 下来 < 90 秒。
+- **不在范围**: `Semaphore → relay → sink`（由 `TSVS-AUDIT-LOOP-001` 覆盖）、remediation 事件返回 relay 的闭环断言、性能基线、规模化与 fault injection。
 
 ## 2. 测试环境 (Environment)
 - 操作系统: Linux + Docker engine 25+
@@ -45,7 +45,7 @@ make test-eda-e2e
 ```bash
 cd controller/audit/e2e
 docker compose -p ansispire-e2e --env-file .env up -d
-./run.sh   # bootstrap + inject + poll + teardown
+./run.sh   # bootstrap + inject + poll; success 后默认保留 stack 供检查
 ```
 
 ### 4.3 步骤序列（脚本自动）
@@ -58,7 +58,7 @@ docker compose -p ansispire-e2e --env-file .env up -d
 | 4. restart audit | 让 reactor 拿 token | reactor 日志含 `event schema: ...` + `loaded 1 rules`（Disk Failover 是 disabled, count = 1） |
 | 5. inject | 写一行 Disk Full event 到 audit-sink-e2e 的 jsonl | reactor 日志 `MATCH FOUND: Remediation: Disk Full` |
 | 6. poll Semaphore tasks | curl `/api/project/1/tasks?limit=1` 直到 `status == "success"` | 单条 task 出现，最终 status=success |
-| 7. teardown | `docker compose -p ansispire-e2e ... down -v` | 容器、卷、网络全部清理；`docker ps` 不见 e2e 容器；dev 栈不受影响 |
+| 7. retain/cleanup | 默认保留 stack 供人工检查；显式运行 `E2E_PROJECT=ansispire-e2e controller/audit/e2e/run.sh down` 清理 | dev 栈不受影响；清理命令只作用于 e2e project |
 
 ### 4.4 失败模式与诊断
 
@@ -73,10 +73,13 @@ docker compose -p ansispire-e2e --env-file .env up -d
 - exit code 0
 - wall time < 90 秒 (cold start, 3 GB free disk)
 - 终端输出最末一行类似 `E2E PASS — task X status=success in Ys`
-- `docker ps` 不见 `ansispire-*-e2e` 容器（teardown 完成）
+- 默认输出明确说明 stack 仍运行，并给出人工 cleanup 命令
 - dev 栈（`ansispire-semaphore` / `ansispire-audit-*`）不受影响
 
 ## 6. 测试执行记录 (Actual Results)
+
+> 下列 2026-05-10 记录来自当时自动 teardown 的 carrier。当前脚本默认
+> leave-running 供检查；验证范围仍从 sink 注入开始，不包含 relay leg。
 - **执行时间**: 2026-05-10 01:55–01:57 (cold start, dev stack 同时运行)
 - **执行人**: Claude (`feat/eda-advanced-healing` Phase 3 P3.6)
 - **状态**: **PASS**
@@ -113,10 +116,11 @@ PLAY RECAP: ok=39  changed=1  failed=0
 | Teardown | 容器/卷/网络全清 | 全清；dev 4 容器仍在跑 | ✓ |
 
 ## 7. 结论与建议 (Conclusion)
-- 闭环 (jsonl 注入 → reactor MATCH → Semaphore POST → ansible-runner 执行 → status=success) 在 disposable docker compose 项目里完整成立。
+- sink 注入 → reactor MATCH → Semaphore POST → ansible-runner 执行 → status=success 路径在 disposable docker compose 项目里成立。
+- 本规格不能作为 relay 或完整事件回流闭环已经 E2E 的证据。
 - 隔离性证实：teardown 后 `docker ps`/`docker volume ls`/`docker network ls` 均无 e2e 残留；dev 控制平面 (`ansispire-semaphore` / `ansispire-audit-*`) 全程不受影响。
 - run.sh 的 `trap cleanup EXIT` 在 success/failure/被中断时都会执行 `down -v`；保留实例调试用 `E2E_KEEP=1 ./run.sh`。
-- e2e 不进 `make verify`：跑完整栈需要 ~60 s + ~500 MB RAM，CI 上不划算；`make verify` 仍只走 L1+L2+L3 (28 cases, < 1 s) + lint/syntax/dry-run。
+- e2e 不进 `make verify`：跑完整栈需要 ~60 s + ~500 MB RAM，CI 上不划算；`make verify` 仍走无 Docker 的 EDA tests（46 cases + schema）+ lint/syntax/dry-run。
 - 下一次 e2e 失败现场最可能的根因（按优先级）：(a) host 端口占用 → 改 `.env`；(b) Semaphore 镜像未本地缓存且无网 → 提前 `docker pull`；(c) bootstrap variable 漂移（如未来再有 `sem_pass` vs `semaphore_password` 那种）→ L1+L2 会先挡住。
 
 ## 8. 演化预案

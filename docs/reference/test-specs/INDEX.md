@@ -21,12 +21,12 @@
 | `TEST-EDA-001` | 2026-05-09 | `controller/audit/reactor.py` (纯函数) | L1 | `make test-eda-unit` | Active | [eda-reactor-unit.md](eda-reactor-unit.md) |
 | `TEST-EDA-002` | 2026-05-09 | `extensions/eda/rules.json` ↔ `bootstrap.yml` 契约 | L2 | `make test-eda-contract` | Active | [eda-rules-contract.md](eda-rules-contract.md) |
 | `TEST-EDA-003` | 2026-05-09 | `controller/audit/reactor.py` + mock Semaphore HTTP | L3 | `make test-eda-component` | Active | [eda-reactor-component.md](eda-reactor-component.md) |
-| `TEST-EDA-004` | 2026-05-10 | reactor → relay → sink 全链路（disposable e2e） | L5 | `make test-eda-e2e` | Active | [eda-reactor-e2e.md](eda-reactor-e2e.md) |
+| `TEST-EDA-004` | 2026-05-10 | sink injection → reactor → Semaphore remediation task（disposable e2e） | L4 | `make test-eda-e2e` | Active | [eda-reactor-e2e.md](eda-reactor-e2e.md) |
 | `TSVS-EDA-RELAY-UNIT-001` | 2026-05-13 | `controller/audit/relay.py`（cursor/fetch/tick, urllib mocked） | L1 | `make test-eda-relay-unit` | Active | [eda-relay-unit.md](eda-relay-unit.md) |
 | `TSVS-EDA-SINK-UNIT-001` | 2026-05-13 | `controller/audit/sink.py`（HTTP handler, socket mocked） | L1 | `make test-eda-sink-unit` | Active | [eda-sink-unit.md](eda-sink-unit.md) |
 | `TSVS-FILTERS-UNIT-001` | 2026-05-13 | `filter_plugins/custom_filters.py`（7 个过滤器纯函数） | L1 | `make test-filters` | Active | [filters-unit.md](filters-unit.md) |
 | `TSVS-VPS-MANAGER-UNIT-001` | 2026-05-14 | `plugins/vps_manager/`（本地 task lifecycle，历史表面） | L1 | `make test-vps-manager` | Retired | [vps-manager-unit.md](vps-manager-unit.md) |
-| `TSVS-AUDIT-LOOP-001` | 2026-04-27 | Semaphore API → reactor → relay → sink | L5 | `make controller-loop-smoke` | Active | [audit-loopback-functional.md](audit-loopback-functional.md) |
+| `TSVS-AUDIT-LOOP-001` | 2026-04-27 | Semaphore API → relay → sink | L5 | `make controller-loop-smoke` | Active | [audit-loopback-functional.md](audit-loopback-functional.md) |
 | `TSVS-RBAC-SMOKE-001` | 2026-04-27 | `controller/rbac/`（三角色权限边界） | L5 | `make controller-rbac-smoke` | Active | [rbac-functional-smoke.md](rbac-functional-smoke.md) |
 | `TSVS-VPS-ONBOARD-E2E-001` | 2026-07-11 | `VPS Onboard` → managed 通道 `VPS Audit`（接管闭环 + 幂等） | L5 | `make controller-vps-smoke`（managed 审计幂等段）；onboard 段手动 + API | Active | [vps-onboard-managed-audit-e2e.md](vps-onboard-managed-audit-e2e.md) |
 
@@ -52,13 +52,14 @@
 | `roles/ansispire_hub/` | （无） | ✗ 仅 lint + syntax + e2e 间接覆盖（G2） |
 | `roles/ansispire_audit/` | `TSVS-AUDIT-LOOP-001`（间接） + EDA L1–L5 | ✅ 良好 |
 | `roles/infra_baseline/` | （无） | ✗ 最大盲区（G1） |
-| `controller/audit/reactor.py` | `TEST-EDA-001`（L1）+ `TEST-EDA-003`（L3）+ `TEST-EDA-004`（L5） | ✅ 良好 |
-| `controller/audit/relay.py` | `TSVS-EDA-RELAY-UNIT-001`（L1）+ `TEST-EDA-004`（L5）+ `TSVS-AUDIT-LOOP-001`（L5） | ✅ 良好（L1+L5；L3 component 视后续是否需要） |
-| `controller/audit/sink.py` | `TSVS-EDA-SINK-UNIT-001`（L1）+ `TEST-EDA-004`（L5）+ `TSVS-AUDIT-LOOP-001`（L5） | ✅ 良好（同上） |
+| `controller/audit/reactor.py` | `TEST-EDA-001`（L1）+ `TEST-EDA-003`（L3）+ `TEST-EDA-004`（L4） | ✅ 良好 |
+| `controller/audit/relay.py` | `TSVS-EDA-RELAY-UNIT-001`（L1）+ `TSVS-AUDIT-LOOP-001`（L5） | ✅ restart/cursor unit + live loop smoke；无高积压测试 |
+| `controller/audit/sink.py` | `TSVS-EDA-SINK-UNIT-001`（L1）+ `TEST-EDA-004`（L4）+ `TSVS-AUDIT-LOOP-001`（L5） | ✅ writer unit + 两侧路径覆盖 |
 | `extensions/eda/rules.json` | `TEST-EDA-002` | ✅ |
 | `controller/rbac/` | `TSVS-RBAC-SMOKE-001` | ✅ smoke 级别 |
 | `filter_plugins/custom_filters.py` | `TSVS-FILTERS-UNIT-001` | ✅ 100% 行覆盖 |
 | `plugins/vps_manager/`（历史） | `TSVS-VPS-MANAGER-UNIT-001`（Retired） | 历史记录保留；`feat/target-architecture` 分支不再把它作为活跃覆盖信号 |
+| `playbooks/vps/` + Semaphore templates | `TSVS-VPS-ONBOARD-E2E-001`（L5）+ syntax + `controller-vps-smoke` | u24+d13 完整证明；RHEL 全链路待补 |
 | `playbooks/site.yml`、`inventory/{stag,prod}/` | （无独立 TSVS） | ⚠ lint + syntax + dry-run 覆盖（暂无 TSVS 必要） |
 | 多 role 共存 | `TSVS-MOL-FULLSTACK-001` | ⚠ co-existence 子集；未覆盖跨服务交互 |
 

@@ -11,7 +11,7 @@ On `feat/target-architecture`, the old local `vps_manager` control surface is in
 ## Capabilities
 
 - **Self-healing**: events captured by the audit plane are matched against rules and dispatched to remediation playbooks via the control plane's REST API. No human in the loop for known faults.
-- **Audit-grade history**: every control-plane action lands in an append-only JSONL log; the audit relay reconciles via cursor + pagination, so events are not lost across restarts.
+- **Audit history**: control-plane events are relayed into a JSONL log whose writer appends records. Relay/reactor cursors support restart recovery, but the current store is not cryptographically tamper-evident and relay backfill is bounded.
 - **Single source of truth for config**: ports, image tags, and inventory paths live in [`config/manifest.yml`](./config/manifest.yml) and propagate to every consumer (compose, Ansible vars, CI).
 - **Tiered environment model**: `dev` (local loopback), `stag` (pre-prod parity), `prod` (live management + apps). One playbook, three inventories.
 - **Two deployment paths**: Path A (Ansible role-based hub deploy onto a remote VPS) and Path B (docker-compose dev stack on your workstation). Same control plane image, same audit plane, different bootstrap.
@@ -89,11 +89,12 @@ Full spec: [`docs/governance/loopback-runner.md`](./docs/governance/loopback-run
 | You want to... | Read |
 |---|---|
 | Understand the architecture in 5 minutes | [ARCHITECTURE.md](./ARCHITECTURE.md) |
+| Operate or inspect the Saberu target architecture | [docs/feat-target-architecture/](./docs/feat-target-architecture/) |
 | Inspect the retained VPS lifecycle content on this branch | [playbooks/vps/README.md](./playbooks/vps/README.md) |
 | Install Ansispire on a clean machine | [docs/user-guide/01-installation.md](./docs/user-guide/01-installation.md) |
 | Understand EDA self-healing end-to-end (rationale + failure modes) | [docs/user-guide/02-quickstart-eda.md](./docs/user-guide/02-quickstart-eda.md) |
 | Look up a specific operational command (maintainer view) | [docs/operations/eda-core.md](./docs/operations/eda-core.md) · [docs/operations/hub-deployment.md](./docs/operations/hub-deployment.md) · [docs/operations/vps-lifecycle.md](./docs/operations/vps-lifecycle.md) |
-| Understand the target-architecture cutover plan | [docs/reviews/feat-target-architecture/plan-2026-05-25.md](./docs/reviews/feat-target-architecture/plan-2026-05-25.md) |
+| Understand the active target-architecture execution plan | [plan-semaphore-native-onboard-2026-06-10.md](./docs/reviews/feat-target-architecture/plan-semaphore-native-onboard-2026-06-10.md) · [execution addendum](./docs/reviews/feat-target-architecture/plan-saberu-vps-takeover-execution-2026-06-24.md) |
 | Baseline a managed VPS (Debian / Ubuntu / Rocky / AlmaLinux) | `make target-deploy TARGET_NODE=<group\|alias>` — see [feature-map/multi-os-fleet.md](./docs/reference/feature-map/multi-os-fleet.md) |
 | Choose which inventory / Make target for dev / stag / prod | [docs/operations/environments.md](./docs/operations/environments.md) |
 | Know what's planned next | [TODO.md](./TODO.md) |

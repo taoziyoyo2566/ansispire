@@ -1,6 +1,6 @@
 @startuml ansispire-audit-selfheal-as-built
 title Audit + Self-Heal — AS-BUILT, 2026-07-12
-caption Implemented + e2e-tested (docker stack, TASK-001). Only the enabled remediation rule is shown.
+caption Implemented. Docker E2E injects at sink and proves sink → reactor → remediation; relay is unit-tested separately.
 skinparam shadowing false
 skinparam defaultTextAlignment center
 
@@ -10,22 +10,26 @@ start
 |Relay (relay.py)|
 :cursor-paginated pull /api/events\n(resumable, heartbeat 60s);
 |Sink (sink.py)|
-:receive → append to **events.jsonl**\n(append-only, non-repudiation);
-|Reactor (reactor.py v2.3)|
+:receive → append to **events.jsonl**\n(application-level append writer; not tamper-evident);
+|Reactor (reactor.py v2.6)|
 :tail events.jsonl · match rules.json;
 if (event matches an **enabled** rule\nAND cooldown elapsed?) then (yes)
   :resolve template_name → id · **Bearer** auth;
   |Semaphore|
   :trigger remediation template (Task API)\ne.g. **Auto Remediation: Disk Cleanup**;
-  :run disk_cleanup.yml → emits events\n(loop is auditable end-to-end);
+  :run disk_cleanup.yml;\nremediation task reaches success;
   stop
 else (no)
-  |Reactor (reactor.py v2.3)|
+  |Reactor (reactor.py v2.6)|
   :ignore / suppress (cooldown or no rule);
   stop
 endif
 
 note right
+  Coverage boundary:
+  - Docker E2E starts at sink (relay leg bypassed).
+  - Return of remediation events through relay is not asserted.
+
   Excluded from AS-BUILT:
   - "DB Connection Failure" rule — enabled=false,
      db_failover.yml is a placeholder (TASK-008).

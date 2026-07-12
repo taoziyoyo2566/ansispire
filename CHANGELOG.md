@@ -31,8 +31,9 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ### Semaphore-native VPS Onboard wiring — Saberu Phase 2 (2026-07-11)
 
-Branch `feat/target-architecture`. The takeover onboard path is now runnable from
-the Semaphore container (no live onboard yet — that is Phase 3).
+Branch `feat/target-architecture`. The takeover onboard path runs from the
+Semaphore container and has completed the live Phase 3 loop on Ubuntu 24.04 and
+Debian 13.5; RHEL remains partial after the first EPEL reachability blocker.
 
 - **New control-plane resources** (`controller/semaphore/bootstrap.yml`):
   `vps-onboard-env` + the **`VPS Onboard`** template (`playbooks/vps/onboard.yml`),
@@ -51,6 +52,9 @@ the Semaphore container (no live onboard yet — that is Phase 3).
 - **fail2ban on RHEL**: install `epel-release` before `fail2ban` (RedHat family).
 - **Examples** (`playbooks/vps/examples/onboard.{minimal,standard}.yml`) use
   `public_key_content`; no private-key path needed.
+- **Deferred Worker boundary**: the existing `cf-worker` onboard-bare path still
+  emits the superseded `managed_private_key` payload. Semaphore UI is the active
+  MVP entry point; keep Worker onboarding disabled until its contract is refreshed.
 
 ### Semaphore-native VPS Audit — Saberu Phase 1 (2026-07-11)
 

@@ -9,7 +9,7 @@
 | Term | What it means in Ansispire |
 |---|---|
 | **Control Plane** | The management layer (Semaphore web UI + REST API + RBAC). Lives in `controller/semaphore/`. Deploys via Path A (Ansible role) or Path B (docker compose). |
-| **Audit Plane** | Three Python micro-services (`sink.py`, `relay.py`, `reactor.py`) under `controller/audit/`. Captures every Semaphore action into an append-only `events.jsonl`, then the reactor matches and dispatches remediation. |
+| **Audit Plane** | Three Python micro-services (`sink.py`, `relay.py`, `reactor.py`) under `controller/audit/`. Polls Semaphore events into an application-level append-written `events.jsonl`, then the reactor matches and dispatches remediation. Relay backfill is bounded; the file is not cryptographically tamper-evident. |
 | **Data Plane** | The managed servers — what Ansible actually configures via `roles/` and `playbooks/`. |
 | **Reaction Plane (EDA)** | The "self-healing" loop: events → rule match → remediation playbook fired via Semaphore API. |
 | **Hub** | A node that hosts the full Control + Audit stack. In `inventory/hosts.ini` it lives in `[hub_local]` (workstation) or `[hub_remote]` (real VPS); `[hub:children]` is the union. |

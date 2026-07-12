@@ -19,10 +19,10 @@ note right of SEM : templates bound to env carrying\nANSIBLE_CONFIG (vault-free)
 == Phase 2/3: Onboard (takeover) ==
 OP -> SEM : Run **VPS Onboard**  (strategy: free)
 SEM -> KS : materialize key (transient temp file)
-SEM -> ANS : exec onboard.yml\n(-e env=vps-onboard-env, --private-key)
+SEM -> ANS : exec onboard.yml\n(bound Environment injects vps_task + ANSIBLE_CONFIG;\nKey Store supplies --private-key)
 activate ANS
 ANS -> BOOT : connect root@22 (bootstrap)
-ANS -> BOOT : packages, EPEL(RHEL)+fail2ban, UFW
+ANS -> BOOT : packages; EPEL+fail2ban (RHEL); UFW (Debian)
 ANS -> BOOT : create managed user + authorized_keys\n(**public_key_content** = fleet pubkey), sudo
 ANS -> BOOT : install sshd drop-in → managed port,\nreload sshd  (transitional: 22 + 39222 open)
 ANS -> MGD : **managed-channel validation**\n(task-level ansible_user/ansible_port,\nreuse the run's key — no mounted file)

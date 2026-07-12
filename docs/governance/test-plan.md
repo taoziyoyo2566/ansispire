@@ -34,7 +34,7 @@
 | rules contract | `extensions/eda/rules.json` ↔ `bootstrap.yml` | Config 契约 | EDA L2 | `eda-rules-contract.md` |
 | rbac controller | `controller/rbac/` | Bash + Semaphore API | RBAC smoke | `rbac-functional-smoke.md` |
 | audit relay/sink | `controller/audit/e2e/`、`controller/audit/{relay,sink}.py` | Docker stack | loop-smoke + e2e | `audit-loopback-functional.md` |
-| vps lifecycle content | `playbooks/vps/` | Ansible playbooks + templates | native Ansible syntax | **无** |
+| vps lifecycle content | `playbooks/vps/` | Ansible playbooks + Semaphore templates | syntax + real-host loop + managed audit smoke | `vps-onboard-managed-audit-e2e.md` |
 | Cross-role integration | `roles/{common,webserver,database}/*` 共存 | combo | `molecule -s full-stack` | `molecule-full-stack.md`（TSVS-MOL-FULLSTACK-001） |
 | playbooks/inventory | `playbooks/site.yml`、`inventory/{stag,prod}/` | 编排 | lint + syntax + dry-run | **无**（dry-run 即覆盖） |
 
@@ -47,13 +47,13 @@
 | 质量属性 | L0 静态 | L1 单元 | L2 契约 | L3 组件 | L4 集成 | L5 E2E |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | 语法 / 风格 | ✅ lint+yamllint | — | — | — | — | — |
-| Python 纯函数逻辑 | — | ✅ EDA L1 (14) + filters (7) | — | — | — | — |
-| 跨配置文件契约 | — | — | ✅ EDA L2 (9) | — | — | — |
+| Python 纯函数逻辑 | — | ✅ EDA L1 (reactor 19 + relay 6 + sink 5) + filters (7) | — | — | — | — |
+| 跨配置文件契约 | — | — | ✅ EDA L2 (11 + schema) | — | — | — |
 | 组件 + mock 外部 | — | — | — | ✅ EDA L3 (5) | — | — |
 | Role 部署正确性 | ⚠ syntax (有限) | ✗ | ✗ | ✗ | ✅ Molecule (3 个 role) | ✗ |
 | Role 幂等性 | ✗ | ✗ | ✗ | ✗ | ✅ Molecule (idempotence 阶段) | ✗ |
 | 多 role 共存 | ✗ | ✗ | ✗ | ✗ | ✅ full-stack | ✗ |
-| 真实 stack happy-path | ✗ | ✗ | ✗ | ✗ | ✗ | ✅ EDA L4 + audit-loopback + rbac smoke |
+| 真实 stack happy-path | ✗ | ✗ | ✗ | ✗ | ✅ sink→reactor→remediation L4 | ✅ audit-loopback + rbac/VPS smoke |
 | **防火墙 + intra-host** | ✗ | ✗ | ✗ | ✗ | ✅ Molecule (round 5 修复后) | ✗ |
 | **模板渲染产物正确** | ⚠ syntax-check 无法验渲染后 | ✗ | ✗ | ✗ | ✅ Molecule | ✗ |
 | **二次执行幂等** | ✗ | ✗ | ✗ | ✗ | ✅ Molecule | ✗ |
@@ -107,8 +107,9 @@
 ### 4.5 ansispire_audit role
 
 - L0：lint + syntax
-- L1+L2+L3：EDA pyramid（reactor 14 + contract 9 + component 5 = 28 cases，see TSVS）
-- L5：`make controller-loop-smoke` + `make test-eda-e2e` + `audit-loopback-functional.md`
+- L1+L2+L3：EDA tests（reactor 19 + contract 11 + component 5 + relay 6 + sink 5 = 46 cases，另有 schema gate）
+- L4：`make test-eda-e2e`（sink→reactor→remediation；不经过 relay）
+- L5：`make controller-loop-smoke`（Semaphore→relay→sink）
 
 最佳覆盖表面之一（除 reactor 内部以外）。
 
@@ -137,7 +138,7 @@
 
 ### 4.10 audit relay/sink
 
-详见 `audit-loopback-functional.md`（TSVS-AUDIT-LOOP-001）—— Semaphore API → reactor → relay → sink 全链路回环，验证 ≤ 20s 内事件抵达 sink JSONL。
+详见 `audit-loopback-functional.md`（TSVS-AUDIT-LOOP-001）—— Semaphore API → relay → sink 回环，验证 ≤ 20s 内事件抵达 sink JSONL。Reactor/remediation 的另一侧由 `eda-reactor-e2e.md` 从 sink 注入覆盖；当前没有单一 carrier 断言完整往返闭环。
 
 ### 4.11 Cross-role integration (`molecule/full-stack/verify.yml`)
 

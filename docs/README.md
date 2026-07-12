@@ -1,9 +1,12 @@
 # Documentation Map
 
-The `docs/` tree is organized by **audience**, not by artefact type. Pick the subdir for who you are right now.
+The `docs/` tree is primarily organized by **audience**. A feature-owned delivery
+hub may colocate its operator guide and architecture evidence while that
+workstream is active; dated process history still belongs under `reviews/`.
 
 ```
 docs/
+├── feat-target-architecture/ # Saberu branch deliverable hub: operate + diagrams
 ├── user-guide/        # End-users / operators — long-form, with rationale
 ├── operations/        # Maintainers — terse command reference
 ├── reference/         # Machine-readable / feature maps / specs / investigations
@@ -35,6 +38,12 @@ Long-form, with the rationale baked in. Safe to read sequentially. No assumed pr
 - [03-configuration.md](user-guide/03-configuration.md) — change a port, bump a version, manage secrets, add a remediation rule
 - [04-troubleshooting.md](user-guide/04-troubleshooting.md) — symptom → root cause → fix; standalone quick-reference
 - [05-glossary.md](user-guide/05-glossary.md) — concepts, key files, test specs, design docs index
+
+## feat-target-architecture/ — Saberu branch deliverables
+
+- [README.md](feat-target-architecture/README.md) — status and reader routing
+- [operator-guide.md](feat-target-architecture/operator-guide.md) — Semaphore-native VPS takeover
+- [diagrams/](feat-target-architecture/diagrams/) — TARGET and evidence-labelled AS-BUILT views
 
 ## operations/ — when you already know the project
 

@@ -53,21 +53,21 @@
 ## 3. 控制面模块 (Controller / Hub-side)
 
 ### 3.1 Semaphore Web UI (`controller/semaphore/`)
-- **功能**：基于 Docker Compose 的可视化管理界面（默认 host 端口 3320）
+- **功能**：基于 Docker Compose 的可视化管理界面（默认 host 端口 3300）
 - **自动化**：`bootstrap.yml` 实现零点击创建 Project / Inventory / Environment / Job 模板 / RBAC
-- **Saberu VPS 舰队 (Phase 1 gate PASSED + Phase 2 wiring, 2026-07-11)**：`bootstrap.yml` 额外创建 `vps-fleet`（static inventory）+ `vps-fleet-key`（SSH，UI 注入）+ `vps-audit-env` + `VPS Audit`（跑 `playbooks/vps/audit.yml`，只读；首次真机 audit 对 Ubuntu24/Rocky9/Debian13 `status=success`）+ **`vps-onboard-env` + `VPS Onboard`**（跑 `playbooks/vps/onboard.yml`，takeover，Phase 2 代码就绪、未真机跑）。**模板必须绑定带 `ANSIBLE_CONFIG` env 的 Environment**——Semaphore 任务运行器不继承容器 env，否则触发 vault 中止（`controller/semaphore/README.md` 「Template Authoring GOTCHA」）。onboard 凭据契约：`public_key_content` 内联；managed 校验用**任务级连接变量复用 Semaphore Key Store 钥匙**（无挂载/独立私钥）。Phase 3 真机 2/3 闭环（u24+d13：onboard→切 39222→重审 `changed=0`）。见 `round10`–`round12-2026-07-11.changelog.md`
+- **Saberu VPS 舰队 (Phase 1/2 complete; Phase 3 real-host proof 2/3, 2026-07-11)**：`bootstrap.yml` 创建 `vps-fleet`（static inventory）+ `vps-fleet-key`（SSH，UI 注入）+ `vps-audit-env` / `VPS Audit` + `vps-onboard-env` / `VPS Onboard`。模板必须绑定带 `ANSIBLE_CONFIG` env 的 Environment；onboard 通过 `public_key_content` 安装 fleet 公钥，managed 校验用任务级连接变量复用 Key Store transport key。真实结果：audit 覆盖 Ubuntu24/Rocky9/Debian13；u24+d13 完成 onboard→39222→managed audit `changed=0`，r9 首先卡在 EPEL 可达性，后续 RHEL 步骤未验证。见 `round10`–`round12-2026-07-11.changelog.md`
 - **API 契约保护 (post-WU-4)**：`bootstrap_preflight.yml` 在 `bootstrap.yml` 顶部 `import_playbook`。schema mode（默认 ~2 s）验证 `/api/auth/login` + `/api/projects` + `/api/users` 的字段形状；full mode（`make test-api-contract`，~30–60 s）在临时 `__preflight__` 项目上走完所有 5 个 project-scoped GETs + token mint。CI 矩阵 `[pinned, latest]` 跑 full mode，`latest` 配 `continue-on-error` —— 上游 schema 漂移作为预警，不阻断主合并。`-e skip_preflight=true` 可逐次跳过（仅用于刻意探测未 bootstrap 的实例的测试）
 
 ### 3.2 审计与自愈链路 (`controller/audit/`)
 - **`sink.py`** — Python 轻量 HTTP 接收器（host 端口 3310，container 内 3010；`AUDIT_PORT` 可覆盖），将 Semaphore webhook POST 固化为追加型 `events.jsonl`
 - **`relay.py`** — Python，cursor-based 分页拉 Semaphore tasks → POST 到 sink；重启可续传（heartbeat 60 s）
-- **`reactor.py` (v2.3)** — Python，tail `events.jsonl`，匹配 `rules.json`，触发自愈：
+- **`reactor.py` (v2.6)** — Python，tail `events.jsonl`，匹配 `rules.json`，触发自愈，并包含持久化 cursor、copytruncate recovery 与 malformed-rule isolation：
   - Bearer Token 身份验证（无明文 admin）
   - 动态模板解析：`template_name → template_id`
   - 冷却期（per-rule cooldown，默认 600 s）
   - 启动 banner：读 `events.schema.json` 输出 `event schema: <$id>@<version>`
   - `enabled: false` 软禁用
-- **`e2e/`** — 一次性 docker-compose 栈 + `run.sh`，端口 3320 隔离命名（`*-e2e` 后缀），跑完默认 leave-running 给手动检查
+- **`e2e/`** — 一次性 docker-compose 栈 + `run.sh`，从 sink 注入并验证 reactor→Semaphore remediation task；不覆盖 relay leg。端口 3320/3330，默认 leave-running 给手动检查
 
 ### 3.3 RBAC 模型 (`controller/rbac/`)
 - **三角色**：`owner`（全权限）/ `task_runner`（仅运行）/ `guest`（仅查看）
@@ -81,7 +81,7 @@
   - 详见 [`vps-lifecycle.md`](vps-lifecycle.md)
 
 ### 3.5 CF Worker Wizard (`cf-worker/`)
-- **`cf-worker/`** — Phase 2 Wizard/API layer for Semaphore-first VPS lifecycle:
+- **`cf-worker/`** — 已实现并 probe/deploy、但当前 deferred 的 Wizard/API layer：
   - routes: `GET /`, `GET /health`, `GET/POST /vps`, `PUT/DELETE /vps/:alias`, `POST /vps/:alias/audit`
   - create modes (`POST /vps`): `register-managed` (writes managed user/port, rejects `root@22`) vs `onboard-bare` (writes bootstrap state + triggers onboard task)
   - source of truth: Semaphore `static` inventory blob + Key Store + Task API; a static-inventory guard refuses to write non-`static` inventories
@@ -91,6 +91,7 @@
   - verification: `npm test --prefix cf-worker`, `npm run deploy:dry-run --prefix cf-worker`, `npm run integration:live --prefix cf-worker` (local handler), `npm run smoke:deployed --prefix cf-worker` (live deployed build)
   - deploy / config / validate runbook: [`docs/operations/cf-worker-deployment.md`](../../operations/cf-worker-deployment.md)
   - live status: deployed as `ansispire-vps-worker.taoziyoyo.workers.dev` and verified against probe static inventory id `3`
+  - compatibility boundary: `onboard-bare` still requires/emits the superseded `managed_private_key` payload; keep its template id unset until code/tests are aligned with Key Store transport-key reuse
 
 ---
 
@@ -137,8 +138,8 @@
 
 完整治理见 [`docs/governance/testing-governance.md`](../../governance/testing-governance.md)（含 §9 测试卫生）+ [`docs/governance/test-plan.md`](../../governance/test-plan.md)（surface × quality 矩阵 + 9 G 缺口）。
 
-- **L1–L3（pytest，`controller/audit/test_*.py`）**：28 cases + 1 schema gate
-  - L1 reactor unit 14 / L2 rules contract 9 / L3 reactor component 5
+- **L1–L3（stdlib unittest，`controller/audit/test_*.py`）**：46 cases + 1 schema gate
+  - reactor 19 / rules contract 11 / reactor component 5 / relay 6 / sink 5
   - L1 schema gate `test-rules-schema`：`extensions/eda/rules.json` ↔ `extensions/eda/rules.schema.json`（Draft-07，inline `jsonschema.validate`）
   - 入口：`make test-eda`（< 1 s）— 已含 schema gate
 - **L4（disposable e2e）**：`controller/audit/e2e/run.sh` 真 docker 栈
@@ -192,9 +193,9 @@
 - ❌ **Prometheus 监控集成**（待 TASK-002）
 - ❌ **Multi-node Semaphore HA + DB 升级 SQLite→PG**（待 TASK-003）
 - ⚠ **Stag 环境真机**（结构就绪等接入）
-- ⚠ **多 OS target fleet**（占位组就绪，等 4 台 VPS 上线）
+- ⚠ **Saberu RHEL onboard 全链路**（r9 首先受 EPEL 可达性阻塞，后续步骤未验证）
 - ⚠ **`molecule/hub/` scenario**（hub role 目前无独立 molecule 测试，靠 `make hub-deploy-check` 间接 dry-run）
-- ⚠ **Semaphore-first VPS lifecycle wiring 未完全闭环**（`cf-worker/` 已部署并通过 probe static inventory live CRUD；real template provisioning、以及 Phase 3 production inventory migration 仍待后续 phase）
+- ⚠ **Semaphore-first VPS lifecycle 部分闭环**（templates + u24/d13 real loop + smoke/TSVS 已有；RHEL 补证与 Worker 合同刷新仍待完成）
 
 ---
-*最后更新：2026-06-07 | 对应分支：`feat/target-architecture`*
+*最后更新：2026-07-12 | 对应分支：`feat/target-architecture`*

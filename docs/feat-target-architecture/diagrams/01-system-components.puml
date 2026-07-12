@@ -16,7 +16,7 @@ package "SSOT" as SSOT #eef {
 
 package "Control Plane  (controller/, on hub, ~200MB)" as CP #eaffea {
   component "Semaphore\n(Go + SQLite, docker compose)" as SEM
-  component "bootstrap.yml\n(zero-touch: project/inventory/\nenv/template/RBAC/token)" as BOOT
+  component "bootstrap.yml\n(IaC: project/inventory/\nenv/template/RBAC/token)" as BOOT
   component "bootstrap_preflight.yml\n(API-shape contract guard)" as PRE
   database "Key Store\nvps-fleet-key (SSH)" as KS
   collections "Inventories\nvps-fleet (static)\nproduction/targets-managed (file)" as INV
@@ -45,7 +45,7 @@ package "Data Plane  (playbooks/, roles/)" as DP #eef6ff {
 
 package "Audit + Reaction Plane  (controller/audit/, EDA)" as AP #ffeef0 {
   component "relay.py\n(cursor pull Semaphore tasks)" as RELAY
-  component "sink.py\n(HTTP → append-only)" as SINK
+  component "sink.py\n(HTTP → append writer)" as SINK
   file "events.jsonl" as EJL
   component "reactor.py\n(tail + match + Bearer + cooldown)" as REACT
   file "extensions/eda/rules.json\n(+ events.schema.json)" as RULES
@@ -66,9 +66,8 @@ OP --> WIZ : browser
 AI ..> BOOT : make controller-bootstrap
 AI ..> SEM : REST (tests / smoke)
 ENV --> SEM : ports / versions
-ENV --> BC : (compose targets)
 
-SEM --> VPS : task runner executes\n(ANSIBLE_CONFIG from bound env,\n--private-key from Key Store)
+SEM --> VPS : task runner executes\n(bound Environment injects vps_task + ANSIBLE_CONFIG;\nKey Store supplies --private-key)
 SEM --> PB
 VPS --> BC : onboard (root@22 bootstrap)
 VPS --> MC : audit / re-validate (managed)

@@ -29,7 +29,7 @@
 | TASK-006 | 升级至 Ansible-Core 2.20.5 (2026 LTS) | — | — |
 | — | establish AI-native governance (GEMINI.md / CLAUDE.md hierarchy) | — | — |
 | — | mass quality refactoring (lint clean) | — | — |
-| — | zero-data-loss audit relay with pagination | — | — |
+| — | cursor-paginated audit relay with restart recovery (bounded backfill) | — | — |
 | — | lightweight EDA reaction engine core (Round 1–4) | 2026-05-10 | TASK-001 |
 | — | basic Nginx auto-remediation logic (`feat/eda-remediation-nginx`) | — | — |
 
@@ -42,14 +42,14 @@
 - **产品方向（2026-06-23 已确认）**：产品名 **Saberu**；短期目标是个人多 VPS 标准化接管/加固/软件安装/服务配置；短期实施图为 [`new-vps-takeover-implementation-steps-2026-06-23.drawio`](docs/reviews/feat-product-redesign/new-vps-takeover-implementation-steps-2026-06-23.drawio)；领域模型为 `Node` / `NodeGroup` / `Credential` / `BaselineProfile` / `ServiceProfile` / `TaskPlan` / `TaskRun` / `AuditEvent` / `Service`。
 - **MVP surface 决策（D2 关闭）**：**Semaphore UI first**。官方能力覆盖 MVP 控制台基础面（Inventory / Key Store / Repositories / Task Templates / Tasks+logs / Schedules / API tokens / Teams-RBAC 入口）；自研 UI/API 和新仓蓝图 deferred，直到 onboard/audit 闭环跑通且具体 gap 出现。
 - **入口**：方向/执行主线 [`docs/reviews/feat-target-architecture/plan-semaphore-native-onboard-2026-06-10.md`](docs/reviews/feat-target-architecture/plan-semaphore-native-onboard-2026-06-10.md)（APPROVED，方向与父执行范围已定）；细节拆解 [`plan-saberu-vps-takeover-execution-2026-06-24.md`](docs/reviews/feat-target-architecture/plan-saberu-vps-takeover-execution-2026-06-24.md)（**APPROVED 2026-07-11**，执行工作分解生效）；产品治理 [`docs/reviews/feat-product-redesign/plan-product-redesign-2026-06-23.md`](docs/reviews/feat-product-redesign/plan-product-redesign-2026-06-23.md)；D2 决策 [`decision-mvp-surface-semaphore-ui-first-2026-06-23.md`](docs/reviews/feat-product-redesign/decision-mvp-surface-semaphore-ui-first-2026-06-23.md)；`docs/reference/investigations/IVG-SEMAPHORE-INVENTORY-API.md`。
-- **状态**：▶️ owner branch + cleanup 已落地；Worker 本地实现 / Cloudflare deploy / live probe CRUD 均通过但 **不是执行主线**。**Phase 0 gate + Phase 1 gate 均已过（2026-07-11）**：首次真机 `VPS Audit` 对 3 台跨系测试机（Ubuntu 24.04 / Rocky 9.8 / Debian 13.5）`status=success`、`failed=0 changed=0`。过程中修掉 `bootstrap.yml` 两个缺陷（template 未绑 env + `vps-audit-env` 缺 `ANSIBLE_CONFIG` env → vault 文件权限中止），改为 create + 无条件 converge PUT，break→heal 回归验证通过。**Phase 2 + Phase 3 亦已推进（2026-07-11）**：`VPS Onboard` 模板 + 凭据契约（`public_key_content`；managed 校验用**任务级连接变量复用 Key Store 钥匙**，无挂载——round12 真机验证后从挂载方案重构而来）。**Phase 3 真机闭环 2/3 通过**：u24 + d13 onboard → 切 39222 managed 通道 → 重审 `success` + `changed=0`；r9 受 EPEL 镜像不可达阻塞（VPS 基础设施，非代码）。见 `round10`–`round12-2026-07-11.changelog.md`。**下一步：r9 修 EPEL 后补齐 + `controller-vps-smoke`/TSVS。**
+- **状态**：▶️ owner branch + cleanup 已落地；Worker 本地实现 / Cloudflare deploy / live probe CRUD 均通过但 **不是执行主线**。**Phase 0 gate + Phase 1 gate 均已过（2026-07-11）**：首次真机 `VPS Audit` 对 3 台跨系测试机（Ubuntu 24.04 / Rocky 9.8 / Debian 13.5）`status=success`、`failed=0 changed=0`。过程中修掉 `bootstrap.yml` 两个缺陷（template 未绑 env + `vps-audit-env` 缺 `ANSIBLE_CONFIG` env → vault 文件权限中止），改为 create + 无条件 converge PUT，break→heal 回归验证通过。**Phase 2 + Phase 3 亦已推进（2026-07-11）**：`VPS Onboard` 模板 + 凭据契约（`public_key_content`；managed 校验用**任务级连接变量复用 Key Store 钥匙**，无挂载——round12 真机验证后从挂载方案重构而来）。**Phase 3 真机闭环 2/3 通过**：u24 + d13 onboard → 切 39222 managed 通道 → 重审 `success` + `changed=0`；r9 首先受 EPEL 镜像不可达阻塞，后续 RHEL 步骤仍待验证。`controller-vps-smoke` 与 TSVS 已建并对 u24+d13 PASS。见 `round10`–`round12-2026-07-11.changelog.md`。**下一步：修复 r9 EPEL 可达性后补齐 RHEL 全链路。**
 - **运行态探针结论（2026-06-06）**：Semaphore `static` inventory 支持 whole-blob CRUD；`PUT /inventory/{id}` 返回 `204`；任务运行时变量使用 task-level `environment` JSON string 承载嵌套 `vps_task`，不依赖 raw `extra_vars`。
 - **决策（2026-06-06 全部关闭）**：Q1 不加内部 TLS（docker 内部）· Q2 暂用 SQLite（后期升 Postgres，与 TASK-003 一并处理）· Q3 保持 Key Store（后续按需 Vault）· Q4 CF Worker = JS。详见 `design-2026-05-26.md §八`。
 - **下一步（按 Jun-10 approved plan 执行，不另开新仓）**：
     1. `[✓]` Phase 0（gate 已过 2026-07-11）：**collections 解析已验证**——`make controller-up`（Semaphore v2.18.2 / ansible 13.5.0）+ 容器内 `--syntax-check playbooks/vps/{onboard,audit}.yml` 均 `exit 0`，4 个所需 collection（community.general/mysql/docker、ansible.posix）镜像自带，**无需烘焙 Dockerfile**。顺带修复 `ansible.cfg` 全局 `vault_password_file` 使容器急切加载 host `.vault_pass`（uid1000/600）失败的 bug——commit `0b68119`。
-    2. `[✓]` Phase 1（gate 已过 2026-07-11）：**代码 P1.1–P1.4（commit `2da4aae`）+ P1.3 副作用 SAFE + 首次真机 audit `status=success`**。`bootstrap.yml` 新增 `vps-fleet`/`vps-fleet-key`/`vps-audit-env`/`VPS Audit` + post-condition 断言 + 幂等修复。首跑 vault 报错 → 修掉两缺陷（未绑 env + 缺 `ANSIBLE_CONFIG` env，见 changelog Root Cause），改 create + converge PUT，break→heal 回归通过。task #3/#4 对 u24/r9/d13 三机 `failed=0 changed=0`。**⚠ 待提交**：round10 + TODO + `bootstrap.yml` 两缺陷修复尚未 commit。
+    2. `[✓]` Phase 1（gate 已过 2026-07-11）：**代码 P1.1–P1.4（commit `2da4aae`）+ P1.3 副作用 SAFE + 首次真机 audit `status=success`**。`bootstrap.yml` 新增 `vps-fleet`/`vps-fleet-key`/`vps-audit-env`/`VPS Audit` + post-condition 断言 + 幂等修复。首跑 vault 报错 → 修掉两缺陷（未绑 env + 缺 `ANSIBLE_CONFIG` env，见 changelog Root Cause），改 create + converge PUT，break→heal 回归通过。task #3/#4 对 u24/r9/d13 三机 `failed=0 changed=0`；修复与 round10 已由 commit `96b11ba` 落地。
     3. `[✓]` Phase 2（2026-07-11）：`onboard.yml` 加 `public_key_content` 内联分支；`bootstrap.yml` 新增 `vps-onboard-env` + `VPS Onboard`(复用 Phase 1 env-绑定,live id=15/env=5)。**凭据契约后经真机验证重构（round12）**：managed 校验从"挂载私钥 + `ssh -i`"改为**任务级连接变量复用 Semaphore Key Store 钥匙**（挂载撞容器 uid 权限、且重复 Key Store，已删挂载/secrets）；顺带修 fail2ban-on-RHEL(前置 EPEL)。见 `round11`/`round12-2026-07-11.changelog.md`。
-    4. `[~]` Phase 3（2026-07-11，2/3 真机证明）：**u24 + d13 完整闭环——onboard → 切 39222 managed 通道、关 22 → managed 重审 `success` + `changed=0`**。**r9(Rocky)受阻**：`dnf install fail2ban` 连不上 EPEL 镜像 hung(那台 VPS 基础设施问题,非代码)。onboard 已加 `strategy: free`(单台慢机不再堵全队)。**`controller-vps-smoke`(managed 审计幂等冒烟)+ TSVS-VPS-ONBOARD-E2E-001 已建并 PASS**(u24+d13)。剩余：r9 修 EPEL 可达性后 onboard 补齐(补 RHEL 全链路)。
+    4. `[~]` Phase 3（2026-07-11，2/3 真机证明）：**u24 + d13 完整闭环——onboard → 切 39222 managed 通道、关 22 → managed 重审 `success` + `changed=0`**。**r9(Rocky)受阻**：观察到的首个 blocker 是 `dnf install fail2ban` 无法访问 EPEL 镜像；通过该点后仍需验证余下 RHEL 步骤。onboard 已加 `strategy: free`(单台慢机不再堵全队)。**`controller-vps-smoke`(managed 审计幂等冒烟)+ TSVS-VPS-ONBOARD-E2E-001 已建并 PASS**(u24+d13)。剩余：r9 修 EPEL 可达性后 onboard 补齐(补 RHEL 全链路)。
 - **Deferred**：Worker R3–R12、production inventory migration、自研 UI/API / 新 `saberu` 仓蓝图、AI Copilot(D3)、Profile catalog 等都等上述闭环证明后再评估。
 
 ### TASK-009 — Dependency / Image Security Governance  🟡 **P1（并行，不阻塞主线）**
@@ -141,7 +141,7 @@ Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-202
 
 ## 🗂 索引
 
-- **架构主图**：[`ARCHITECTURE.md`](ARCHITECTURE.md)
+- **架构主图**：[`ARCHITECTURE.md`](ARCHITECTURE.md)；Saberu TARGET/AS-BUILT 图与操作入口见 [`docs/feat-target-architecture/`](docs/feat-target-architecture/)
 - **当前方向证据链**：[`docs/reviews/feat-target-architecture/`](docs/reviews/feat-target-architecture/)
 - **EDA 自愈用户向 guide**：[`docs/user-guide/02-quickstart-eda.md`](docs/user-guide/02-quickstart-eda.md)
 - **Hub 部署速查**：[`docs/operations/hub-deployment.md`](docs/operations/hub-deployment.md)
@@ -150,4 +150,4 @@ Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-202
 - **CLAUDE.md 三层**：`~/.claude/CLAUDE.md` / `~/workspace/CLAUDE.md` / `./CLAUDE.md`
 
 ---
-*Last updated: 2026-06-24 (rules reflection added plan hierarchy / evidence-backed planning / execution-time reflection; Saberu direction remains approved, detail addendum is pending approval).*
+*Last updated: 2026-07-12 (Phase 3 is proven on u24+d13; RHEL remains partial; smoke/TSVS and branch-owned architecture hub are present).*

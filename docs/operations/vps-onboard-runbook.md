@@ -2,17 +2,17 @@
 
 End-to-end, field-verified command sequence for onboarding a fresh VPS using the
 retained `playbooks/vps/` content, driven from a separate control node. This is
-the **manual / break-glass path** — the CF Worker wizard/REST API (`cf-worker/`)
-is the primary entry point; use this when the Worker is unavailable or for
-first-boot bootstrap. The playbooks here are committed project assets, while the
+the **manual / break-glass path** — the Semaphore UI flow in
+[`../feat-target-architecture/operator-guide.md`](../feat-target-architecture/operator-guide.md)
+is the primary entry point. The playbooks here are committed project assets, while the
 inventory + `vps_task` files are operator-local runtime input (kept under
 `runtime/`, gitignored).
 
 > **Convergence rule**: a host onboarded this way is initially known *only* to
 > your local `runtime/onboard/*.ini` files — invisible to the Wizard, REST API,
 > and audit templates. **After Phase 5, register it back into the Semaphore
-> `static` inventory via the Worker `register-managed` path (Phase 6)** so all
-> three entry points share one truth. See the entry-point matrix in
+> `vps-fleet` static inventory (Phase 6)** so all entry points share one truth.
+> See the entry-point matrix in
 > [feature-map `vps-lifecycle.md`](../reference/feature-map/vps-lifecycle.md).
 
 ---
@@ -33,7 +33,8 @@ session mid-run. Always drive from a separate control node.
 |-------------|---------|------------------|
 | `<VPS_A_IP>` | target public IP | (your VPS-A IP) |
 | `<BOOTSTRAP_USER>` | existing non-root user you can SSH in as | `deploy` |
-| `<BOOTSTRAP_KEY>` | private key on the control node that connects to VPS-A | `~/.ssh/<your key>` |
+| `<PROVIDER_KEY>` | existing provider/bootstrap key, used once to install the fleet public key | `~/.ssh/<provider key>` |
+| fleet key | key used by both bootstrap transport and the managed user | `~/.ssh/ansispire_ansible` |
 | managed user / port | account + SSH port onboard creates | `ansible` / `39222` |
 | target OS | | Ubuntu 24.04 (Debian family → ufw applies) |
 
@@ -86,28 +87,32 @@ The third command should print `playbook: playbooks/vps/onboard.yml` with no err
 ## Phase 2 — Prepare keys, inventory, and task files
 
 ```bash
-# 2.1 — managed-user keypair (the key you'll use to reach ansible@39222 later).
-#       -N '' = no passphrase, so later automation needs no agent for this key.
+# 2.1 — fleet keypair. Current onboard validation reuses the run's transport key,
+#       so this SAME key must work for bootstrap and be installed for the managed user.
+#       -N '' keeps this manual break-glass example non-interactive.
 test -f ~/.ssh/ansispire_ansible || ssh-keygen -t ed25519 -N '' -f ~/.ssh/ansispire_ansible
 
-# 2.2 — runtime dir (gitignored)
+# 2.2 — use the existing provider key once to trust the fleet key on bootstrap SSH.
+ssh-copy-id -i ~/.ssh/ansispire_ansible.pub \
+  -o IdentityFile=<PROVIDER_KEY> <BOOTSTRAP_USER>@<VPS_A_IP>
+
+# 2.3 — runtime dir (gitignored)
 mkdir -p runtime/onboard
 
-# 2.3 — bootstrap inventory: vps_targets must contain ONLY VPS-A (first connect = <BOOTSTRAP_USER>@22)
+# 2.4 — bootstrap inventory: connect with the fleet key just installed above.
 cat > runtime/onboard/hosts.ini <<'EOF'
 [vps_targets]
-vps-a ansible_host=<VPS_A_IP> ansible_user=<BOOTSTRAP_USER> ansible_port=22 ansible_ssh_private_key_file=<BOOTSTRAP_KEY> ansible_python_interpreter=/usr/bin/python3
+vps-a ansible_host=<VPS_A_IP> ansible_user=<BOOTSTRAP_USER> ansible_port=22 ansible_ssh_private_key_file=~/.ssh/ansispire_ansible ansible_python_interpreter=/usr/bin/python3
 EOF
 
-# 2.4 — managed inventory: used AFTER onboard, when SSH has moved to ansible@39222
+# 2.5 — managed inventory: used AFTER onboard, when SSH has moved to ansible@39222
 cat > runtime/onboard/hosts.managed.ini <<'EOF'
 [vps_targets]
 vps-a ansible_host=<VPS_A_IP> ansible_user=ansible ansible_port=39222 ansible_ssh_private_key_file=~/.ssh/ansispire_ansible ansible_python_interpreter=/usr/bin/python3
 EOF
 
-# 2.5 — onboard task payload.  NOTE: managed.ansible_key.private_key is REQUIRED
-#        (onboard.yml uses it to validate sudo over the new port).
-#        The shipped playbooks/vps/examples/onboard.*.yml include it as a reference.
+# 2.6 — onboard task payload. The managed authorized key is the same fleet key
+#        used by the playbook transport; no managed private-key path is in vps_task.
 cat > runtime/onboard/vps-a.yml <<'EOF'
 ---
 vps_task:
@@ -122,8 +127,6 @@ vps_task:
     shell: /bin/bash
     authorized_keys:
       - public_key: ~/.ssh/ansispire_ansible.pub
-    ansible_key:
-      private_key: ~/.ssh/ansispire_ansible
     sudo:
       nopasswd: true
   ssh:
@@ -148,7 +151,7 @@ vps_task:
     enabled: true
 EOF
 
-# 2.6 — docker task payload (installed in Phase 4 via docker_host.yml, official apt repo)
+# 2.7 — docker task payload (installed in Phase 4 via docker_host.yml, official apt repo)
 cat > runtime/onboard/docker.yml <<'EOF'
 ---
 vps_task:
@@ -174,9 +177,8 @@ Then fill in the `<...>` placeholders in `hosts.ini`, `hosts.managed.ini`, and `
 ## Phase 3 — Onboard
 
 ```bash
-# 3.1 — unlock the bootstrap private key once (if it has a passphrase); agent holds it for the run
-eval "$(ssh-agent -s)"
-ssh-add <BOOTSTRAP_KEY>
+# 3.1 — confirm the fleet key reaches the bootstrap channel.
+ssh -i ~/.ssh/ansispire_ansible <BOOTSTRAP_USER>@<VPS_A_IP> true
 
 # 3.2 — OPEN PORT 39222 in the cloud provider's security group (keep 22 open too),
 #        otherwise onboard's `wait_for 39222` will time out after the SSH switch.
@@ -240,13 +242,13 @@ Only after Phases 3–5 verifications pass:
 ```bash
 sed -i 's/close_bootstrap_port_after_success: false/close_bootstrap_port_after_success: true/' runtime/onboard/vps-a.yml
 
-# connection still goes via <BOOTSTRAP_USER>@22 (agent must still hold the key)
+# connection still goes via <BOOTSTRAP_USER>@22 with the fleet key
 ansible-playbook playbooks/vps/onboard.yml \
   -i runtime/onboard/hosts.ini -e @runtime/onboard/vps-a.yml \
   --ask-become-pass
 ```
 
-After this the only entry is `ansible@39222` with key auth; root login and
+After this the only entry is `ansible@39222` with fleet-key auth; root login and
 password login are disabled and port 22 is closed in ufw.
 
 ---
@@ -254,28 +256,18 @@ password login are disabled and port 22 is closed in ufw.
 ## Phase 6 — Register the host into Semaphore (converge the entry points)
 
 The host is now managed but only known to your local `runtime/onboard/*.ini`
-files. Register it into the Semaphore `static` inventory through the Worker's
-`register-managed` mode so the Wizard, REST API, and audit templates all see it:
+files. Add it to Semaphore's `vps-fleet` static inventory so the active audit
+template sees the managed channel:
 
-```bash
-# Browser: open the Worker wizard, pick "Register managed node", submit
-#   alias / IP / managed port 39222 / managed user ansible.
-# Or via the REST API (Basic Auth):
-curl -fsS -u "$WORKER_AUTH_USER:$WORKER_AUTH_PASSWORD" \
-  -H 'Content-Type: application/json' \
-  -X POST https://<worker-host>/vps \
-  -d '{"mode":"register-managed","alias":"vps-a","ip":"<VPS_A_IP>","managed_port":39222,"managed_user":"ansible"}'
-
-# verify it now appears to the control plane
-curl -fsS -u "$WORKER_AUTH_USER:$WORKER_AUTH_PASSWORD" https://<worker-host>/vps
+```ini
+[vps_targets]
+vps-a ansible_host=<VPS_A_IP> ansible_user=ansible ansible_port=39222
 ```
 
-`register-managed` writes the managed channel only (it never re-runs
-`onboard.yml`, and rejects `root@22`). For Semaphore itself to reach the host
-afterwards, the inventory must resolve a usable SSH credential — the
-Key-Store-to-Ansible credential mapping is still a tracked follow-up (see the
-feature-map "Known Boundaries"). Until then the record is registered but audit
-execution may not yet authenticate.
+`vps-fleet` is already bound to `vps-fleet-key`, so the same fleet private key
+drives the managed connection. Run `VPS Audit` and require `success` with
+`changed=0`; `make controller-vps-smoke` repeats that assertion later. The
+Worker register/onboard paths are deferred and are not required for this flow.
 
 ---
 

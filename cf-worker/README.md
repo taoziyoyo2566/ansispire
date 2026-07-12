@@ -2,6 +2,13 @@
 
 Cloudflare Worker surface for the Semaphore-driven VPS lifecycle wizard.
 
+> **Deferred surface (2026-07-12):** Semaphore UI is the active Saberu MVP
+> entry point. Inventory CRUD probes remain useful, but `onboard-bare` still
+> requires and emits the superseded `managed_private_key` payload while the
+> current `onboard.yml` reuses the task transport key from Semaphore Key Store.
+> Keep `SEMAPHORE_ONBOARD_TEMPLATE_ID` unset until Worker code, Wizard fields,
+> tests, and post-success promotion are updated together.
+
 > **Full deploy/config/validate procedure:** [`docs/operations/cf-worker-deployment.md`](../docs/operations/cf-worker-deployment.md).
 > This README covers local checks, auth, and conventions only.
 
@@ -121,10 +128,9 @@ The wizard reads `GET /config` on load and shows the current runtime mode:
 
 - `register-managed` is the default add mode. It records an already-managed
   SSH channel in Semaphore `static` inventory and never calls `onboard.yml`.
-- `onboard-bare` is available only when `SEMAPHORE_ONBOARD_TEMPLATE_ID` is
-  configured. It records the bootstrap channel with
-  `lifecycle_state=onboarding`, triggers `onboard.yml`, and still needs a
-  follow-up promotion flow after task success.
+- `onboard-bare` exists in the deferred implementation but is currently
+  incompatible with the playbook's Key Store key-reuse contract. Keep it
+  disabled by leaving `SEMAPHORE_ONBOARD_TEMPLATE_ID` unset.
 - `audit disabled` means `SEMAPHORE_AUDIT_TEMPLATE_ID` is not configured; Audit
   buttons are disabled instead of sending a request that must fail.
 
@@ -138,9 +144,8 @@ The browser wizard supports the first management workflow:
 - Add VPS / Register managed node: creates an optional Semaphore key and writes
   the already-managed host into the configured `static` inventory using the
   managed port/user fields.
-- Add VPS / Onboard bare node: creates an optional Semaphore key, writes the
-  bootstrap `root`/provider SSH channel with lifecycle markers, and triggers
-  onboard only when `SEMAPHORE_ONBOARD_TEMPLATE_ID` is configured.
+- Add VPS / Onboard bare node: deferred; the current UI/payload still carries
+  an obsolete managed key path and must not trigger a live onboard.
 - Edit VPS: updates inventory host fields (`ip`, `port`, `user`) through
   `PUT /vps/:alias`.
 - Remove VPS: removes the host from the configured inventory through
@@ -148,15 +153,12 @@ The browser wizard supports the first management workflow:
 - Audit VPS: enabled only when `SEMAPHORE_AUDIT_TEMPLATE_ID` is configured.
 
 In register-managed mode, the main port/user fields describe the reachable
-managed channel. In onboard-bare mode, the main port/user fields describe the
-bootstrap channel; the post-onboard managed port/user, managed validation key
-path, and authorized public key paths are sent in the onboard payload. They are
-not applied during Edit, which is currently limited to inventory host fields.
-
-Onboard-bare mode requires `managed_private_key` because
-`playbooks/vps/onboard.yml` validates managed SSH with `ssh -i <path>` from the
-Semaphore execution environment. Without an onboard template, the Wizard
-disables onboard-bare mode and Add VPS remains a register-managed operation.
+managed channel. The deferred onboard-bare implementation still sends a
+`managed_private_key` path and `managed.ansible_key.private_key`, but the current
+playbook no longer consumes either field: managed validation reuses the task's
+transport key. Without an onboard template, the Wizard disables onboard-bare
+mode and Add VPS remains a register-managed operation; that is the required
+configuration until the deferred contract is redesigned.
 
 ## REST API Boundary
 
@@ -192,6 +194,8 @@ Current development safeguards:
 
 Remaining development limits:
 
+- Onboard-bare payload/key handling is stale against the current playbook and is
+  intentionally disabled in the supported configuration.
 - Inventory mutation is still whole-blob last-write-wins.
 - Onboard-bare task-trigger failure after inventory update still needs lifecycle
   state handling and post-success promotion from onboarding to managed.

@@ -1,6 +1,6 @@
 @startuml ansispire-components-as-built
-title Ansispire / Saberu — AS-BUILT (live-validated) Components, 2026-07-12
-caption Only components proven working on real machines. Target-only pieces are in ../01-system-components.puml.
+title Ansispire / Saberu — AS-BUILT (evidence-backed) Components, 2026-07-12
+caption Validation levels are explicit. Target-only pieces are in ../01-system-components.puml.
 skinparam componentStyle rectangle
 skinparam shadowing false
 skinparam defaultTextAlignment center
@@ -34,11 +34,11 @@ package "Data Plane  (playbooks/vps/, roles/)  live" as DP #eef6ff {
   collections "roles/\ncommon · infra_baseline · ...\n(idempotent state)" as ROLES
 }
 
-package "Audit + Self-Heal  (controller/audit/)  (e2e-tested)" as AP #ffeef0 {
+package "Audit + Self-Heal  (controller/audit/)  implemented; mixed validation" as AP #ffeef0 {
   component "relay.py" as RELAY
   component "sink.py" as SINK
   file "events.jsonl" as EJL
-  component "reactor.py (v2.3)" as REACT
+  component "reactor.py (v2.6)" as REACT
   file "rules.json\n(Disk Cleanup enabled)" as RULES
   RELAY --> SINK
   SINK --> EJL
@@ -55,7 +55,7 @@ component "make controller-vps-smoke\n(managed audit idempotency)" as SMOKE
 
 OP --> SEM : run templates (UI)
 ENV --> SEM
-SEM --> AUD : task runner\n(ANSIBLE_CONFIG from bound env,\n--private-key from Key Store)
+SEM --> AUD : task runner\n(bound Environment injects vps_task + ANSIBLE_CONFIG;\nKey Store supplies --private-key)
 SEM --> ONB
 ONB --> BC : onboard (root@22)
 BC ..> MC : SSH cutover
@@ -68,6 +68,8 @@ note as N #fdf6e3
   **Not yet in AS-BUILT** (see target diagram):
   - cf-worker Access Layer — deferred, not the main line
   - DB-failover remediation — placeholder (enabled=false, TASK-008)
-  ~ RHEL full onboard (r9) — blocked on that VPS's EPEL reachability
+  ~ RHEL full onboard (r9) — first blocked at EPEL; remaining path unverified
+  Evidence: VPS loop = real hosts; relay = unit-tested;
+  sink → reactor → remediation = Docker E2E.
 end note
 @enduml

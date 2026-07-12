@@ -1,12 +1,12 @@
 # Operator Guide — Saberu VPS Takeover (Semaphore-native)
 
 **What this branch delivers, and exactly how to operate it.** Follow top to bottom
-and you take a fresh Debian/RHEL VPS from "bootstrap SSH only" to "fully managed +
-audited" through the Semaphore control plane — no local `ansible-playbook`, no
-hand-editing inventory blobs.
+and you take a fresh VPS from "bootstrap SSH only" to "fully managed + audited"
+through the Semaphore control plane, without running local `ansible-playbook`.
+The complete proof currently covers Ubuntu and Debian; the RHEL path remains partial.
 
-Picture it first: the system architecture lives in [`../architecture/`](../architecture/)
-— the [as-built](../architecture/as-built/) set is what these steps actually exercise.
+Picture it first: the branch architecture lives in [`diagrams/`](diagrams/); the
+[as-built](diagrams/as-built/) set identifies what these steps have actually proven.
 
 ---
 
@@ -44,7 +44,7 @@ cp controller/semaphore/.env.example controller/semaphore/.env   # set SEMAPHORE
 make controller-up            # Semaphore → http://localhost:3300  (admin / your password)
 ```
 
-## 3. Bootstrap the Saberu resources (idempotent, zero-touch)
+## 3. Bootstrap the Saberu resources (idempotent IaC)
 
 ```bash
 make controller-bootstrap
@@ -135,14 +135,14 @@ make controller-vps-smoke     # runs VPS Audit, asserts success + changed=0 on e
 | Symptom | Cause & fix |
 |---|---|
 | Task aborts at config-load: *"Could not read vault password file `.vault_pass`: Permission denied"* | The template isn't bound to an env carrying `ANSIBLE_CONFIG`. The Semaphore task runner does **not** inherit the container's env; the bound Environment's `env` must set `ANSIBLE_CONFIG=/workspace/controller/semaphore/ansible.cfg`. `make controller-bootstrap` converges this. See `controller/semaphore/README.md` "Template Authoring GOTCHA". |
-| onboard hangs on a Rocky/RHEL host at *"Install fail2ban"* | That VPS can't reach EPEL mirrors (`epel-release` installs, then `dnf install fail2ban` hangs). Fix EPEL reachability on the host, or drop `fail2ban.enabled` for it. Not a playbook bug. |
+| onboard hangs on a Rocky/RHEL host at *"Install fail2ban"* | The observed r9 run could not reach EPEL mirrors (`epel-release` installed, then `dnf install fail2ban` hung). Fix EPEL reachability, or disable fail2ban for that run. Passing this blocker is still required before the remaining RHEL path can be assessed. |
 | managed-login validation fails right after cutover | The managed user must trust the fleet key — set `public_key_content` (step 6) to the fleet **public** key that pairs with the Key Store private key. |
 | "processing"/no data on a host | fleet **private** key not in Key Store, or the target `authorized_keys` doesn't trust the fleet public key. |
 | Want to undo | There is no auto-rollback. Onboard is re-runnable while root@22 is still open; a full revert (offboard) is TASK-010 (backlog). Use console/VNC if locked out. |
 
 ## References
 
-- **Design + as-built diagrams**: [`../architecture/`](../architecture/)
-- **Why/what landed (evidence)**: [`../reviews/feat-target-architecture/`](../reviews/feat-target-architecture/) — `round10`–`round12-2026-07-11.changelog.md`
-- **Test spec**: `docs/reference/test-specs/vps-onboard-managed-audit-e2e.md` (TSVS-VPS-ONBOARD-E2E-001)
+- **Design + as-built diagrams**: [`diagrams/`](diagrams/)
+- **Why/what landed (evidence)**: [`../reviews/feat-target-architecture/`](../reviews/feat-target-architecture/) — `round10`–`round13` changelogs
+- **Test spec**: [`TSVS-VPS-ONBOARD-E2E-001`](../reference/test-specs/vps-onboard-managed-audit-e2e.md)
 - **Playbooks**: `playbooks/vps/{audit,onboard}.yml` · **bootstrap**: `controller/semaphore/bootstrap.yml`

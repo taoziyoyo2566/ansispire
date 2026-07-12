@@ -10,13 +10,13 @@ Ansispire is a **Multi-Server Management Control System** for high-availability 
 
 ## 2. Architectural Blueprint
 
-> **Visual**: [`docs/architecture/`](docs/architecture/) — component / sequence / data-flow diagrams (target **and** as-built). **Operate**: [`docs/feat-target-architecture/operator-guide.md`](docs/feat-target-architecture/operator-guide.md) — run the Saberu VPS takeover loop end to end.
+> **Visual + operate**: [`docs/feat-target-architecture/`](docs/feat-target-architecture/) — the branch-owned Saberu hub with target/as-built diagrams and the Semaphore-native takeover guide.
 
 - **Control Plane** (`controller/`): Go-based (Semaphore) management interface; deployed via Ansible role (`ansispire_hub`) or directly via docker compose.
-- **Audit Plane** (`controller/audit/`): Real-time event tracking + non-repudiation logging (sink + relay + reactor).
+- **Audit Plane** (`controller/audit/`): Event tracking with an application-level append-only JSONL writer plus relay and reactor. The current storage is not cryptographically tamper-evident.
 - **Data Plane** (`roles/`, `playbooks/`): Idempotent server state definitions.
 - **VPS Lifecycle Content** (`playbooks/vps/`): retained onboarding / modify / audit / remove / docker_host / deploy_compose playbooks intended to be driven by Semaphore Inventory + Key Store + Task API. This branch intentionally removes the old local `plugins/vps_manager` control surface.
-- **VPS Control-Plane Access Layer** (`cf-worker/`): a Cloudflare Worker exposing a same-origin browser **wizard** plus a **REST API** over the Semaphore Inventory / Key Store / Task API, so VPS `register-managed` / `onboard-bare` / `audit` can be driven without hand-editing inventory blobs. Browser and REST share one backend; manual `ansible-playbook` from a control node stays the break-glass path. Edge auth is interim HTTP Basic Auth (Cloudflare Access + service tokens are the planned production auth). See [`docs/reference/feature-map/INDEX.md` §3.5](docs/reference/feature-map/INDEX.md); deploy/config/validate: [`docs/operations/cf-worker-deployment.md`](docs/operations/cf-worker-deployment.md).
+- **VPS Control-Plane Access Layer** (`cf-worker/`, deferred): a probe-tested Cloudflare Worker wizard/REST surface over Semaphore Inventory / Key Store / Task API. Semaphore UI is the active MVP entry point. Worker `onboard-bare` still uses the superseded managed-key-path payload and must remain disabled until its contract and tests are aligned with Key Store transport-key reuse. See [`docs/reference/feature-map/INDEX.md` §3.5](docs/reference/feature-map/INDEX.md).
 - **Reaction Plane** (EDA / Reactor): Event-driven remediation (API-driven via Bearer Token) and notification. Supports dynamic template resolution by name.
 - **Database Backend**: SQLite (BoltDB deprecated upstream).
 - **Config-as-Code (IaC)**: Standardized bootstrap via `controller/semaphore/bootstrap.yml` automates project / template / token provisioning. UI zero-touch.

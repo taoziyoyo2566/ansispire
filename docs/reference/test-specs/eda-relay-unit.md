@@ -14,7 +14,8 @@
   - tick 拉到 ≤ cursor 的事件 → 既不转发也不推进
 - **不在范围**:
   - 真实 Semaphore /api/events 契约 (→ `TSVS-AUDIT-LOOP-001` L5)
-  - reactor → relay → sink 端到端 (→ `TEST-EDA-004` e2e)
+  - 真实 Semaphore → relay → sink (→ `TSVS-AUDIT-LOOP-001` L5)
+  - sink → reactor → remediation (→ `TEST-EDA-004` L4；该 carrier 不经过 relay)
 
 ## 2. 测试环境 (Environment)
 - 操作系统: Linux 任意版本

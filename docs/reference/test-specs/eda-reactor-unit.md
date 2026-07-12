@@ -22,7 +22,7 @@
 ## 4. 测试方法与步骤 (Methodology)
 
 ### 4.1 前置条件
-- `controller/audit/reactor.py` 为 v2.3 (Bearer token + dynamic resolution + cooldown)
+- `controller/audit/reactor.py` 为 v2.6（Bearer token、dynamic resolution、cooldown、持久化 cursor、copytruncate recovery、malformed-rule isolation）
 
 ### 4.2 执行步骤
 ```bash
@@ -31,7 +31,7 @@ python3 controller/audit/test_reactor.py
 make test-eda-unit
 ```
 
-### 4.3 用例清单（14 cases）
+### 4.3 用例清单（19 cases）
 
 | # | 用例 | 验证点 |
 |---|---|---|
@@ -40,6 +40,7 @@ make test-eda-unit
 | TestMatchRule.test_contains_match | description_contains 子串存在 → 命中 | _contains 子串 |
 | TestMatchRule.test_contains_mismatch | description_contains 子串不存在 → 不命中 | _contains 否决 |
 | TestMatchRule.test_contains_missing_field | _contains 引用的字段在事件里没有 → 不命中 | str(None) 处理 |
+| TestMatchRule.test_contains_value_coerced_to_string | 非字符串 contains 值不会使 matcher 崩溃 | 防御性类型处理 |
 | TestMatchRule.test_mixed_exact_and_contains | exact + _contains 共存，全满足才命中；任一不满足都不命中 | 多条件 AND |
 | TestMatchRule.test_no_event_envelope | 事件没有 payload.event 子键 → 不命中 | 守护 |
 | TestMatchRule.test_cooldown_blocks_within_window | 5s < 10s cooldown → 不命中 | 冷却阻挡 |
@@ -49,14 +50,18 @@ make test-eda-unit
 | TestProcessEvent.test_no_dispatch_on_mismatch | 不命中 → 不调用 | 非 dispatch |
 | TestProcessEvent.test_invalid_json_does_not_raise | 残缺 JSON 行 → 静默吞吐，不 crash | 容错 |
 | TestProcessEvent.test_empty_line_skipped | 空白行 → 直接 return | 容错 |
+| TestProcessEvent.test_malformed_rule_does_not_crash_loop | malformed condition 隔离，后续规则仍执行 | per-rule exception isolation |
+| TestProcessEvent.test_non_dict_rule_isolated | 非 dict rule 被跳过，后续规则仍执行 | schema bypass 防御 |
+| TestTailCursor.test_truncation_resets_cursor_to_start | copytruncate 后从新文件开头读取 | v2.5 regression |
+| TestTailCursor.test_cursor_zero_means_seek_to_start_not_eof | cursor 文件中的 0 保持权威语义 | v2.6 regression |
 
 ## 5. 预期结果 (Expected Results)
 ```
-Ran 14 tests in <0.01s
+Ran 19 tests in <5s
 
 OK
 ```
-- 全部 14 个用例 PASS
+- 全部 19 个用例 PASS
 - exit code 0
 - 仅 stderr 有 reactor 自身的 log 行（`MATCH FOUND` / `JSON parse error` 等是被测试触发的预期日志，不是失败）
 
@@ -64,6 +69,8 @@ OK
 - **执行时间**: 2026-05-09 round1 → round3
 - **执行人**: Claude (`feat/eda-advanced-healing` Phase 2 + Phase 3 增量)
 - **状态**: PASS
+
+**2026-07-12 current verification**: `make test-eda-unit` ran 19 tests and passed.
 
 ```
 $ python3 controller/audit/test_reactor.py

@@ -194,14 +194,14 @@ make controller-audit-up
 
 ### 5.5 跑测试金字塔
 ```bash
-# L1+L2+L3 — 28 cases，纯 Python，不到 1 秒
+# L1+L2+L3 — 46 cases + rules schema，无 Docker
 make test-eda
 
-# L4 — 真容器栈端到端，约 60 秒
+# L4 — sink 注入 → reactor → remediation 真容器路径，约 60 秒
 make test-eda-e2e
 ```
 
-L4 全程在隔离的 `ansispire-e2e` compose 项目里跑，**不影响**你 5.3 起的 dev 栈（端口 3320/3330 vs dev 3300/3310）。
+L4 全程在隔离的 `ansispire-e2e` compose 项目里跑，**不影响**你 5.3 起的 dev 栈（端口 3320/3330 vs dev 3300/3310）。它从 sink 注入，不覆盖 Semaphore→relay→sink；后者由 `make controller-loop-smoke` 单独验证。
 
 ### 5.6 手动注入故障 + 观察
 ```bash

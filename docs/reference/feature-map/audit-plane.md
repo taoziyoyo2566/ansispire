@@ -4,7 +4,9 @@
 ✅ 稳定。R5/R6 测试硬化（2026-05-10）已落地：UFW loopback 显式 allow（消除 self-probe 误失败）+ 模板 `ansible_managed` 通过 `comment` filter 包裹（防止注入到 nginx/mysql conf body 时被解析为未知指令）。
 
 ## Overview
-The Audit Plane ensures a tamper-proof, reliable trace of all management actions performed in the Ansispire system. It decouples event capture from core management logic.
+The Audit Plane records management events through a decoupled relay and an
+application-level append writer. The current JSONL volume is operational audit
+history, not cryptographically tamper-proof or WORM storage.
 
 ## 组件 (per hub host)
 - **`sink.py`** — Python 轻量 HTTP 接收器，append-only 写入 JSONL（host 端口 3310，container 内 3010；`AUDIT_PORT` 可覆盖）。容器从 `Dockerfile.sink` 本地构建，logrotate 烘焙入镜像（不再 runtime `apk add`）
@@ -25,13 +27,16 @@ The Audit Plane ensures a tamper-proof, reliable trace of all management actions
 `Semaphore` → `relay.py`（polling + cursor pagination） → `sink.py`（HTTP receiver） → `events.jsonl`（artifact） → `reactor.py`（rule match → Semaphore API）
 
 ## Critical Guarantees
-- Zero data loss during relay restarts (via cursor + backfill pagination)
-- Zero data loss during reactor restarts (cursor persisted to `audit-reactor-state` volume; cold start resumes from last flushed offset rather than tail-EOF — see `eda-core.md` `CURSOR_FILE` env)
-- Zero data loss across logrotate `copytruncate` events (reactor v2.5: when offset > file size, seek to 0 and consume post-rotate content from the start; previous v2.4 silently jumped to EOF and dropped every post-rotate event until next restart)
+- Relay restart recovery via a persisted timestamp cursor and bounded backfill
+  pagination (50 items × 10 pages per poll). This is resumable, but not an
+  unbounded zero-loss guarantee under a backlog larger than the cap.
+- Reactor restart recovery via a persisted byte cursor in
+  `audit-reactor-state`; copytruncate recovery seeks to the start of the new file.
 - Decoupled persistence (Sink is independent of Controller / Reactor)
-- Append-only on disk (`events.jsonl` 不允许就地改写)
+- Append-by-writer behavior (`sink.py` does not rewrite prior records). The
+  underlying volume remains mutable by privileged operators/processes.
 - Bounded reload pressure: reactor `load_rules` is mtime-gated (`RULES_MIN_RELOAD_INTERVAL`, default 30 s) — busy editor saves cannot DoS the matcher
 
 ## TSVS
-- [`docs/reference/test-specs/audit-plane.md`](../test-specs/audit-plane.md) — 旧规格（如有）
-- 复用 [`eda-reactor-e2e.md`](../test-specs/eda-reactor-e2e.md) L4 测试覆盖 sink + relay + reactor 全链路
+- [`audit-loopback-functional.md`](../test-specs/audit-loopback-functional.md) covers Semaphore → relay → sink.
+- [`eda-reactor-e2e.md`](../test-specs/eda-reactor-e2e.md) injects at sink and covers sink → reactor → Semaphore remediation task. It intentionally does not exercise relay or assert the remediation event's return trip.

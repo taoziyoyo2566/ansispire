@@ -11,11 +11,11 @@ start
 :POST events;
 |Sink (sink.py)|
 :HTTP receiver (host 3310 / ctr 3010);
-:append to **events.jsonl**\n(non-repudiation, append-only);
-|Reactor (reactor.py v2.3)|
+:append to **events.jsonl**\n(application-level append writer;\nnot cryptographically tamper-evident);
+|Reactor (reactor.py v2.6)|
 :tail events.jsonl;
 if (event matches rules.json?) then (yes)
-  if (per-rule cooldown elapsed?\n(default 600s)) then (yes)
+  if (per-rule cooldown elapsed?) then (yes)
     if (rule enabled?) then (yes)
       :resolve template_name → template_id;
       :authenticate with **Bearer token**\n(no plaintext admin);
@@ -29,17 +29,17 @@ if (event matches rules.json?) then (yes)
       end note
       stop
     else (no)
-      |Reactor (reactor.py v2.3)|
+      |Reactor (reactor.py v2.6)|
       :skip (soft-disabled: enabled=false);
       stop
     endif
   else (no)
-    |Reactor (reactor.py v2.3)|
+    |Reactor (reactor.py v2.6)|
     :suppress (in cooldown);
     stop
   endif
 else (no)
-  |Reactor (reactor.py v2.3)|
+  |Reactor (reactor.py v2.6)|
   :ignore (no rule);
   stop
 endif

@@ -14,10 +14,13 @@ Semaphore-ready `extra_vars` examples.
 - Task input is passed as the top-level mapping `vps_task`.
 - Templates resolve relative to `playbooks/vps/`; there is no local
   `runtime/inbox/`, `runtime/state/`, or SSH-config side effect.
-- The owner plan for the eventual Semaphore Inventory / Key Store / Task API
-  cutover lives in:
-  - `docs/reviews/feat-target-architecture/plan-2026-05-25.md`
-  - `docs/reviews/feat-target-architecture/design-2026-05-26.md`
+- The active Semaphore-native execution plan lives in
+  `docs/reviews/feat-target-architecture/plan-semaphore-native-onboard-2026-06-10.md`
+  with the implementer addendum in
+  `plan-saberu-vps-takeover-execution-2026-06-24.md`.
+- `VPS Audit` and `VPS Onboard` are provisioned as Semaphore templates against
+  the `vps-fleet` static inventory. Ubuntu/Debian have completed the real
+  onboard → managed-audit loop; RHEL remains partially validated.
 
 ## Retained Actions
 
@@ -53,8 +56,11 @@ expected to reuse `onboard.yml` with bootstrap-capable access and the right
 - no SSH config generation on the operator machine
 - no wrapper CLI for `new`, `submit`, `process`, or `tasks`
 
-## Next Steps
+## Current validation and next step
 
-- Phase 1: verify the Semaphore Inventory / Task API contract
-- Phase 2: add CF Worker or other API-facing task submission
-- Phase 3: wire these playbooks into the accepted Semaphore-first execution path
+- `make vps-lifecycle-syntax` covers all six playbooks.
+- `make controller-vps-smoke` re-runs `VPS Audit` against the managed fleet and
+  requires `success`, `changed=0`, `failed=0`, and `unreachable=0`.
+- `TSVS-VPS-ONBOARD-E2E-001` records the u24+d13 real-host proof.
+- Next: restore EPEL reachability on r9 (or use another recoverable RHEL host)
+  and complete the remaining RHEL onboard path.

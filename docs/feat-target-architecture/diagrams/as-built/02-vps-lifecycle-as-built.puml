@@ -1,6 +1,6 @@
 @startuml ansispire-vps-lifecycle-as-built
 title Saberu Onboard → Managed → Re-Audit — AS-BUILT (real VPS, 2026-07-12)
-caption Proven on test-vps-u24 (Ubuntu 24.04) + test-vps-d13 (Debian 13.5). r9 (Rocky) excluded — EPEL-blocked.
+caption Proven on test-vps-u24 (Ubuntu 24.04) + test-vps-d13 (Debian 13.5). r9 first blocked at EPEL; later RHEL steps remain unverified.
 skinparam shadowing false
 
 actor Operator as OP
@@ -13,9 +13,9 @@ participant "Target\nuser@39222 (managed)" as MGD
 == Onboard (VPS Onboard template, strategy: free) ==
 OP -> SEM : Run VPS Onboard
 SEM -> KS : materialize key (transient temp file)
-SEM -> ANS : onboard.yml  (-e vps-onboard-env, --private-key)
+SEM -> ANS : onboard.yml\n(bound Environment injects vps_task + ANSIBLE_CONFIG;\nKey Store supplies --private-key)
 activate ANS
-ANS -> BOOT : root@22 · packages · UFW · fail2ban(+EPEL on RHEL)
+ANS -> BOOT : root@22 · packages · UFW (Debian) · fail2ban(+EPEL on RHEL)
 ANS -> BOOT : managed user + authorized_keys\n(public_key_content = fleet pubkey) + sudo
 ANS -> BOOT : sshd drop-in → managed port, reload\n(transitional: 22 + 39222 open)
 ANS -> MGD : managed validation — task-level ansible_user/ansible_port,\n**reuse the run's key (no mounted file)** → sudo -n true OK
