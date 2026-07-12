@@ -15,6 +15,8 @@ control plane), instead of the retired local `vps_manager` surface.
 
 ## Status (as of 2026-07-12)
 
+> Project-wide rollup (all planes, one page): [root `README.md` → Implementation status](../../README.md#implementation-status). The table below is the branch-scoped detail.
+
 | Piece | State |
 |---|---|
 | Control plane (Semaphore) + `bootstrap.yml` + Key Store + envs + `VPS Audit`/`VPS Onboard` | ✅ live |

@@ -29,6 +29,21 @@ Changes that do NOT trigger a CHANGELOG entry:
 
 ## [Unreleased] — branches `feat/target-architecture` + `feat/vps-manager-plugin` + `feat/multi-os-target-fleet`
 
+### Single-source project status page + branch-owned architecture hub (2026-07-12)
+
+Documentation only — no runtime code, Semaphore resources, inventory, or VPS state changed.
+
+- **`README.md` is now the single "state of the project" page**: added an
+  **Implementation status** table (project-wide, with distinct evidence levels —
+  real-VPS proof vs Docker/CI E2E vs unit) and a **Caveats & gotchas** section
+  aggregating the hard-won operational traps (`ANSIBLE_CONFIG` template binding,
+  onboard closes port 22, RHEL/EPEL, one-fleet-key double duty, append-only-but-
+  not-tamper-proof audit store). Quickstart now names both usage paths
+  (self-heal loop vs VPS takeover → operator guide).
+- **Target/as-built diagrams moved to `docs/feat-target-architecture/diagrams/`**
+  so the branch owns the diagrams it produced; `ARCHITECTURE.md` "Visual + operate"
+  points at the feature hub. Doc-truth reconciliation detail in the round13 changelog.
+
 ### Semaphore-native VPS Onboard wiring — Saberu Phase 2 (2026-07-11)
 
 Branch `feat/target-architecture`. The takeover onboard path runs from the

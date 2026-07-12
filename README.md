@@ -22,6 +22,28 @@ For the architecture-level picture, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ---
 
+## Implementation status
+
+_As of 2026-07-12. This table is the project-wide source of truth for "how far each piece is actually built"; branch-scoped detail lives in the [Saberu feature hub](./docs/feat-target-architecture/). Evidence levels are **not** interchangeable — real-VPS proof, Docker/CI E2E, and unit coverage are labelled distinctly._
+
+| Piece | State | What backs it |
+|---|---|---|
+| Control plane — Semaphore + `bootstrap.yml` + Key Store + envs + `VPS Audit`/`VPS Onboard` templates | ✅ live | `make controller-up` / `controller-bootstrap` (idempotent IaC) |
+| **VPS Audit** (read-only health: disk / mem / failed services / reboot) | ✅ real-VPS validated | Ubuntu 24 · Rocky 9 · Debian 13 |
+| **VPS Onboard → managed cutover → re-audit `changed=0`** (the takeover loop) | ✅ 2/3 real-VPS | u24 + d13 end-to-end; RHEL pending (see below) |
+| `make controller-vps-smoke` (managed-channel audit idempotency) | ✅ live PASS | asserts success + `changed=0` per host |
+| EDA audit + self-heal loop — `relay.py` → `sink.py` → `events.jsonl` → `reactor.py` → remediation | ✅ 46-test suite (L1–L5) | unit → component → disposable e2e + live loopback smoke |
+| RBAC role boundary (`controller/rbac/`) | ✅ smoke-level | `make controller-rbac-smoke` |
+| Data-plane roles (`common` / `webserver` / `database`) | ✅ Molecule | Ubuntu 22 + Debian 12; `infra_baseline` uncovered |
+| RHEL full onboard (Rocky 9) | ~ blocked | first blocker: EPEL mirror reachability; later RHEL steps unverified |
+| cf-worker Access Layer (Wizard / REST) | ⊘ deferred | built + probe-tested; not the current main line, incompatible with the transport-key reuse contract |
+| DB-failover self-heal rule | ▱ placeholder | `enabled=false` (TASK-008) |
+| Offboard / revert | ▱ backlog | no auto-rollback yet (TASK-010) |
+
+Legend: ✅ done / validated · ~ partial / blocked · ⊘ deferred · ▱ placeholder.
+
+---
+
 ## Prerequisites
 
 - **Control node** (where you run `ansible-playbook` and the optional dev compose stack): Linux (Ubuntu 22.04+ / Debian 12 recommended), Python 3.10+, Docker Engine + Compose plugin.
@@ -57,6 +79,21 @@ make test-eda-e2e                                        # disposable e2e on por
 Expected: `make test-eda-e2e` exits zero in ~60 s and leaves a Semaphore UI running at <http://localhost:3320> for inspection.
 
 To deploy the same hub onto a remote VPS (Path A) instead, follow [`docs/user-guide/02-quickstart-eda.md`](./docs/user-guide/02-quickstart-eda.md).
+
+**To take over and manage a real VPS** through Semaphore — onboard → SSH cutover to a managed port → re-audit `changed=0` — follow the step-by-step [**operator guide**](./docs/feat-target-architecture/operator-guide.md). That is the primary workflow this branch delivers; read [Caveats & gotchas](#caveats--gotchas) first (it is a takeover — it closes port 22).
+
+---
+
+## Caveats & gotchas
+
+The hard-won ones — read these before operating the VPS lifecycle in anger.
+
+- **Semaphore templates must bind `ANSIBLE_CONFIG`.** The task runner does *not* inherit the container's environment; each template must bind an Environment whose `env` sets `ANSIBLE_CONFIG=/workspace/controller/semaphore/ansible.cfg` (vault-free), or runs abort at config load on the host `.vault_pass`. `make controller-bootstrap` converges this — see [`controller/semaphore/README.md`](./controller/semaphore/README.md) "Template Authoring GOTCHA".
+- **Onboard is a takeover — it closes port 22.** Only run it against a *recoverable* VPS (console/VNC or reinstall). The managed-login check runs *before* 22 is closed, so a failed onboard leaves `root@22` open and the host re-runnable. There is no auto-rollback (offboard is TASK-010, backlog).
+- **RHEL needs EPEL reachable.** Onboard installs `fail2ban` from EPEL; an unreachable mirror hangs `dnf`. The RHEL full path is unverified past this blocker.
+- **One fleet key does double duty.** The same keypair is the bootstrap transport *and* the managed user's login key. The **private** key lives only in the Semaphore Key Store (never in git, never handled by the agent); the **public** key must be trusted in the target's `authorized_keys`.
+- **The audit store is append-only, not tamper-proof.** `events.jsonl` is an application-level append writer with restart cursors — not cryptographic non-repudiation or WORM storage, and relay backfill is bounded (~500 events/poll). Treat it as operational history, not a legal record.
+- **`config/manifest.yml` is the single source of truth** for ports, image tags, and inventory paths — they propagate to compose, Ansible vars, and CI. Don't hardcode them elsewhere.
 
 ---
 
