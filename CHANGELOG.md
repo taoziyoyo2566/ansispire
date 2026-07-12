@@ -43,6 +43,13 @@ Documentation only — no runtime code, Semaphore resources, inventory, or VPS s
 - **Target/as-built diagrams moved to `docs/feat-target-architecture/diagrams/`**
   so the branch owns the diagrams it produced; `ARCHITECTURE.md` "Visual + operate"
   points at the feature hub. Doc-truth reconciliation detail in the round13 changelog.
+- **`vps_task` payload schema + editor fix** (`playbooks/vps/examples/`): added
+  `vps_task.schema.json` (Draft-07; root requires `vps_task`, 19 known sections
+  whitelisted, inner fields permissive) and a `# yaml-language-server: $schema=`
+  modeline to all 7 example payloads — stops editors mis-validating these
+  `extra_vars` files against the Ansible **playbook** schema (the "Property
+  vps_task is not allowed" error). New gate `make test-vps-examples-schema` (L1,
+  wired into `verify`), mirroring `test-rules-schema`.
 - **Lifecycle scenario coverage made honest** (operator guide §11 + README status):
   `modify.yml` and `remove.yml` exist but are **not wired into Semaphore and not
   real-VPS validated** (syntax-only); `remove.yml` is a light unmanage that keeps

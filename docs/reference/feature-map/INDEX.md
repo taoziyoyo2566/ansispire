@@ -48,6 +48,8 @@
 | `playbooks/vps/docker_host.yml` | `vps_lifecycle` | 安装 Docker Engine 与 daemon 安全默认值 |
 | `playbooks/vps/deploy_compose.yml` | `vps_lifecycle` | 上传并运行 Compose，非公网模式强制 `127.0.0.1` 绑定 |
 
+- **`vps_task` payload schema gate**：`playbooks/vps/examples/*.yml` 是 `vps_task` extra_vars payload（非 playbook）。契约在 [`vps_task.schema.json`](../../../playbooks/vps/examples/vps_task.schema.json)（Draft-07，顶层白名单 19 个 section，内部 permissive）；每个 example 首行带 `# yaml-language-server: $schema=` modeline，令编辑器用对 schema（避免被误当 playbook 校验）。门：`make test-vps-examples-schema`（L1，inline `jsonschema.validate`），已接入 `verify`。
+
 ---
 
 ## 3. 控制面模块 (Controller / Hub-side)

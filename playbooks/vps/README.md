@@ -43,7 +43,11 @@ expected to reuse `onboard.yml` with bootstrap-capable access and the right
 ## Examples & Manual Use
 
 - `examples/*.yml` are `extra_vars` payloads meant for Semaphore Task API or
-  manual `ansible-playbook -e @file` usage.
+  manual `ansible-playbook -e @file` usage. They are **not playbooks**; each
+  carries a `# yaml-language-server: $schema=vps_task.schema.json` modeline so
+  editors validate them against the `vps_task` envelope
+  ([`examples/vps_task.schema.json`](examples/vps_task.schema.json)) instead of
+  the Ansible playbook schema. Gate: `make test-vps-examples-schema`.
 - End-to-end manual onboarding from a control node (the break-glass path):
   [`docs/operations/vps-onboard-runbook.md`](../../docs/operations/vps-onboard-runbook.md).
 - `make vps-lifecycle-syntax` runs native Ansible syntax checks across all six

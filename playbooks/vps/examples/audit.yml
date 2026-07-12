@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=vps_task.schema.json
 ---
 vps_task:
   checks:

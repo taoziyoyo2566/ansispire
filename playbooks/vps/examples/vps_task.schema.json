@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ansispire.local/playbooks/vps/examples/vps_task.schema.json",
+  "version": "1.0.0",
+  "title": "Ansispire VPS lifecycle task payload (vps_task extra_vars contract)",
+  "description": "Contract for playbooks/vps/examples/*.yml — the `vps_task` extra_vars payload consumed by the VPS lifecycle playbooks (audit / onboard / modify / remove / docker_host / deploy_compose) via the Semaphore Task API or `ansible-playbook -e @file`. These files are NOT playbooks; associating this schema via the `# yaml-language-server: $schema=vps_task.schema.json` modeline stops editors from mis-validating them against the Ansible playbook schema. Validation entry: make test-vps-examples-schema. Inner fields are intentionally permissive — the playbooks themselves are the field-level contract; this schema pins the top-level envelope and the allowed section names.",
+  "type": "object",
+  "required": ["vps_task"],
+  "additionalProperties": false,
+  "properties": {
+    "vps_task": {
+      "type": "object",
+      "description": "The single top-level task envelope. Only the sections below are recognised; a typo'd or unknown section is a schema error.",
+      "additionalProperties": false,
+      "properties": {
+        "bootstrap": {
+          "type": "object",
+          "description": "onboard: initial root@port transport used to take over the host (host/port/user/auth)."
+        },
+        "managed": {
+          "type": "object",
+          "description": "onboard: the managed user to create (user/groups/authorized_keys/sudo)."
+        },
+        "ssh": {
+          "type": "object",
+          "description": "onboard: SSH hardening + the managed_port to move to, and whether to close the bootstrap port after success."
+        },
+        "profile": {
+          "type": "object",
+          "description": "onboard: baseline profile toggles (base_packages / unattended_upgrades / system_limits)."
+        },
+        "packages": {
+          "type": "object",
+          "description": "onboard: package install/remove lists applied during baseline."
+        },
+        "swap": {
+          "type": "object",
+          "description": "onboard: optional swap file (enabled / size_gb)."
+        },
+        "network_tuning": {
+          "type": "object",
+          "description": "onboard/modify: optional sysctl tuning (bbr / tcp_fastopen / mtu_probing)."
+        },
+        "firewall": {
+          "type": "object",
+          "description": "onboard/modify/docker_host: UFW policy + allowed_tcp_ports."
+        },
+        "fail2ban": {
+          "type": "object",
+          "description": "onboard/modify: fail2ban enable + sshd jail settings."
+        },
+        "changes": {
+          "type": "object",
+          "description": "modify: the change-set applied to an already-onboarded host (packages/firewall/fail2ban/network_tuning)."
+        },
+        "options": {
+          "type": "object",
+          "description": "remove: de-registration options (e.g. remove_remote_sshd_dropin). Keeps users/keys by default."
+        },
+        "checks": {
+          "type": "object",
+          "description": "audit: which read-only health checks to run (disk/memory/failed_services/reboot_required)."
+        },
+        "thresholds": {
+          "type": "object",
+          "description": "audit: warning/critical thresholds for the checks."
+        },
+        "docker": {
+          "type": "object",
+          "description": "docker_host: Docker engine install + configuration."
+        },
+        "app": {
+          "type": "object",
+          "description": "deploy_compose: application identity (name / project_dir)."
+        },
+        "compose": {
+          "type": "object",
+          "description": "deploy_compose: compose file + env_file source."
+        },
+        "deploy": {
+          "type": "object",
+          "description": "deploy_compose: deployment behaviour (pull / recreate / remove_orphans)."
+        },
+        "expose": {
+          "type": "object",
+          "description": "deploy_compose: how the service is exposed (e.g. cloudflare_tunnel)."
+        },
+        "healthcheck": {
+          "type": "object",
+          "description": "deploy_compose: post-deploy health probe (url / expected_status)."
+        }
+      }
+    }
+  }
+}

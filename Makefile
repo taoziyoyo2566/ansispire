@@ -126,7 +126,7 @@ syntax: ## Syntax check both stag and prod
 	@echo "==> Syntax checking Prod..."
 	$(BIN)ansible-playbook playbooks/site.yml --syntax-check -i inventory/prod
 
-verify: lint syntax vps-lifecycle-syntax check-claude-links detect-secrets test-eda test-filters dry-run ## Push gate — lint + syntax + secrets + governance + Python tests + dry-run (~30–60 s)
+verify: lint syntax vps-lifecycle-syntax test-vps-examples-schema check-claude-links detect-secrets test-eda test-filters dry-run ## Push gate — lint + syntax + secrets + governance + Python tests + dry-run (~30–60 s)
 
 verify-quick: syntax ## Save-point gate — syntax only (~3 s, before commit)
 
@@ -174,6 +174,14 @@ test-rules-schema: ## L1 — extensions/eda/rules.json structural validation aga
 		r = json.load(open('extensions/eda/rules.json')); \
 		validate(instance=r, schema=s); \
 		print('OK extensions/eda/rules.json valid against rules.schema.json')"
+
+test-vps-examples-schema: ## L1 — playbooks/vps/examples/*.yml (vps_task payloads) against vps_task.schema.json
+	@$(BIN)python3 -c "import json, glob, yaml; from jsonschema import validate, Draft7Validator; \
+		s = json.load(open('playbooks/vps/examples/vps_task.schema.json')); \
+		Draft7Validator.check_schema(s); \
+		files = sorted(glob.glob('playbooks/vps/examples/*.yml')); \
+		[validate(instance=yaml.safe_load(open(f)), schema=s) for f in files]; \
+		print('OK', len(files), 'vps_task example(s) valid against vps_task.schema.json')"
 
 test-filters: ## L1 — filter_plugins/custom_filters.py (pure functions, no Ansible)
 	$(BIN)python3 controller/audit/test_filters.py
