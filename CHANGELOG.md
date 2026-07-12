@@ -43,6 +43,11 @@ Documentation only — no runtime code, Semaphore resources, inventory, or VPS s
 - **Target/as-built diagrams moved to `docs/feat-target-architecture/diagrams/`**
   so the branch owns the diagrams it produced; `ARCHITECTURE.md` "Visual + operate"
   points at the feature hub. Doc-truth reconciliation detail in the round13 changelog.
+- **Lifecycle scenario coverage made honest** (operator guide §11 + README status):
+  `modify.yml` and `remove.yml` exist but are **not wired into Semaphore and not
+  real-VPS validated** (syntax-only); `remove.yml` is a light unmanage that keeps
+  users/keys, not a decommission; true offboard/revert is unimplemented (TASK-010).
+  Documentation only — no playbook, template, or VPS state changed.
 
 ### Semaphore-native VPS Onboard wiring — Saberu Phase 2 (2026-07-11)
 

@@ -32,13 +32,15 @@ _As of 2026-07-12. This table is the project-wide source of truth for "how far e
 | **VPS Audit** (read-only health: disk / mem / failed services / reboot) | ✅ real-VPS validated | Ubuntu 24 · Rocky 9 · Debian 13 |
 | **VPS Onboard → managed cutover → re-audit `changed=0`** (the takeover loop) | ✅ 2/3 real-VPS | u24 + d13 end-to-end; RHEL pending (see below) |
 | `make controller-vps-smoke` (managed-channel audit idempotency) | ✅ live PASS | asserts success + `changed=0` per host |
+| **Modify** a managed host (packages / UFW / fail2ban / net tuning) | ~ playbook only | `playbooks/vps/modify.yml` — not wired to Semaphore, syntax-only |
+| **Remove / de-register** (light unmanage — keeps user+keys) | ~ playbook only | `playbooks/vps/remove.yml` — not a decommission; not wired, syntax-only |
+| **Offboard / true revert** (reopen 22, delete managed user) | ▱ backlog | not written — TASK-010 (`feat/vps-offboard`) |
 | EDA audit + self-heal loop — `relay.py` → `sink.py` → `events.jsonl` → `reactor.py` → remediation | ✅ 46-test suite (L1–L5) | unit → component → disposable e2e + live loopback smoke |
 | RBAC role boundary (`controller/rbac/`) | ✅ smoke-level | `make controller-rbac-smoke` |
 | Data-plane roles (`common` / `webserver` / `database`) | ✅ Molecule | Ubuntu 22 + Debian 12; `infra_baseline` uncovered |
 | RHEL full onboard (Rocky 9) | ~ blocked | first blocker: EPEL mirror reachability; later RHEL steps unverified |
 | cf-worker Access Layer (Wizard / REST) | ⊘ deferred | built + probe-tested; not the current main line, incompatible with the transport-key reuse contract |
 | DB-failover self-heal rule | ▱ placeholder | `enabled=false` (TASK-008) |
-| Offboard / revert | ▱ backlog | no auto-rollback yet (TASK-010) |
 
 Legend: ✅ done / validated · ~ partial / blocked · ⊘ deferred · ▱ placeholder.
 

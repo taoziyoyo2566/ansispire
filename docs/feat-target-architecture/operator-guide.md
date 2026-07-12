@@ -130,6 +130,74 @@ make controller-vps-smoke     # runs VPS Audit, asserts success + changed=0 on e
 
 ---
 
+## 11. Other lifecycle actions (modify · remove · offboard)
+
+Sections 0–10 are the one path proven end-to-end. The rest of the VPS lifecycle
+exists as playbooks but is **not wired into Semaphore and not real-VPS validated**
+— the honest state, so you know what you are picking up:
+
+| Action | Playbook | Semaphore template | Ready payload | Validation |
+|---|---|---|---|---|
+| Modify a managed host | `playbooks/vps/modify.yml` | ✗ not provisioned | `examples/modify.standard.yml` | syntax only (`make vps-lifecycle-syntax`) |
+| De-register (light unmanage) | `playbooks/vps/remove.yml` | ✗ not provisioned | `examples/remove.yml` | syntax only |
+| **Offboard / true revert** | — not written | — | — | **backlog — TASK-010** |
+
+### Modify an onboarded host
+
+`modify.yml` runs over the **managed** channel and applies a `vps_task.changes`
+payload — packages (install/remove), UFW TCP allows (Debian-family), fail2ban
+(enable + sshd jail), and network tuning (BBR / TCP Fast Open / MTU probing). The
+ready example turns them all on:
+
+```yaml
+# playbooks/vps/examples/modify.standard.yml
+vps_task:
+  changes:
+    packages: { install: [ncdu], remove: [] }
+    firewall: { allowed_tcp_ports: [39222, 80, 443] }
+    fail2ban: { enabled: true, sshd: { bantime: 3600, findtime: 600, maxretry: 5 } }
+    network_tuning: { enabled: true, bbr: true, tcp_fastopen: false, mtu_probing: true }
+```
+
+Two ways to run it (neither auto-provisioned by `controller-bootstrap`):
+
+- **Semaphore (the Saberu way)** — hand-create a Task Template pointing at
+  `playbooks/vps/modify.yml`, bound to an Environment that carries `ANSIBLE_CONFIG`
+  (the same vault-free binding as `VPS Onboard` — see Troubleshooting) and the
+  `vps_task` JSON. Run it against your managed-channel host.
+- **Local** (per [`playbooks/vps/README.md`](../../playbooks/vps/README.md)) —
+  `ansible-playbook playbooks/vps/modify.yml -i <your managed inventory> -e @playbooks/vps/examples/modify.standard.yml`
+  with the fleet key. The inventory host must already point at the managed
+  user/port (step 9).
+
+> Not yet run on a real VPS — treat the first run as a validation, on a
+> recoverable host.
+
+### Remove (de-register) — NOT a decommission
+
+`remove.yml` is a **light unmanage**, not a teardown. It removes the Ansispire
+sshd drop-in (`/etc/ssh/sshd_config.d/99-ansispire.conf`) *only if* you set
+`vps_task.options.remove_remote_sshd_dropin: true`, validates `sshd -t`, and
+otherwise no-ops. **It intentionally keeps the managed user, keys, firewall, and
+managed port** (its own final task says so). Payload: `examples/remove.yml`. So
+"remove" here means "drop it from active management", not "restore the box".
+
+### Offboard / true revert — not available
+
+There is **no** playbook that reverses the takeover — reopen port 22, delete the
+managed user, roll back the SSH lockdown. That is **TASK-010** (backlog, suggested
+branch `feat/vps-offboard`). Until it lands, a real revert is manual (console/VNC
+as root: reopen 22 in UFW, restore `sshd_config`, remove the managed user), which
+is why every takeover should be on a recoverable host.
+
+### Out of scope here
+
+`docker_host.yml` and `deploy_compose.yml` (prepare a managed host as a Docker
+host / deploy a Compose app) exist for running *workloads* on a managed VPS —
+separate from the takeover lifecycle this guide covers.
+
+---
+
 ## Troubleshooting (hard-won)
 
 | Symptom | Cause & fix |
