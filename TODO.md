@@ -50,7 +50,16 @@
     2. `[✓]` Phase 1（gate 已过 2026-07-11）：**代码 P1.1–P1.4（commit `2da4aae`）+ P1.3 副作用 SAFE + 首次真机 audit `status=success`**。`bootstrap.yml` 新增 `vps-fleet`/`vps-fleet-key`/`vps-audit-env`/`VPS Audit` + post-condition 断言 + 幂等修复。首跑 vault 报错 → 修掉两缺陷（未绑 env + 缺 `ANSIBLE_CONFIG` env，见 changelog Root Cause），改 create + converge PUT，break→heal 回归通过。task #3/#4 对 u24/r9/d13 三机 `failed=0 changed=0`；修复与 round10 已由 commit `96b11ba` 落地。
     3. `[✓]` Phase 2（2026-07-11）：`onboard.yml` 加 `public_key_content` 内联分支；`bootstrap.yml` 新增 `vps-onboard-env` + `VPS Onboard`(复用 Phase 1 env-绑定,live id=15/env=5)。**凭据契约后经真机验证重构（round12）**：managed 校验从"挂载私钥 + `ssh -i`"改为**任务级连接变量复用 Semaphore Key Store 钥匙**（挂载撞容器 uid 权限、且重复 Key Store，已删挂载/secrets）；顺带修 fail2ban-on-RHEL(前置 EPEL)。见 `round11`/`round12-2026-07-11.changelog.md`。
     4. `[~]` Phase 3（2026-07-11，2/3 真机证明）：**u24 + d13 完整闭环——onboard → 切 39222 managed 通道、关 22 → managed 重审 `success` + `changed=0`**。**r9(Rocky)受阻**：观察到的首个 blocker 是 `dnf install fail2ban` 无法访问 EPEL 镜像；通过该点后仍需验证余下 RHEL 步骤。onboard 已加 `strategy: free`(单台慢机不再堵全队)。**`controller-vps-smoke`(managed 审计幂等冒烟)+ TSVS-VPS-ONBOARD-E2E-001 已建并 PASS**(u24+d13)。剩余：r9 修 EPEL 可达性后 onboard 补齐(补 RHEL 全链路)。
-- **Deferred**：Worker R3–R12、production inventory migration、自研 UI/API / 新 `saberu` 仓蓝图、AI Copilot(D3)、Profile catalog 等都等上述闭环证明后再评估。
+- **Deferred**：Worker R3–R12、production inventory migration、自研 UI/API / 新 `saberu` 仓蓝图、AI Copilot(D3) 等都等上述闭环证明后再评估。Profile catalog 已因配置归属/可发现性问题单列为下方方向计划，不再混在本行。
+
+### VPS Profile Catalog — 可组合配置与单一归属  🟡 **P1 方向已批准 / 实现待子计划批准**
+- **目标**：把用户/身份、主机策略、软件与服务的非秘密配置集中到一个可发现的 Git profile library；每个 Node 直接选择一个完整 `BaselineProfile` 和零到多个 `ServiceProfile`，由 Baseline 在内部组合 identity / host-policy / baseline-software 组件；明确 Git / Semaphore Inventory / Key Store / 单次任务参数 / role defaults 的唯一职责。
+- **触发问题**：当前 managed user 至少有 `vps_task.managed`、`common__deploy_users`、`infra_baseline_mgr_user` 三个 owner；`vps-onboard-env` 同时被 UI 手工修改与 `controller-bootstrap` 从仓库示例无条件覆盖，用户无法可靠判断配置应改在哪里。
+- **Direction**：`APPROVED 2026-07-17`（[`docs/reviews/feat-vps-profile-catalog/plan-composable-vps-profiles-2026-07-17.md`](docs/reviews/feat-vps-profile-catalog/plan-composable-vps-profiles-2026-07-17.md)）。
+- **Software child**：`DRAFT`（[`docs/reviews/feat-vps-profile-catalog/plan-software-profile-pilot-2026-07-17.md`](docs/reviews/feat-vps-profile-catalog/plan-software-profile-pilot-2026-07-17.md)）；与父计划同目录，旧 software-only 草案留在历史 topic 并已 superseded。
+- **已确认层级（2026-07-17）**：`BaselineProfile` 是更高层设计；identity 目前只是 Baseline 内部组件，不新增产品级 `IdentityProfile`。Node 日常不直接拼底层组件，需要新组合时创建/复用 Baseline。
+- **当前动作**：在 owner branch `feat/vps-profile-catalog` 执行 WU-0 carrier probe，再提交 identity/user migration 子计划。任何代码或真机变更仍受子计划与 live go/no-go gate 阻塞。
+- **分支管理缺口**：当前工作树仍在 child branch `feat/vps-software-catalog`，且有未提交治理改动；本轮不切分支。发布/实现前需把父方向迁到独立 owner branch，避免扩大后的主题继续隐藏在 software child 中。
 
 ### TASK-009 — Dependency / Image Security Governance  🟡 **P1（并行，不阻塞主线）**
 - **目标**：把当前「版本治理骨架」补成真正可审计的安全 / 兼容性闭环：覆盖 Python 依赖、容器镜像、Semaphore 上游版本、兼容性矩阵、以及 waiver 机制。
@@ -150,4 +159,4 @@ Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-202
 - **CLAUDE.md 三层**：`~/.claude/CLAUDE.md` / `~/workspace/CLAUDE.md` / `./CLAUDE.md`
 
 ---
-*Last updated: 2026-07-12 (Phase 3 is proven on u24+d13; RHEL remains partial; smoke/TSVS and branch-owned architecture hub are present).*
+*Last updated: 2026-07-17 (Phase 3 remains proven on u24+d13 and partial on RHEL; composable VPS profile direction is approved and implementation remains child-plan gated).*

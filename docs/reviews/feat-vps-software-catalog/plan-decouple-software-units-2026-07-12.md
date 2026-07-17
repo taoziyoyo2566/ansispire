@@ -1,11 +1,18 @@
+> **Status**: SUPERSEDED
+> **Created**: 2026-07-12
+> **Branch**: feat/vps-software-catalog
+> **Classification**: [L2] Architecture
+> **Superseded by**:
+> [`../feat-vps-profile-catalog/plan-software-profile-pilot-2026-07-17.md`](../feat-vps-profile-catalog/plan-software-profile-pilot-2026-07-17.md)
+> **Updated**: 2026-07-17 — review found that a software-only catalog did not
+> solve the wider configuration-ownership and discoverability problem. The
+> replacement is a child of the composable VPS profile direction and includes
+> per-host BaselineProfile assignment, migration, validation, test wiring, and
+> safe live gates.
+
 # Plan — Decouple VPS software into named, composable units
 
-**Date**: 2026-07-12
-**Proposed branch**: `feat/vps-software-catalog` (stacked on `feat/target-architecture`)
-**Level**: 🔴 [L2] Architecture (software-config model shift, cross-playbook, testability + consistency NFRs)
-**Author**: Silent Praxis
-**Status**: DRAFT — awaiting approval. No implementation until approved (CLAUDE.md §1).
-**Cost estimate**: Medium–Large, phased across rounds. Touches the real-VPS-proven takeover path, so it carries a mandatory re-validation cost (see §9).
+Historical draft retained as evidence. Do not implement from this document.
 
 ---
 
