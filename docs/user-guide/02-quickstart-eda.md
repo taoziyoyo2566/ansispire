@@ -626,4 +626,6 @@ make hub-deploy HUB_NODE=remote                # 重跑会重新 mint
 
 词汇表、关键文件清单和 TSVS 注册请见 [`05-glossary.md`](./05-glossary.md)（EN，canonical）。
 
-本仓库的设计文档和每轮 changelog 在 [`docs/reviews/`](../reviews/) 下按 `<kind>-<topic>/` 目录组织——查任何特定工作流的演化史浏览对应目录即可。
+本仓库当前主题的审批、审查和每轮变更证据在
+[`docs/workstreams/`](../workstreams/) 下按 `<kind>-<topic>/` 组织；尚未迁移的历史主题仍完整保留在
+[`docs/reviews/`](../reviews/) 中。查某个工作流时只使用它当前所在的一个根目录，不要把两个目录拼成同一条证据链。

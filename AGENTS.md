@@ -10,6 +10,9 @@ Do not turn it into another monolithic governance file.
 - Prefer minimal diffs.
 - If a deeper `AGENTS.md` exists, use it for that subtree.
 - If user instructions conflict with this file, follow the user.
+- `.agents/rules/authorization.md` is the permission/authorization SSOT. Read it
+  before the first write, Git mutation, external write, or live operation, and
+  whenever the user asks what requires permission.
 
 ## Session Bootstrap
 
@@ -23,7 +26,12 @@ When starting in this repo, after a context reset, or when the user asks "where 
    - `.agents/rules/codex-capabilities.md`
    - `.agents/project/overview.md`
    - `TODO.md`
-3. If the current branch maps to a topic under `docs/reviews/`, read the latest relevant plan and round changelog for that topic.
+3. If the current branch maps to a topic, read that functional bundle's
+   `README.md` first when present, then the latest relevant plan,
+   investigation, unresolved review, governing decision, and round changelog
+   under `docs/workstreams/`; use `docs/reviews/` only for an unmigrated legacy
+   topic. If an existing topic lacks `README.md`, read its current artifacts and
+   report the missing hub as migration debt rather than stopping bootstrap.
 4. Summarize current branch, clean/dirty state, active topic, likely next steps, and blocked/deferrable items.
 
 Do not modify files during bootstrap.
@@ -67,11 +75,13 @@ Do not modify files during bootstrap.
 
 ## Read When User Explicitly Asks For A Commit
 
+- `.agents/rules/authorization.md`
 - `.agents/rules/git.md`
 - `.agents/rules/commits.md`
 
-## Read When Touching Branches / Plans / Review Docs
+## Read When Touching Branches / Plans / Workstream Docs
 
+- `.agents/rules/authorization.md`
 - `.agents/rules/git.md`
 - `.agents/rules/branching.md`
 - `.agents/rules/plan-hierarchy.md` when plans have parent/child/addendum relationships.
@@ -81,7 +91,7 @@ Do not modify files during bootstrap.
 
 ## Path-specific Routing
 
-- `docs/AGENTS.md` for `docs/` and review-plan work.
+- `docs/AGENTS.md` for `docs/` and workstream-evidence changes.
 - `plugins/AGENTS.md` for `plugins/`.
 - `controller/AGENTS.md` for `controller/`.
 - `roles/AGENTS.md` for `roles/`.

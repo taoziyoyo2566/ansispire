@@ -5,8 +5,12 @@ Use this when a change creates, moves, or consumes secret material
 
 ## Hard floor (non-negotiable)
 
-- Real secret material **never enters git** — `git rm --cached` is unconditional
-  if it happens, regardless of branch or remote visibility.
+- Real secret material **must not be committed or pushed**. If it appears in the
+  working tree, index, history, logs, or tool output, stop further exposure,
+  redact reports, inspect its state without printing the value, and follow
+  `.agents/rules/authorization.md` plus `.agents/rules/git.md` for remediation.
+  Do not treat `git rm --cached`, history rewriting, or credential rotation as
+  unconditionally authorized.
 - `make detect-secrets` gates `verify`; new findings must be resolved, not baselined
   away without reason.
 

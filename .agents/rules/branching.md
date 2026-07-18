@@ -2,6 +2,9 @@
 
 Current branch policy is described in `CLAUDE.md §4`, but branch decisions should be cross-checked against active plan docs, branch-management notes, and the actual branch state.
 
+- Branch authorization comes from `.agents/rules/authorization.md`; a request to
+  edit files on the current branch does not implicitly authorize a branch
+  switch, branch creation, commit, or publication.
 - For git command behavior, read `.agents/rules/git.md`.
 - `feat/<topic>` can start from `dev` or another `feat/<parent>`.
 - `fix/`, `chore/`, and `refactor/` roll up through a parent `feat/`.
@@ -11,7 +14,10 @@ Current branch policy is described in `CLAUDE.md §4`, but branch decisions shou
 - Project-wide agent guidance (`AGENTS.md`, `.agents/`, and broad path-local routing) is baseline governance: land it on a dev-based branch, then sync active feature branches from `dev`. Only feature-specific local guidance should ride with that feature branch.
 - One topic should have one clear owner branch.
 - Do not keep landing a new architecture direction into a transition branch if the topic has already diverged.
-- If a plan set under `docs/reviews/feat-<topic>/` has no matching branch and is becoming active, create the matching `feat/<topic>` branch and move future work there.
+- If a workstream under `docs/workstreams/feat-<topic>/` (or an unmigrated
+  legacy topic under `docs/reviews/feat-<topic>/`) has no matching branch and is
+  becoming active, create the matching `feat/<topic>` branch and move future
+  work there.
 - If `CLAUDE.md` branch rules and active topic docs conflict, surface the conflict instead of silently choosing one.
 
 ## Multi-machine / publish sync
@@ -19,18 +25,16 @@ Current branch policy is described in `CLAUDE.md §4`, but branch decisions shou
 The same user works from multiple machines; an artifact that exists only in one
 clone's working tree is invisible everywhere else.
 
-- **Commit governance artifacts before switching away.** When leaving a topic for
-  other work (or ending a session), commit plan docs, TODO updates, and round
-  notes even if the code itself is mid-flight — a docs-only WIP commit is fine.
-  An untracked plan cannot be superseded, reviewed, or seen by another machine.
-- **Push the owner branch at round close / session end.** Push credentials are
-  available on dev hosts; an unpushed branch is stale truth on every other clone.
-- **Agent behavior**: commit and push remain user-gated operations — at round
-  close, *propose* the commit/push explicitly (with the exact commands) rather
-  than executing unprompted or silently skipping; the gap this section closes is
-  the artifact never being offered for publication at all.
+- **Offer a governance checkpoint before switching away.** When leaving a topic
+  or ending a session, identify uncommitted plan docs, TODO updates, and round
+  notes and propose a scoped preservation/publication step. Do not create an
+  unsolicited WIP commit or stash.
+- **Offer publication at round close / session end.** An unpushed owner branch
+  is stale truth on every other clone, but commit and push remain user-gated
+  operations. Propose the exact scoped commands rather than executing
+  unprompted or silently skipping.
 - **Check freshness when resuming on any machine.** Run `git fetch origin`
-  (stating the reason — see `git.md` review-required list), then check
+  (stating the reason — see the freshness exception in `git.md`), then check
   `git log --oneline HEAD..origin/<branch>` before basing new work. A clean
   `git status` only means no local edits; it says nothing about being current.
   Basing a plan on a stale clone is how the 2026-06-09 conflicting-plan incident

@@ -6,9 +6,11 @@ Source-of-truth order:
 
 1. `ARCHITECTURE.md`
 2. `TODO.md`
-3. `docs/reference/investigations/INDEX.md`
+3. active functional bundle `docs/workstreams/<topic>/README.md` (or its
+   unmigrated `docs/reviews/<topic>/` equivalent)
 4. `docs/reference/feature-map/INDEX.md`
-5. code and task-local docs
+5. `docs/reference/investigations/INDEX.md` for cross-topic investigations
+6. code and task-local docs
 
 AI guidance inputs:
 
@@ -23,6 +25,7 @@ Main surfaces:
 - `roles/` and `playbooks/`: data-plane automation
 - `plugins/`: local extension surface
 - `inventory/`: environment and fleet definitions
-- `docs/`: governance, feature maps, investigations, plans, reviews
+- `docs/`: governance, feature maps, cross-topic investigations, functional
+  workstream bundles, and legacy reviews/evidence
 
 Old plans are not active truth unless they still match `TODO.md` and current feature maps.

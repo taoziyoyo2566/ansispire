@@ -8,6 +8,12 @@ this workflow to every change.
 
 ## 1. Before editing
 
+Edit authority is defined in
+[`../../.agents/rules/authorization.md`](../../.agents/rules/authorization.md).
+A user change/fix/implementation request authorizes its necessary in-scope
+workspace edits and normal verification; do not request confirmation per file.
+Review-only work remains read-only.
+
 ### 1.1 Define the scope of the change
 
 Before starting, you must be able to answer:
@@ -20,12 +26,19 @@ Before starting, you must be able to answer:
 
 ```bash
 # Confirm the current working tree state
-git status
+git status --short --branch
 git stash list  # confirm no unresolved stashes
-
-# If there are uncommitted changes, commit or stash first
-git add -A && git commit -m "wip: checkpoint before <task name>"
 ```
+
+If there are uncommitted changes:
+
+- identify which changes belong to the current task and which are unrelated;
+- preserve and work around unrelated or unrecognized changes;
+- do not commit, stash, switch branches, restore files, or stage a broad path
+  merely to make the tree clean;
+- if safe separation requires a Git mutation, follow
+  `../../.agents/rules/authorization.md` and `../../.agents/rules/git.md`;
+  commit requests also require `../../.agents/rules/commits.md`.
 
 ---
 
@@ -73,9 +86,13 @@ git diff HEAD -- README.md | grep "^+" | grep -v "^+++" | wc -l
 
 ### 3.2 Handling unintended deletions
 
-- **Unintended deletion found** → restore immediately, then commit
+- **Deletion introduced by the current edit is unintended** → reverse only that
+  known edit, then re-check the diff
 - **Deletion is a deliberate refactor** → note `removed: <reason>` in the commit message
-- **Unsure** → default to restoring, and raise it in the review document
+- **Deletion predates the task or ownership is unclear** → preserve it and raise
+  it in the review; do not restore or overwrite it
+- `git checkout -- <path>` and `git restore <path>` require the exact approval
+  defined in `../../.agents/rules/git.md`
 
 ---
 
@@ -91,43 +108,35 @@ git diff HEAD -- README.md | grep "^+" | grep -v "^+++" | wc -l
 [optional footer: reference review round / closed issues]
 ```
 
-**Valid type values:**
-
-| type | Meaning |
-|------|---------|
-| `feat` | New feature or content |
-| `fix` | Bug fix |
-| `docs` | Docs-only change |
-| `refactor` | Refactor (no behavior change) |
-| `review` | Change responding to review feedback |
-| `chore` | Tooling, configuration, or CI change |
-| `revert` | Restore accidentally removed content |
+Valid type values and identity requirements are defined once in
+`../../.agents/rules/commits.md`.
 
 **Example:**
 
 ```bash
-git commit -m "review(round-2): fix preflight to use Tier 1/2/3 platform model
+git commit -m "fix(preflight): use Tier 1/2/3 platform model
 
 Replace hard-coded Debian/Ubuntu check with OS family acceptance
-and Tier-1 warning. Aligns with platform-support-addendum.
-
-Closes: TODO-2 (Codex Round 2)"
+and Tier-1 warning. Aligns with platform-support-addendum."
 ```
 
 ### When to commit
 
 | Situation | Strategy |
 |-----------|----------|
-| A logical unit is done and self-check passes | Commit immediately |
-| A full review round of fixes is done | Commit per round; include the round number in the message |
-| Need to revert mid-stream | `revert` the commit first, then redo the change |
-| Not sure the change is correct | Commit a `wip:` commit; squash after verification |
+| A logical unit is done and self-check passes | Report it as ready; do not stage or commit |
+| The user directly requests commit preparation | Propose exact paths, stage only those paths, run gates, and present the commit manifest |
+| The user approves the exact post-preparation manifest | Re-check it is unchanged, then create one commit |
+| A full review round of fixes is done | Propose a scoped checkpoint and exact paths; a proposal is not authorization |
+| Need to revert or restore existing work | Stop and obtain the exact authorization required by `../../.agents/rules/git.md` |
+| Not sure the change is correct | Keep it uncommitted and report the uncertainty; do not create an unsolicited WIP commit |
 
 ---
 
 ## 5. Review-round commit flow
 
-After completing a full review round (Codex review + Claude fixes):
+After completing a full review round, a direct commit-preparation request may
+start this flow. It does not authorize the final commit:
 
 ```bash
 # 1. Self-check all changed files
@@ -136,14 +145,24 @@ git diff --stat HEAD
 # 2. Review per-file diffs (watch deletions)
 git diff HEAD
 
-# 3. Confirm the review document has been updated
-ls docs/reviews/
+# 3. Inspect the current topic in both roots
+# New/migrated topics use docs/workstreams/; unmigrated topics remain whole
+# under docs/reviews/. Output for one topic must come from one root only.
+topic="<kind>-<topic>"
+for root in docs/workstreams docs/reviews; do
+  [ ! -d "$root/$topic" ] || find "$root/$topic" -type f -print
+done
 
-# 4. Commit in logical batches
-git add roles/ && git commit -m "review(round-N): <role changes>"
-git add playbooks/ && git commit -m "review(round-N): <playbook changes>"
-git add docs/ && git commit -m "docs(round-N): add review and change log"
-git add . && git commit -m "chore(round-N): update CI, EE, pre-commit"
+# 4. Stage only the exact reviewed paths and commit logical units
+git add <specific-reviewed-paths>
+
+# 5. Run staged checks and present the exact manifest and full message.
+# Stop and wait for the user's later confirmation of that manifest.
+
+# 6. Re-check that the manifest is unchanged, then create exactly one commit.
+git commit -m "<type>(<scope>): <description>"
+
+# Never use git add . or git add -A to collect a mixed working tree.
 ```
 
 ---
@@ -153,7 +172,8 @@ git add . && git commit -m "chore(round-N): update CI, EE, pre-commit"
 When an AI (Claude / Codex) participates in a change:
 
 1. **After editing a file, you must verify the actual change with `git diff HEAD -- <file>`**
-2. **If an unintended deletion is found, it must be restored before committing**
+2. **If the current edit caused an unintended deletion, reverse only that known
+   edit before committing; preserve unrelated or unrecognized deletions**
 3. **"Replaced by refactor" is not a valid reason to skip restoring valuable content**
 4. **Any "already landed" claim in a review document must be backed by a concrete diff**
 5. **Every README rewrite must preserve the section count (sections must not decrease)**
@@ -170,17 +190,18 @@ git diff HEAD -- README.md | grep "^+## " | wc -l   # number of newly added sect
 
 ```bash
 # Snapshot before editing
-git status
+git status --short --branch
 
 # Verify after editing
 git diff --stat HEAD          # file-level overview
 git diff HEAD -- README.md    # README-specific check
 git diff HEAD -- README.md | grep "^-## "  # deleted sections
 
-# Commit
-git add <specific files>
-git commit -m "review(round-N): <description>"
+# An initial request permits preparation only. Commit after the exact staged
+# manifest is shown and the user confirms it in a later message.
+git add <specific-reviewed-paths>
+git commit -m "<type>(<scope>): <description>"
 
-# If an accidental deletion is found, restore a single file
-git checkout HEAD -- <file>
+# If an accidental deletion came from the current edit, reverse only that edit.
+# git checkout/restore of an existing path requires explicit approval.
 ```

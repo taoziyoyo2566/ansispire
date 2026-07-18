@@ -7,7 +7,9 @@ This rule does not apply to edits whose primary purpose is writing or updating a
 
 Before writing the plan, investigate enough to avoid choosing the wrong direction. Do at least two evidence passes:
 
-- **Direction pass**: current project architecture, active branch/topic, TODO/review docs, ownership boundaries, and whether the task belongs here.
+- **Direction pass**: current project architecture, active branch/topic,
+  TODO/workstream evidence, ownership boundaries, and whether the task belongs
+  here.
 - **Implementation pass**: current code shape, existing patterns, framework/tool best practice, and whether the proposed change would extend an anti-pattern.
 
 For non-trivial plans, also apply `.agents/rules/evidence-backed-planning.md`:
@@ -21,7 +23,8 @@ At minimum:
    - `ARCHITECTURE.md`
    - relevant `docs/reference/feature-map/*.md`
    - relevant `docs/governance/*.md`
-   - active plan / changelog under `docs/reviews/`, if one exists
+   - active direction / execution / round evidence under `docs/workstreams/`,
+     or the topic's unmigrated evidence under `docs/reviews/`
    - current implementation
 2. Check whether the requested change fits the project's current direction, branch topic, and ownership boundaries.
 3. Check whether the implementation would layer onto an existing anti-pattern; if yes, surface that before planning the patch.
@@ -39,8 +42,16 @@ Do not treat the user's initial wording as proof that the requested direction is
 ## Plan form
 
 - Small / narrow coding tasks may use an inline plan in the response.
-- Larger, architectural, cross-surface, or multi-step coding tasks need a persistent plan under `docs/reviews/<kind>-<topic>/plan-<slug>-YYYY-MM-DD.md` before implementation (naming per `.agents/rules/file-naming.md`, structure per `.agents/rules/plan-structure.md`).
+- Larger, architectural, cross-surface, or multi-step coding tasks need a
+  persistent direction or execution plan in the topic evidence directory before
+  implementation. Resolve that directory and use the type-specific filename
+  with `.agents/rules/file-naming.md`; use the structure in
+  `.agents/rules/plan-structure.md`.
 - If a persistent plan already exists, update or reference it instead of creating a parallel plan.
+- Do not create another plan for a probe, a stable implementation contract, a
+  runbook, or a work unit already covered by the existing approval scope. Route
+  those artifacts with `.agents/rules/file-naming.md` and link them from the
+  plan.
 
 ## Plan header
 

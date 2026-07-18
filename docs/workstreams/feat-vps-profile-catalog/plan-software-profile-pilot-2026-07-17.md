@@ -8,11 +8,11 @@
 > [`plan-composable-vps-profiles-2026-07-17.md`](plan-composable-vps-profiles-2026-07-17.md)
 > **Blocks implementation**: only the fail2ban software-profile pilot
 > **Supersedes**:
-> [`../feat-vps-software-catalog/plan-decouple-software-units-2026-07-12.md`](../feat-vps-software-catalog/plan-decouple-software-units-2026-07-12.md)
+> [`../../reviews/feat-vps-software-catalog/plan-decouple-software-units-2026-07-12.md`](../../reviews/feat-vps-software-catalog/plan-decouple-software-units-2026-07-12.md)
 > **Does not supersede**: the parent profile direction or the approved takeover
 > skeleton
 
-# Plan — Fail2ban software-profile pilot
+# Execution — Fail2ban software-profile pilot
 
 ## §1 Why this plan exists
 
@@ -50,14 +50,18 @@ include.
   repository examples alone cannot protect live Inventory/Environment values.
 - Tags on a dynamic include need deliberate include/apply handling; they are not
   a substitute for per-host BaselineProfile assignment.
+- The repository already loads project-root `filter_plugins/` through
+  `ansible.cfg` and has a direct-Python unit-test/CI path for pure filter
+  functions. It has no equivalent project convention for an action plugin.
 
 ### Assumptions / unknowns
 
 | Item | Classification | Close point |
 |---|---|---|
-| Exact resolver variable name and Inventory carrier | Depends on parent WU-0/WU-1 | Before this plan can move to PENDING_APPROVAL |
+| Resolver placement/API, exact output variable, and Inventory carrier | Depends on parent WU-0/WU-1 | Before this plan can move to PENDING_APPROVAL |
 | RHEL test image/repository path for fail2ban | Needs implementation probe | Phase 1 |
 | Whether `modify.yml` should support disable/remove in this pilot | Scope decision | Phase 0; recommended no removal, preserve existing configure/enable semantics |
+| Whether Debian-only evidence may authorize a staged production rollout while RHEL is externally blocked | Needs operator decision | Before any partial Phase 3 rollout; default is no |
 
 ## §3 Scope
 
@@ -104,22 +108,72 @@ The adapter is temporary and must emit a deprecation message. Removal requires
 consumer evidence and a later approved phase; it is not silently removed in
 this pilot.
 
+### Resolver provider contract
+
+This plan consumes the resolver built by parent WU-1; it does not create a
+second software-only resolver. Before this child can move to
+`PENDING_APPROVAL`, the WU-1 child plan and evidence must freeze the following
+provider contract:
+
+1. **Recommended mechanism**: a side-effect-free controller-side Python
+   resolver exposed through a thin project-root filter plugin, invoked once per
+   inventory host from a small `pre_tasks`/`set_fact` boundary. The exact filter
+   and resolved-variable names remain a WU-1 decision because WU-0 still has to
+   choose the Inventory carrier.
+2. **Explicit inputs only**: catalog data, the current host's profile
+   assignment, allowlisted Node exception data, legacy input during the
+   compatibility window, and relevant OS facts. The resolver must not read
+   ambient `hostvars` or perform network, filesystem, or remote-host mutation.
+3. **Single validation point**: catalog-name allowlisting, kind/unknown-key/OS
+   checks, dependency and conflict checks, deterministic precedence, and
+   legacy/new mixed-source rejection happen in the resolver before an execution
+   role receives data. Raw Inventory or legacy values must never flow directly
+   into `tasks_from`.
+4. **No hidden ordering DSL**: dependencies are validation constraints, not
+   implicit recursive installation. This pilot adds no catalog priority or
+   arbitrary task-order field; the lifecycle playbook owns the fixed execution
+   point and the role owns fail2ban behavior.
+5. **Test seam**: the pure resolver is directly unit-tested without Ansible,
+   while a two-host Ansible fixture proves host-scoped invocation, namespaced
+   output, redacted diagnostics, and failure before mutation. Its test target
+   must be registered in Make/CI/testing governance/TSVS rather than hidden
+   inside a Molecule-only path.
+
+An action plugin or YAML-only assert implementation is acceptable only if the
+WU-1 child plan shows why the filter boundary is not viable and demonstrates
+equivalent pure unit coverage, explicit inputs, per-host behavior, and
+pre-mutation errors. A YAML assert may check the resolved output contract, but
+must not duplicate the resolver's merge/dependency logic.
+
+### Staged-delivery decision
+
+Debian evidence may close the Debian row and remain useful while RHEL
+infrastructure is unavailable, but it does not by itself complete Phase 3 or
+authorize a production rollout. A Debian-only production stage requires an
+explicit operator-approved addendum naming its target scope, support wording,
+rollback, and the still-blocked RHEL gate. Without that addendum, the default is
+to keep Phase 3 blocked and the existing proven lifecycle unchanged.
+
 ## §4 Implementation plan
 
 ### Phase 0 — Revalidate parent contract and approve this child
 
 **Goal**: replace placeholder assumptions with the actual WU-1 resolver
-contract.
+provider contract and close this pilot's remaining scope decisions.
 
-**Pre-condition**: parent WU-1 is complete.
+**Pre-condition**: parent WU-1 is complete and its resolver evidence is
+available.
 
 **Steps**:
 
-1. Update this draft with the exact resolved-profile variable and carrier.
+1. Update this draft with the exact resolver mechanism/API, resolved-profile
+   variable, Inventory carrier, failure semantics, and registered test target.
 2. Inventory current onboard/modify fail2ban fields, templates, handlers, tags,
    generated files, package/repository steps, and docs.
 3. Decide the non-removal lifecycle boundary and compatibility duration.
-4. Present this plan as `PENDING_APPROVAL`.
+4. Record the operator decision on any Debian-only staged production rollout;
+   absent approval, retain the no-rollout default.
+5. Present this plan as `PENDING_APPROVAL`.
 
 **Gate**: explicit user approval.
 
@@ -167,8 +221,10 @@ behavior.
 
 **Steps**:
 
-1. Add a pre-mutation assert that every selected software name exists in the
-   runtime catalog and that legacy/new sources are not mixed.
+1. Invoke the WU-1 filter-backed resolver/adapter before mutation so every
+   selected software name is catalog-allowlisted and legacy/new sources cannot
+   mix. Keep only a thin assert for the resolved output shape; do not duplicate
+   resolver logic in YAML.
 2. Add a shared include path to onboard and modify using the software
    composition in the parent resolver's per-host BaselineProfile output.
 3. Use explicit `apply.tags`/include tags so `--tags fail2ban` and the selected
@@ -180,9 +236,9 @@ behavior.
    path remains.
 7. Migrate minimal/standard/modify examples and strengthen schema tests.
 
-**Gate**: a two-host fixture in one play selects fail2ban for one host and not
-the other; legacy examples preserve behavior; mixed/unknown input fails before
-mutation; syntax/lint/schema/Molecule pass.
+**Gate**: resolver unit tests pass; a two-host fixture in one play selects
+fail2ban for one host and not the other; legacy examples preserve behavior;
+mixed/unknown input fails before mutation; syntax/lint/schema/Molecule pass.
 
 **Deliverables**: shared lifecycle wiring, adapters, migrated examples, deleted
 duplicates.
@@ -216,6 +272,12 @@ cross-family complete.
 
 **Deliverables**: live evidence and round changelog.
 
+| Live result | Next action |
+|---|---|
+| Debian and RHEL both pass | Proceed to Phase 4 |
+| Debian passes; RHEL has an external reachability blocker | Record partial evidence and keep Phase 3 blocked; no production rollout without the staged-delivery addendum |
+| RHEL behavior contradicts package/config assumptions | Stop and amend this plan before further live runs |
+
 ### Phase 4 — Documentation and closeout
 
 **Goal**: make the new location and migration behavior discoverable.
@@ -239,14 +301,14 @@ recommend editing an overwritten source.
 | Phase | Verification method | Pass condition | Evidence |
 |---|---|---|---|
 | 1 | schema test + Molecule Debian/RHEL + idempotency | selected hosts converge; unselected host untouched; second run has no changes | command output in round changelog |
-| 2 | two-host fixture + legacy/mixed/unknown input tests + lifecycle syntax | two BaselineProfiles produce different software outcomes in one run; old defaults preserved; invalid input stops before mutation | tests + diff evidence |
+| 2 | resolver unit tests + two-host fixture + legacy/mixed/unknown input tests + lifecycle syntax | two BaselineProfiles produce different software outcomes in one run; old defaults preserved; invalid input stops before mutation; no raw name reaches dynamic include | tests + diff evidence |
 | 3 | Semaphore task runs + managed audit smoke | Debian and RHEL onboard/modify succeed; repeat audit `changed=0` | task ids, redacted recap, TSVS |
 | 4 | link/search/docs checks | one documented owner and migration path | closeout changelog |
 
 Required local surfaces include `make test-vps-examples-schema`,
-`make vps-lifecycle-syntax`, the registered `vps-software` Molecule scenario,
-and the repository's normal push gate. Exact commands are updated in Phase 0
-if the parent adds a dedicated profile validator target.
+`make vps-lifecycle-syntax`, the WU-1-registered resolver unit target, the
+registered `vps-software` Molecule scenario, and the repository's normal push
+gate. Exact resolver command names are frozen in Phase 0.
 
 ## §6 Risks and fallbacks
 
@@ -256,6 +318,8 @@ if the parent adds a dedicated profile validator target.
 | Dynamic include accepts arbitrary task filename | Medium | High | Runtime catalog allowlist before include | Replace dynamic include with static dispatcher |
 | Tags skip included work unexpectedly | Medium | Medium | Explicit include/apply tags and tag-specific test | Document selection-only execution and remove unsupported tag promise |
 | Multi-host run still uses one software list | High in old design | High | Resolve one BaselineProfile per host and test two baselines in one play | Declare one-host-per-run temporary limitation and block composition claim |
+| Resolver becomes an action-plugin/YAML mini-framework with hidden inputs | Medium | High | Pure explicit-input filter boundary and direct unit tests | Stop before approval; simplify to catalog lookup + validation |
+| Parent WU-1 stalls, leaving the fail2ban pilot with no executable contract | Medium | Medium | Track WU-1 as a hard dependency and keep this plan DRAFT | Preserve the proven inline lifecycle; do not revive the superseded task-global design |
 | RHEL package source unavailable | Medium | Medium | Reachability preflight and cross-family container/live gates | Keep RHEL gate blocked; do not narrow support silently |
 | Existing managed hosts are locked out by retest | Low-Medium | High | Fresh recoverable targets and separate live approval | Console/reinstall recovery; revert lifecycle wiring |
 
@@ -273,8 +337,19 @@ if the parent adds a dedicated profile validator target.
 - [ ] Round changelog includes automated/live evidence and reflection.
 - [ ] This plan advances to `COMPLETED` only after both family gates pass.
 
+### Evidence map / sources checked 2026-07-17
+
+| Claim / dependency | Source | Freshness / close point |
+|---|---|---|
+| Project-root filter plugins are already configured and directly unit-tested | `ansible.cfg`, `Makefile`, `filter_plugins/custom_filters.py`, `controller/audit/test_filters.py` | Repo fact; re-check at WU-1 |
+| Filter plugins are Ansible's data-manipulation extension and can be loaded from a configured `filter_plugins` directory | https://docs.ansible.com/projects/ansible/latest/plugins/filter.html | Official current docs; validate on pinned Ansible in WU-1 |
+| Action plugins are module/task action extensions rather than the repository's existing pure-data seam | https://docs.ansible.com/projects/ansible/latest/plugins/action.html | Official current docs; revisit only if WU-1 proves the filter boundary insufficient |
+
 ## Next steps
 
-- Wait for the parent direction and WU-1 identity migration contract.
-- Revalidate this draft in Phase 0, then present it separately for approval.
+- The parent direction is approved; wait for the WU-0 carrier decision and WU-1
+  identity-migration contract.
+- Keep this plan DRAFT until WU-1 publishes the resolver mechanism/API, carrier,
+  output name, and unit-test evidence; then revalidate it in Phase 0 and present
+  it separately for approval.
 - Do not implement fail2ban extraction from the superseded 2026-07-12 draft.

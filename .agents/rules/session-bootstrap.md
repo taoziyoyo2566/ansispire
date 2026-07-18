@@ -16,10 +16,28 @@ Then read:
 - `.agents/project/agent-strategy.md`
 - `.agents/rules/codex-capabilities.md`
 
-If the current branch name maps to a topic directory, read the latest relevant files under `docs/reviews/<topic>/`:
+If the current branch name maps to a topic directory, look under
+`docs/workstreams/<topic>/` first. Fall back to the legacy
+`docs/reviews/<topic>/` only when the topic has not been migrated. Both roots
+must not contain the same topic.
 
-- `plan-*.md` for active intent and scope
+- `README.md` first, when present, for the functional overview, owner branch,
+  artifact map, current action, and stable external links
+- `direction-*.md`, `execution-*.md`, and `addendum-*.md` for new approval
+  artifacts
+- relevant `investigation-*.md` for open unknowns and probe evidence owned by
+  the topic
+- historical `plan-*.md` files still referenced by `TODO.md` for active intent
+  and scope
+- latest relevant `review-*.md`, especially any report referenced by TODO,
+  plans, or round evidence with unresolved `P0`/`P1` findings
+- relevant `decision-*.md` when an active plan or TODO entry depends on the
+  decision
 - latest `round*.changelog.md` for what landed, what is blocked, and next steps
+
+If an existing topic lacks `README.md`, continue from its current artifacts and
+report the missing hub as migration debt. Do not create it during the read-only
+bootstrap.
 
 ## Freshness check (multi-machine)
 
@@ -27,7 +45,8 @@ When resuming substantial work (not a quick question), also verify this clone is
 current before basing anything on it:
 
 - `git fetch origin` — allowed here despite the general no-mutation rule below;
-  state "bootstrap freshness check" as the reason (`git.md` review-required).
+  state "bootstrap freshness check" as the reason (the freshness exception in
+  `.agents/rules/git.md` and `.agents/rules/authorization.md`).
 - `git log --oneline HEAD..origin/<branch>` — non-empty means this clone is
   behind; surface it in the status report **before** proposing new work.
   See `.agents/rules/branching.md` §Multi-machine sync.

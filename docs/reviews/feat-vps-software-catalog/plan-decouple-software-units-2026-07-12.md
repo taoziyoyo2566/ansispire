@@ -3,7 +3,7 @@
 > **Branch**: feat/vps-software-catalog
 > **Classification**: [L2] Architecture
 > **Superseded by**:
-> [`../feat-vps-profile-catalog/plan-software-profile-pilot-2026-07-17.md`](../feat-vps-profile-catalog/plan-software-profile-pilot-2026-07-17.md)
+> [`../../workstreams/feat-vps-profile-catalog/plan-software-profile-pilot-2026-07-17.md`](../../workstreams/feat-vps-profile-catalog/plan-software-profile-pilot-2026-07-17.md)
 > **Updated**: 2026-07-17 — review found that a software-only catalog did not
 > solve the wider configuration-ownership and discoverability problem. The
 > replacement is a child of the composable VPS profile direction and includes

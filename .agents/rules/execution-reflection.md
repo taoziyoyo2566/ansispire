@@ -3,6 +3,9 @@
 Use this when executing an approved plan, especially when a phase touches live
 infrastructure, external systems, credentials, or third-party APIs.
 
+Authorization semantics, including standing test-host authorization, are
+defined in `.agents/rules/authorization.md`.
+
 ## Core rule
 
 Do not execute a plan mechanically after reality contradicts it.
@@ -53,10 +56,12 @@ go/no-go check:
 | Expected impact | users, SSH, firewall, packages, services, files |
 | Fallback owner | who can recover via console/reinstall/manual access |
 | Evidence | task id, command output, or log path to capture |
-| Approval | explicit user/operator confirmation for this run |
+| Authorization | per-run confirmation, or the path and bounded fields of a valid standing test-host authorization |
 
-This gate is separate from plan approval. Direction or implementation approval
-does not automatically authorize every destructive live run.
+This gate is separate from ordinary plan approval. A plan covers repeated
+test-host runs only when it contains the complete standing-authorization block
+required by `.agents/rules/authorization.md`; otherwise obtain explicit
+confirmation for the run. Managed-fleet mutation remains per-run.
 
 ## External resource ledger
 

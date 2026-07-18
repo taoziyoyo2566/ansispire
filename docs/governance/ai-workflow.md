@@ -13,7 +13,13 @@ Ansispire may use several AI guidance layers together:
 - `GEMINI.md` — complementary Gemini / cross-agent guidance (context discipline, peer-audit, codification)
 - repo docs and code — current operational truth
 
-When they conflict or drift, prefer the active architecture, governance docs, feature maps, review plans, and code truth.
+When they conflict or drift, prefer the active architecture, governance docs,
+feature maps, active workstream evidence, and code truth.
+
+Authorization is defined once in
+[`../../.agents/rules/authorization.md`](../../.agents/rules/authorization.md).
+Task classification determines planning and verification depth; it does not
+itself grant Git, external-service, or live-infrastructure authority.
 
 ---
 
@@ -24,6 +30,12 @@ We classify every task by its **Blast Radius** to determine the required level o
 ### 🟢 [L0] Fast-track (Hygiene)
 - **Scope**: Documentation typos, code comments, `.gitignore` updates, or non-functional formatting.
 - **Workflow**: The AI executes directly. No plan or changelog required.
+
+Markdown is not automatically L0. Agent rules, approval semantics, operator
+procedures, architecture, and historical evidence are classified by their
+behavioral effect. Bounded fixes from an authorized governance review may use
+the remediation flow without creating a new plan; a new separately approvable
+direction remains L2.
 
 ### 🟡 [L1] Standard (Engineering)
 - **Scope**: Bug fixes within a single component, refactoring a single Ansible role, or updating non-critical configurations.
@@ -36,18 +48,34 @@ We classify every task by its **Blast Radius** to determine the required level o
 ### 🔍 [L1.5] Investigation (Empirical)
 - **Scope**: Root Cause Analysis (RCA), performance spikes, compatibility research, or feasibility studies.
 - **Workflow**:
-  1. AI creates `docs/reference/investigations/IVG-<SCOPE>-<SLUG>.md` based on `TEMPLATE.md` (naming per `.agents/rules/file-naming.md`).
+  1. AI first resolves ownership with `.agents/rules/file-naming.md`:
+     topic-owned work uses
+     `<topic-evidence-dir>/investigation-<slug>.md`; only genuinely cross-topic
+     work uses `docs/reference/investigations/IVG-<SCOPE>-<SLUG>.md`.
+     Both use the investigation template sections.
   2. Document all hypotheses, experiments, and terminal logs in the file.
-  3. **Lazy-loading**: These reports are loaded in future turns ONLY if they are relevant to the current bug or subsystem.
-  4. Final conclusion must provide a clear recommendation (e.g., "Implement Fix X" or "Task is unfeasible").
+  3. Register topic-owned reports in the functional bundle's `README.md`;
+     register cross-topic IVGs in the global investigation index.
+  4. **Lazy-loading**: These reports are loaded in future turns ONLY if they are relevant to the current bug or subsystem.
+  5. Final conclusion must provide a clear recommendation (e.g., "Implement Fix X" or "Task is unfeasible").
 
 ### 🔴 [L2] Strict (Architecture)
 - **Scope**: New subsystems, cross-component interface changes, `controller/` logic, RBAC/Audit shifts, or NFR changes.
 - **Workflow**:
-  1. **Mandatory Plan**: AI creates a plan in `docs/reviews/<kind>-<topic>/plan-<slug>-YYYY-MM-DD.md` (follow `.agents/rules/file-naming.md`).
+  1. **Mandatory Approval Artifact**: AI creates or reuses a direction or
+     execution plan in the topic evidence directory resolved by
+     `.agents/rules/file-naming.md`.
   2. **Plan Structure**: plan must follow `.agents/rules/plan-structure.md` (status block, scope, gates, verification, closure checklist).
-  3. **User Approval**: Implementation starts ONLY after the user approves the plan.
+  3. **User Approval**: Implementation starts only after the user approves every
+     plan/addendum that blocks the intended scope and all named gates permit it.
   4. **Evidence-based Changelog**: A final changelog must be created with actual terminal output proving successful validation.
+
+Supporting artifacts follow functional ownership before artifact type:
+topic-owned probes, decisions, reviews, and round evidence stay in one
+functional bundle. Accepted/current cross-topic design goes to its owning
+stable document; shared runbooks go to operations, reusable test contracts go
+to test specs, and governance belongs in governance. Do not create a nested
+plan merely to restate an already-approved phase.
 
 ---
 
@@ -93,28 +121,30 @@ You can add new autonomous behaviors by modifying `extensions/eda/rules.json`.
 
 - For deep codebase analysis, variable-precedence mapping, or independent review, use the strongest focused analysis / review capability available in the current AI surface.
 - For large but mechanically repetitive edits, use a broad execution agent only when the boundaries are already clear.
-- If a specialized pass materially changes the implementation direction, capture that decision in the plan / changelog / review notes so the next agent can reconstruct it.
+- If a specialized pass materially changes the implementation direction,
+  capture that decision in the correctly typed direction, execution, decision,
+  round, or review artifact so the next agent can reconstruct it.
 
 ---
 
 ## 7. Audit Closure Standard
 
-Review and audit work must not become an infinite refinement loop.
+Use `../../.agents/rules/review-closure.md` as the canonical standard:
 
-Treat the audit as complete when:
-- the review scope is explicit
-- no open correctness-routing or materially misleading findings remain in scope
-- remaining items are optional and explicitly deferred
-- the verification appropriate to the touched surface has passed
+- review-report completion requires frozen scope, classified evidence-backed
+  findings, appropriate read-only checks, and explicit residual risk;
+- open must-fix findings make the reviewed change unready, not the review report
+  incomplete;
+- remediation closure additionally requires all in-scope must-fix findings to
+  be resolved and verified;
+- review-only work does not authorize an implementation pass.
 
-Default audit cadence:
-- one broad audit
-- one implementation pass
-- one targeted re-audit
-
-Go beyond that cadence only when scope changes, new evidence appears, or a previous assumption is proven wrong. If two consecutive passes produce no new must-fix findings, stop.
+Go beyond one broad review plus one authorized remediation/re-audit cycle only
+when scope changes, new evidence appears, or a previous assumption proves
+wrong.
 
 ---
 
 For repo-level AI governance inputs, see [`AGENTS.md`](../../AGENTS.md), [`CLAUDE.md`](../../CLAUDE.md), and [`GEMINI.md`](../../GEMINI.md).
-When they conflict or drift from current repo reality, prefer the active architecture, governance, feature-map, review-plan, and code truth.
+When they conflict or drift from current repo reality, prefer the active
+architecture, governance, feature-map, workstream-evidence, and code truth.

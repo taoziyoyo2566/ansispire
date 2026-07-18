@@ -16,10 +16,14 @@ Then route by surface:
 - `plugins/`
   - `docs/reference/feature-map/vps-manager.md`
 
-- review, plan, or branch-governance work
+- document, review, plan, or branch-governance work
   - `TODO.md`
+  - `.agents/rules/file-naming.md`
   - `docs/governance/contributing.md`
-  - `docs/reviews/`
+  - `docs/AGENTS.md`
+  - use `docs/workstreams/` for approval/review/round evidence after
+    classifying the artifact
+  - treat `docs/reviews/` as the legacy workstream root
 
 - Keep control-plane logic separate from role/data-plane logic.
 - Treat `config/manifest.yml` as SSOT for project-managed ports and image versions.

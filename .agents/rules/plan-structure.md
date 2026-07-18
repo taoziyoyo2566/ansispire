@@ -1,15 +1,29 @@
 # Plan Structure Rules
 
-Applies to new or materially rewritten [L2] plan documents under `docs/reviews/`.
-Historical plans are not required to be backfilled unless they are being edited.
+Applies only to genuine approval-gated [L2] direction plans, execution plans,
+and detail addenda in the topic evidence directory resolved by
+`.agents/rules/file-naming.md`. New topics use `docs/workstreams/`; an
+unmigrated legacy topic remains wholly under `docs/reviews/`.
+
+Historical plans retain their filenames in either root and are not required to
+adopt this section shape unless their approval scope is being materially
+replaced.
+
+Do not use this structure for an investigation/probe, stable design, decision
+record, review report, runbook, task ledger, or round changelog. Route those
+artifacts with `.agents/rules/file-naming.md`; a topic-owned investigation stays
+inside the same functional bundle. A document that neither requests approval
+nor blocks a named implementation scope is not a plan.
 
 "Materially rewritten" means scope, implementation approach, or verification criteria changed.
 Wording-only edits do not trigger this rule.
 
 Also read:
 
-- `.agents/rules/plan-hierarchy.md` when a plan has a parent, child, addendum,
-  or decision-record relationship.
+- `.agents/rules/authorization.md` for the distinction between plan approval,
+  task authorization, Git/external actions, and live-operation confirmation.
+- `.agents/rules/plan-hierarchy.md` when a plan has a parent, child, or addendum
+  relationship.
 - `.agents/rules/evidence-backed-planning.md` when external knowledge, current
   best practice, third-party APIs/tools, security guidance, or live
   infrastructure behavior influences the plan.
@@ -36,24 +50,30 @@ A metadata block at the very top, before any prose:
 > **Created**: YYYY-MM-DD
 > **Branch**: <kind>/<topic>
 > **Classification**: [L2] Architecture
+> **Plan type**: Direction plan | Execution plan | Detail addendum
+> **Approval scope**: direction | implementation approach | named details
+> **Blocks implementation**: yes | no | only <named phases/details>
 > **Supersedes**: <path to older plan if this replaces one, else omit>
 ```
 
-When applicable, add the approval scope metadata from
-`.agents/rules/plan-hierarchy.md`:
+`Plan type`, `Approval scope`, and `Blocks implementation` are mandatory for
+every new approval artifact. Add relationship metadata when applicable:
 
 ```
-> **Plan type**: Direction plan | Execution plan | Detail addendum | Decision record | Runbook
-> **Approval scope**: direction | implementation approach | named details | live operation | closeout
 > **Parent plan**: <path>
-> **Blocks implementation**: yes | no | only <named phases/details>
+> **Does not supersede**: <scope or parent>
 ```
 
 Status lifecycle:
 
 - `DRAFT`: authoring in progress; not yet presented for approval.
 - `PENDING_APPROVAL`: presented to the user, waiting explicit approval.
-- `APPROVED`: explicitly approved; implementation may begin. Add `> **Approved**: YYYY-MM-DD` on the next line so future readers can tell which version was approved.
+- `APPROVED`: the declared `Approval scope` is explicitly approved. Work may
+  begin only when `Blocks implementation`, parent/child dependencies, phase
+  gates, task authorization, and any separate Git/external/live authorization
+  allow that work. Add
+  `> **Approved**: YYYY-MM-DD` on the next line so future readers can tell which
+  version was approved.
 - `COMPLETED`: all phases passed and post-completion checklist done; add `> **Completed**: YYYY-MM-DD` on the next line.
 - `SUPERSEDED`: replaced by a newer plan; include a link to the replacement.
 
@@ -224,15 +244,23 @@ After all phases/WUs pass, explicitly list:
 - **Hidden unknowns** - leaving "implementation will investigate later" as prose
   without naming the close phase and fallback if the investigation contradicts
   the plan.
+- **Plan-shaped artifact inflation** - creating another plan for a probe,
+  runbook, stable contract, review finding, or already-approved phase instead of
+  routing that artifact to its functional owner or stable canonical location.
 
 ---
 
 ## Naming
 
-Follow `.agents/rules/file-naming.md`:
+Resolve the topic evidence directory with `.agents/rules/file-naming.md` and use
+the prefix matching the plan type for newly created files:
 
 ```
-plan-<slug>-YYYY-MM-DD.md
+direction-<slug>-YYYY-MM-DD.md
+execution-<slug>-YYYY-MM-DD.md
+addendum-<slug>-YYYY-MM-DD.md
 ```
 
-`slug` describes what the plan does (not which branch it lives on).
+`slug` describes what the plan does (not which branch it lives on). Historical
+`plan-*.md` filenames remain valid and should not be renamed only for
+consistency.

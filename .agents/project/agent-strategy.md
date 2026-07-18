@@ -35,7 +35,8 @@ When guidance conflicts or seems stale, use this order:
    - `TODO.md`
    - `docs/governance/*`
    - `docs/reference/feature-map/*`
-   - active plan docs in `docs/reviews/`
+   - active plans/evidence in `docs/workstreams/`, with `docs/reviews/` as the
+     legacy fallback for unmigrated topics
    - current code
 4. `CLAUDE.md` and `GEMINI.md`
 5. historical investigations, reviews, and archived docs

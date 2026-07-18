@@ -58,7 +58,7 @@ Every versioned surface, its single authoritative source, and its current postur
 
 ```bash
 uv lock                 # resolve the reconciled pyproject into uv.lock
-git add uv.lock
+git add uv.lock          # only when a commit/checkpoint was explicitly requested
 # commit on the release-cut branch; uv.lock is the reproducible Python set
 ```
 

@@ -1,6 +1,6 @@
 # Ansispire Project TODO
 
-> 工作流：根据 `~/workspace/CLAUDE.md` §2 Plan-First，所有非平凡变更 plan-doc 优先。每完成一轮在 `docs/reviews/<kind>-<topic>/roundN-YYYY-MM-DD.changelog.md` 落证据。
+> 工作流：根据 `~/workspace/CLAUDE.md` §2 Plan-First，非平凡变更先建立与审批范围匹配的 direction/execution 基线；调查、稳定设计、runbook、测试契约和治理文档按各自 SSOT 路由，不再统一包装成 plan。新主题在 `docs/workstreams/<kind>-<topic>/` 保存审批/review/round evidence；`docs/reviews/` 仅作为未迁移历史根目录。
 >
 > 状态语义：`[ ]` 未启动 / `[~]` 进行中 / `[✓]` 完成 / `[blocked]` 等外部依赖。
 >
@@ -55,11 +55,12 @@
 ### VPS Profile Catalog — 可组合配置与单一归属  🟡 **P1 方向已批准 / 实现待子计划批准**
 - **目标**：把用户/身份、主机策略、软件与服务的非秘密配置集中到一个可发现的 Git profile library；每个 Node 直接选择一个完整 `BaselineProfile` 和零到多个 `ServiceProfile`，由 Baseline 在内部组合 identity / host-policy / baseline-software 组件；明确 Git / Semaphore Inventory / Key Store / 单次任务参数 / role defaults 的唯一职责。
 - **触发问题**：当前 managed user 至少有 `vps_task.managed`、`common__deploy_users`、`infra_baseline_mgr_user` 三个 owner；`vps-onboard-env` 同时被 UI 手工修改与 `controller-bootstrap` 从仓库示例无条件覆盖，用户无法可靠判断配置应改在哪里。
-- **Direction**：`APPROVED 2026-07-17`（[`docs/reviews/feat-vps-profile-catalog/plan-composable-vps-profiles-2026-07-17.md`](docs/reviews/feat-vps-profile-catalog/plan-composable-vps-profiles-2026-07-17.md)）。
-- **Software child**：`DRAFT`（[`docs/reviews/feat-vps-profile-catalog/plan-software-profile-pilot-2026-07-17.md`](docs/reviews/feat-vps-profile-catalog/plan-software-profile-pilot-2026-07-17.md)）；与父计划同目录，旧 software-only 草案留在历史 topic 并已 superseded。
+- **Workstream**：[`docs/workstreams/feat-vps-profile-catalog/README.md`](docs/workstreams/feat-vps-profile-catalog/README.md) 是状态、当前动作与 artifact map 的单一入口。
+- **Direction**：`APPROVED 2026-07-17`；whole-topic migration 保留历史文件名，批准范围仍仅为 direction。
+- **Execution details**：WU-1 identity migration execution plan 已建立为 `DRAFT`，必须先由 WU-0 carrier probe 关闭编码/API 未知，再转 `PENDING_APPROVAL`；fail2ban software-profile pilot 仍为 `DRAFT`，并受最终 WU-1 resolver/provider contract 阻塞。旧 software-only 草案已 superseded，但仍作为独立 legacy topic 保留，未被推定为 whole-topic absorption。
 - **已确认层级（2026-07-17）**：`BaselineProfile` 是更高层设计；identity 目前只是 Baseline 内部组件，不新增产品级 `IdentityProfile`。Node 日常不直接拼底层组件，需要新组合时创建/复用 Baseline。
-- **当前动作**：在 owner branch `feat/vps-profile-catalog` 执行 WU-0 carrier probe，再提交 identity/user migration 子计划。任何代码或真机变更仍受子计划与 live go/no-go gate 阻塞。
-- **分支管理缺口**：当前工作树仍在 child branch `feat/vps-software-catalog`，且有未提交治理改动；本轮不切分支。发布/实现前需把父方向迁到独立 owner branch，避免扩大后的主题继续隐藏在 software child 中。
+- **当前动作**：先保全并从本主题工作树分离未提交的 review-taxonomy 改动与未归类 `package.list`，再从 `feat/target-architecture` 基线创建/迁移 owner branch `feat/vps-profile-catalog`；完成分支卫生后执行 WU-0 carrier probe，证据落到同一功能包的 `investigation-profile-carrier.md`，随后用调查结论补齐 WU-1 draft 并单独提交审批。任何代码或真机变更仍受 execution plan 与 live go/no-go gate 阻塞。
+- **分支管理缺口**：当前工作树仍在 child branch `feat/vps-software-catalog`；经 2026-07-17 freshness check，本地与远端均不存在 `feat/vps-profile-catalog`。现状未满足“一主题一 owner branch”，不能把准确记录误当作已闭环；本轮不擅自删除未知文件或切换分支。
 
 ### TASK-009 — Dependency / Image Security Governance  🟡 **P1（并行，不阻塞主线）**
 - **目标**：把当前「版本治理骨架」补成真正可审计的安全 / 兼容性闭环：覆盖 Python 依赖、容器镜像、Semaphore 上游版本、兼容性矩阵、以及 waiver 机制。

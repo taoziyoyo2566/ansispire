@@ -2,6 +2,10 @@
 
 Use this for review or audit tasks, especially agent-governance audits.
 
+Per `.agents/rules/authorization.md`, review/audit/diagnosis is read-only by
+default. A request to fix findings or apply recommendations authorizes the
+bounded remediation edits; do not ask again per file.
+
 ## Must-Fix vs Optional
 
 - `P0`
@@ -19,22 +23,42 @@ Use this for review or audit tasks, especially agent-governance audits.
   - useful but non-blocking structure cleanup
   - future-useful additions not required by the current scope
 
-## Closure Standard
+## Review-report completion
 
-A review is complete when all of the following are true:
+A review-only task is complete when all of the following are true:
 
 1. The scope is frozen.
-2. No open `P0` or `P1` findings remain in scope.
-3. Any remaining `P2` items are explicitly marked optional, future enhancement, or out of scope.
-4. The appropriate verification for the touched surface has passed:
+2. The primary review type and relevant cross-cutting lenses were applied.
+3. Findings are classified, evidence-backed, and separated from design
+   questions and optional improvements.
+4. The appropriate read-only verification for the reviewed surface has run:
    - docs / governance only: path, command, and cross-reference checks; `git diff --check`
    - scripts touched: syntax check for the changed script
    - code touched: follow `docs/governance/testing-governance.md`
-5. The close-out states what was fixed, what was deferred, and why the audit is done now.
+5. The report states verification gaps and residual risk.
+
+Open `P0` or `P1` findings do not make the review report incomplete. They make
+the reviewed change unready for closure.
+
+## Remediation closure
+
+Use this only when the user authorized fixes or the task explicitly includes
+implementation. Remediation is complete when:
+
+1. The remediation scope is frozen.
+2. No open `P0` or `P1` findings remain in scope.
+3. Any remaining `P2` items are explicitly marked optional, future enhancement,
+   or out of scope.
+4. The appropriate verification for the touched surface has passed.
+5. The close-out states what was fixed, what was deferred, and why remediation
+   is complete now.
 
 ## Stop Rules
 
 - Do not open another edit loop for wording polish alone.
-- Default cadence is one broad audit, one implementation pass, and one targeted re-audit.
+- Review-only work defaults to one broad evidence-backed audit; it does not
+  authorize an edit loop.
+- Authorized remediation defaults to one broad audit, one implementation pass,
+  and one targeted re-audit.
 - Go beyond that cadence only if scope changed, new evidence appeared, or a previous assumption was proven wrong.
 - If two consecutive audit passes produce no new `P0` or `P1` findings, stop.

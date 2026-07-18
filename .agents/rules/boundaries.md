@@ -2,6 +2,11 @@
 
 ## Editing boundaries
 
+Repository-file authorization comes from `.agents/rules/authorization.md`.
+A change/fix/implementation request permits the necessary in-scope workspace
+edits without per-file confirmation; a review, audit, explanation, or diagnosis
+is read-only unless remediation is also requested.
+
 Before editing, answer:
 
 1. What files are in scope?
@@ -12,7 +17,8 @@ Before editing, answer:
 - Do not change inventory model, deployment flow, or plugin ownership without checking:
   - `ARCHITECTURE.md`
   - `TODO.md`
-  - relevant plan docs in `docs/reviews/`
+  - relevant active workstream docs in `docs/workstreams/`, or the topic's
+    unmigrated evidence in `docs/reviews/`
 - Do not silently change operator workflows documented in `docs/operations/` or `docs/user-guide/` without syncing those docs.
 - Do not treat an investigation document as an implementation mandate unless current plans or TODO entries still point to it.
 - Preserve historical records in `docs/reviews/_archive/` and investigation files.
@@ -22,8 +28,10 @@ Before editing, answer:
 Triggering a playbook or Semaphore task **mutates real machines** — treat the
 controller API token as a destructive capability, not a read credential.
 
-- Mutating runs against **throwaway / test hosts** designated by an approved plan
-  are covered by that plan's approval; keep provider console access as fallback.
+- Mutating runs against **throwaway / test hosts** require either per-run
+  confirmation or a complete standing test-host authorization block as defined
+  in `.agents/rules/authorization.md`; plan approval without that block is not
+  live authorization. Keep provider console access as fallback.
 - Mutating runs against **managed fleet inventory** require explicit per-run user
   confirmation until a standing fleet-authorization policy exists.
 - Read-only runs (`--check`, `--syntax-check`, audit-style playbooks with no

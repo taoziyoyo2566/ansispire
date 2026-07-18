@@ -6,7 +6,7 @@
 > **Plan type**: Direction plan
 > **Approval scope**: direction
 > **Parent plan**:
-> [`../feat-target-architecture/plan-saberu-vps-takeover-execution-2026-06-24.md`](../feat-target-architecture/plan-saberu-vps-takeover-execution-2026-06-24.md)
+> [`../../reviews/feat-target-architecture/plan-saberu-vps-takeover-execution-2026-06-24.md`](../../reviews/feat-target-architecture/plan-saberu-vps-takeover-execution-2026-06-24.md)
 > **Blocks implementation**: yes — all new profile/catalog code and all
 > behavioral changes to the proven VPS lifecycle path
 > **Does not supersede**: the approved Semaphore-native takeover direction or
@@ -14,8 +14,16 @@
 > **Updated**: 2026-07-17 — user confirmed `BaselineProfile` as the higher-level
 > design: a Node selects one BaselineProfile, while identity, host policy, and
 > baseline software remain internal reusable components.
+> **Updated**: 2026-07-17 — moved the active topic to `docs/workstreams/` while
+> preserving its historical filename, and routed WU-0 probe evidence to an IVG;
+> approval scope is unchanged.
+> **Updated**: 2026-07-18 — corrected documentation routing: the WU-0 probe is
+> topic-owned evidence in `investigation-profile-carrier.md`; the superseded
+> software-only predecessor remains a separate legacy topic because
+> supersession alone does not establish absorption. Approval scope,
+> implementation approach, and verification criteria are unchanged.
 
-# Plan — Composable VPS configuration profiles
+# Direction — Composable VPS configuration profiles
 
 ## §1 Why this plan exists
 
@@ -284,8 +292,9 @@ preserved.
 
 **Steps**:
 
-1. Record the current configuration call graph and legacy consumers in a dated
-   investigation/design note under `docs/reviews/feat-vps-profile-catalog/`.
+1. Record the current configuration call graph, legacy consumers, hypotheses,
+   probes, and results in
+   `docs/workstreams/feat-vps-profile-catalog/investigation-profile-carrier.md`.
 2. Use the repository venv's `ansible-inventory` against disposable fixtures to
    compare:
    - scalar BaselineProfile assignment in INI and YAML;
@@ -295,15 +304,17 @@ preserved.
 3. Probe the pinned Semaphore API/UI capability for static YAML, Variable
    Groups, and Survey Variables without mutating production inventories.
 4. Choose the canonical carrier and write an ownership matrix plus transition
-   rules. Update this plan by dated addendum if the result changes the target
-   contract.
-5. Draft the WU-1 identity migration child plan, including exact consumers,
+   rules in the investigation conclusion. If the result changes the approved
+   direction, stop and request a direction addendum; otherwise carry the
+   accepted contract into the WU-1 execution plan and later stable profile
+   documentation.
+5. Draft the WU-1 identity migration execution plan, including exact consumers,
    compatibility duration, and rollback.
 
 **Gate**: user approves the carrier/ownership decision and the WU-1 child plan.
 
-**Deliverables**: dated investigation/design note, disposable fixtures/tests,
-WU-1 child plan, round changelog.
+**Deliverables**: `investigation-profile-carrier.md`, disposable fixtures/tests,
+WU-1 execution plan, round changelog.
 
 | Probe result | Next action |
 |---|---|
@@ -454,7 +465,7 @@ final round changelog.
 
 | WU | Verification method | Pass condition | Evidence artifact |
 |---|---|---|---|
-| 0 | `ansible-inventory` fixtures + pinned Semaphore API/UI probe | Two hosts resolve distinct baseline/service assignments; chosen carrier survives read/write without loss; capability claims match pinned version | investigation note + sanitized probe output in round changelog |
+| 0 | `ansible-inventory` fixtures + pinned Semaphore API/UI probe | Two hosts resolve distinct baseline/service assignments; chosen carrier survives read/write without loss; capability claims match pinned version | `investigation-profile-carrier.md` + sanitized probe output in round changelog |
 | 1 | schema tests, resolver unit tests, syntax/lint, identity Molecule scenario | unknown/mixed inputs fail before mutation; two BaselineProfiles resolve their intended identities; second converge is idempotent; bootstrap preserves operator data | test output + changelog |
 | 2 | child plan: schema/runtime validation, Debian+RHEL Molecule, onboard/modify checks | fail2ban selected per host, unselected host unchanged, second run idempotent, legacy migration deterministic | child round changelog + TSVS |
 | 3 | per-unit Molecule and file-owner assertions | one writer/resource owner per migrated concern; cross-family passes | round changelog |
@@ -493,6 +504,8 @@ because they passed an earlier audit.
       `docs/governance/testing-governance.md`, and the TSVS index.
 - [ ] `CHANGELOG.md [Unreleased]` records the operator-visible migration.
 - [ ] `TODO.md` marks the direction and each child scope accurately.
+- [ ] `investigation-profile-carrier.md` records the accepted carrier and links
+      the stable contract that owns the current conclusion.
 - [ ] Each implementation round has a
       `round<N>-YYYY-MM-DD.changelog.md` with sanitized evidence.
 - [ ] Live-created or mutated Semaphore resources are recorded in the external

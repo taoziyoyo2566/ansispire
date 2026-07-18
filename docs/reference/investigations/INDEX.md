@@ -1,6 +1,10 @@
 # 调查报告索引 (Investigation Index)
 
-本文件用于记录所有技术调查的摘要，便于 Agent 快速检索并实现"懒加载"。**状态为 `Applied` 时，「应用位置」列指向已落地规则的文档节，无需深读原 IVG。**
+本文件用于记录跨功能、生命周期独立的技术调查，以及尚未迁移的历史
+IVG，便于 Agent 快速检索并实现“懒加载”。单一功能主题拥有的调查应与
+该功能的计划、决策和轮次证据放在同一 topic 目录，并登记在其
+`README.md`，不再重复登记到本表。**状态为 `Applied` 时，「应用位置」
+列指向已落地规则的文档节，无需深读原 IVG。**
 
 | ID | 日期 | 子系统 | 调查类型 | 核心结论 (Abstract) | 状态 | 应用位置 | 关联文档 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -19,12 +23,16 @@
 
 ## Investigation Protocol（路径 / 命名 / 流程契约）
 
-任何 RCA / 可行性研究 / 性能调查 / 架构探索都遵循以下契约（之前以分散形式存在于 `CLAUDE.md`，2026-05-11 起统一收纳到此处）：
+跨功能调查和历史 IVG 遵循以下契约；单一功能拥有的调查遵循同一模板，
+但存放和登记位置改由功能 topic 负责：
 
-1. **文件位置 / 命名**：`docs/reference/investigations/IVG-<SCOPE>-<SLUG>.md`（规则详见 [`.agents/rules/file-naming.md`](../../../.agents/rules/file-naming.md)）
+1. **先判断 ownership**（规则详见 [`.agents/rules/file-naming.md`](../../../.agents/rules/file-naming.md)）：
+   - 单一功能拥有：`<topic-evidence-dir>/investigation-<slug>.md`，登记到 topic `README.md`
+   - 跨功能 / 独立生命周期：`docs/reference/investigations/IVG-<SCOPE>-<SLUG>.md`，登记到本表
+2. **跨功能命名**：
    - `<SCOPE>` 为大写域标签（`SEMAPHORE` / `EDA` / `RUNNER` …）
    - `<SLUG>` 为大写简称（`INVENTORY-API` / `RULEBOOK-MIGRATION` …）
-2. **必须使用模板**：每份 IVG 必须基于 [`TEMPLATE.md`](./TEMPLATE.md) 起草，覆盖 §1–§7 字段（概览 / 背景 / 假设与实验 / 证据 / 发现 / 结论 / 关联验证）
-3. **必须登记**：新增 IVG 后在本表追加一行（不登记 = 不存在 → 未来 agent 找不到）
-4. **Findings 落地后改 `Applied`**：当结论被吸收进 `CLAUDE.md` / `ARCHITECTURE.md` / `docs/governance/*` / 代码注释等，把状态改为 `Applied` 并在「应用位置」列填入指向规则落点的链接，让未来 agent 可以跳过深读
-5. **长流程文档**：完整 L1.5 工作流见 [`docs/governance/ai-workflow.md §1`](../../governance/ai-workflow.md)
+3. **必须使用模板字段**：每份调查覆盖 [`TEMPLATE.md`](./TEMPLATE.md) 的 §1–§7（概览 / 背景 / 假设与实验 / 证据 / 发现 / 结论 / 关联验证）
+4. **必须单点登记**：登记到 topic hub 或本表之一；不得两边各留一份
+5. **Findings 落地后改 `Applied`**：当结论被吸收进稳定架构 / governance / 代码等，把状态改为 `Applied` 并填入规则落点
+6. **长流程文档**：完整 L1.5 工作流见 [`docs/governance/ai-workflow.md §1`](../../governance/ai-workflow.md)

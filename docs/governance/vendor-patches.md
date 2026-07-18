@@ -17,7 +17,10 @@
 If `ansible-galaxy install -r requirements.yml --force` overwrites a patched role:
 
 1. Identify the affected role from `ansible-galaxy list` output.
-2. Re-apply the patches by hand, or revert the role directory from git history (`git checkout HEAD -- collections/ansible_collections/<vendor>/<role>/`).
+2. Re-apply the patches by hand. If the user explicitly authorizes restoring
+   the tracked role directory from Git, follow
+   `../../.agents/rules/git.md` for the exact path and command; never discard
+   unrecognized edits merely to repair the vendor install.
 3. Run `make lint` to confirm zero new violations.
 4. If the patch needs to evolve (new upstream changes), update this file with the new diff summary in the table above.
 
