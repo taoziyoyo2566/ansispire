@@ -9,11 +9,11 @@ content pruned.
 | Field | Current value |
 |---|---|
 | Function | Export the consolidated ansispire working tree (pruned) as the initial commit of `saberu-ops/saberu`, tagged `v0.0.1` |
-| Owner branch | `feat/saberu-migration` (to be created from `feat/vps-software-catalog`, carrying the uncommitted working tree) |
-| Branch state | Not yet created; current checkout is `feat/vps-software-catalog` with the consolidated working tree uncommitted |
+| Owner branch | `feat/saberu-migration` (created from `feat/vps-software-catalog`, carrying the consolidated working tree) |
+| Branch state | Migration executed on this branch; pushed to the old origin as archived evidence |
 | Direction | Approved by user in-session on 2026-07-18 (baseline = working tree; repo name = `saberu-ops/saberu`; prune list C1 conservative / C2 drop Gemini / C3 trim TODO / C4 reset CHANGELOG; internal `ansispire` naming untouched until 0.0.2) |
-| Implementation | Blocked until `execution-saberu-0.0.1-repo-migration-2026-07-18.md` is approved |
-| Live operations | None (no managed VPS is touched); external actions are GitHub repo creation and push, gated separately in Phase 4 |
+| Implementation | **COMPLETED 2026-07-18** — `saberu-ops/saberu` live (private); `v0.0.1` tagged on `feat/saberu-0.0.1-import` (unmerged by user decision); evidence in `round1-2026-07-18.changelog.md` |
+| Live operations | None (no managed VPS touched); external actions were GitHub repo creation and pushes under the Phase-4 user go |
 
 ## Artifact map
 

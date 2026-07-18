@@ -1,6 +1,8 @@
-> **Status**: APPROVED
+> **Status**: COMPLETED
+> **Completed**: 2026-07-18 — see `round1-2026-07-18.changelog.md` for gate evidence and the four recorded deviations (taoziyoyo refs kept deliberately; PR merges dropped by user decision — import stays on `feat/saberu-0.0.1-import`, `v0.0.1` tagged there; export-loss incident fixed via gitignore negations + amended import; `_history` empty dir untracked)
 > **Approved**: 2026-07-18 — with the three §3 open decisions resolved to their defaults (private; host global gitconfig identity; LICENSE untouched unless it names the old account)
 > **Updated**: 2026-07-18 — user amendment at approval: the new repo's `master` (and `dev`) accept no direct content commits; the import lands on a feature branch and reaches `dev`/`master` via PR (Phase 4 rewritten accordingly)
+> **Updated**: 2026-07-18 — user amendment during Phase 4: the PAT lacks Pull-requests permission and the user chose to keep the import unmerged on its feature branch; Phase 4 step 5 (PR merges) not executed
 > **Created**: 2026-07-18
 > **Branch**: feat/saberu-migration
 > **Classification**: [L2] Architecture

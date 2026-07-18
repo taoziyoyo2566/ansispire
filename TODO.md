@@ -27,8 +27,8 @@
 ### Saberu Repo Migration — 迁移到 saberu-ops/saberu 0.0.1  ▶️ 进行中
 - **目标**：以当前整合工作树为基线，裁剪后作为 `saberu-ops/saberu` 的 `v0.0.1` 初始导入（无历史）；旧仓库归档。
 - **入口**：[`docs/workstreams/feat-saberu-migration/`](docs/workstreams/feat-saberu-migration/)（execution plan APPROVED 2026-07-18）。
-- **状态**：Phase 1–2 执行中；Phase 4（建仓+推送）前需用户放行；新仓 `master`/`dev` 不接受直接提交，导入走 PR。
-- **0.0.2 后续**：内部 `ansispire`→`saberu` 改名（约 191 文件，L2）；旧仓库转 archive；`/tmp` worktree 清理；被整合分支的收尾。
+- **状态**：✅ **COMPLETED 2026-07-18** —— `saberu-ops/saberu`（private）已建；`v0.0.1` 打在 `feat/saberu-0.0.1-import`（按用户决策**不合并**，`master`/`dev` 仅空引导提交）；证据见 `round1-2026-07-18.changelog.md`。后续开发在 `~/workspace/saberu` 克隆中进行。
+- **0.0.2 后续**：内部 `ansispire`→`saberu` 改名（约 191 文件，L2）；import 分支并入 `dev`/`master` 的时机（需 PAT 补 Pull-requests 权限或网页合并）；旧仓库转 archive；`/tmp` worktree 清理；被整合分支的收尾；live Worker 域名仍在旧账号下。
 
 ### Target Architecture / Saberu MVP — Semaphore-native VPS takeover  ▶️ **P1 主线**
 - **目标**：以 `Semaphore Inventory + Key Store + Task API + Semaphore UI` 作为近期控制面真相；先在当前 `ansispire` 跑通 Saberu MVP 的第一条执行证明链路：audit → onboard → managed-channel audit `0 changed`。owner branch 已移除本地 `vps_manager` 调度层，并把保留的生命周期 playbook 迁到 `playbooks/vps/`。
