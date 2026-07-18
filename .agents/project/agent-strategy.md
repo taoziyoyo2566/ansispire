@@ -1,6 +1,6 @@
 # Agent Strategy
 
-This repo may use `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` together.
+This repo uses `AGENTS.md` and `CLAUDE.md` together.
 Do not assume any one of them is automatically the best or most current source for every task.
 
 ## Intended Split
@@ -16,10 +16,6 @@ Do not assume any one of them is automatically the best or most current source f
 - `CLAUDE.md`
   - Claude workflow baseline
   - task classification, sync discipline, branch lifecycle
-
-- `GEMINI.md`
-  - Gemini / cross-agent complement
-  - context discipline, peer-audit correction, codification emphasis
 
 - repo docs and code
   - current operational truth for architecture, testing, feature scope, and active plans
@@ -38,19 +34,18 @@ When guidance conflicts or seems stale, use this order:
    - active plans/evidence in `docs/workstreams/`, with `docs/reviews/` as the
      legacy fallback for unmigrated topics
    - current code
-4. `CLAUDE.md` and `GEMINI.md`
+4. `CLAUDE.md`
 5. historical investigations, reviews, and archived docs
 
 ## Practical Rule
 
-- Use `CLAUDE.md` and `GEMINI.md` as governance inputs, not blind law.
-- If either file appears overfit, stale, or in tension with the current repo state, flag it and prefer current evidence.
-- If both are useful, combine them:
+- Use `CLAUDE.md` as a governance input, not blind law.
+- If it appears overfit, stale, or in tension with the current repo state, flag it and prefer current evidence.
+- Combine the layers:
   - let `AGENTS.md` handle routing and local context
   - let `CLAUDE.md` provide Claude-specific workflow guidance
-  - let `GEMINI.md` provide complementary Gemini / cross-agent guidance
 
 ## What Not To Do
 
 - Do not hard-code one AI config file as the sole source of truth unless the repo explicitly standardizes that.
-- Do not copy rules from `CLAUDE.md` or `GEMINI.md` into `.agents/` unless they are still clearly useful and non-conflicting.
+- Do not copy rules from `CLAUDE.md` into `.agents/` unless they are still clearly useful and non-conflicting.

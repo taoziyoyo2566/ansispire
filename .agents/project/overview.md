@@ -16,7 +16,6 @@ AI guidance inputs:
 
 - `AGENTS.md` and `.agents/` for Codex routing and modular rules
 - `CLAUDE.md` for the Claude workflow baseline
-- `GEMINI.md` for Gemini / cross-agent complement
 - if they conflict with current repo truth, prefer current repo truth
 
 Main surfaces:

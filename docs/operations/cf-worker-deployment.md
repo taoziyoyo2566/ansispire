@@ -221,5 +221,5 @@ References:
 [`cf-worker/README.md`](../../cf-worker/README.md) ·
 [feature-map `vps-lifecycle.md`](../reference/feature-map/vps-lifecycle.md) ·
 [`INDEX.md §3.5`](../reference/feature-map/INDEX.md) ·
-[manual onboarding runbook](vps-onboard-runbook.md) ·
-[one-time validation archive](../reviews/_archive/feat-target-architecture-cf-worker-live-validation-2026-06-07.md)
+[manual onboarding runbook](vps-onboard-runbook.md)
+(one-time validation evidence: archived in the pre-0.0.1 `ansispire` repository)

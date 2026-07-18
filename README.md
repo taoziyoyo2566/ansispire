@@ -140,7 +140,6 @@ Full spec: [`docs/governance/loopback-runner.md`](./docs/governance/loopback-run
 | Contribute code or docs | [docs/governance/contributing.md](./docs/governance/contributing.md) |
 | Run the tests and understand the test pyramid | [docs/governance/testing-governance.md](./docs/governance/testing-governance.md) · [docs/reference/test-specs/](./docs/reference/test-specs/) |
 | Review past incidents and decisions | [docs/reference/investigations/INDEX.md](./docs/reference/investigations/INDEX.md) |
-| Read in 中文 | [docs/reference-cn/](./docs/reference-cn/) |
 
 ---
 
@@ -150,7 +149,6 @@ This project follows a layered governance model. The relevant files:
 
 - [AGENTS.md](./AGENTS.md) — Codex routing entry and path-local context loading
 - [CLAUDE.md](./CLAUDE.md) — shared workflow baseline (task levels, sync discipline, branch lifecycle)
-- [GEMINI.md](./GEMINI.md) — complementary Gemini / cross-agent guidance (context discipline, peer audit, codification)
 - [docs/governance/ai-workflow.md](./docs/governance/ai-workflow.md) — repo-wide AI workflow model and how these layers fit together
 
 Contributions must follow the workflow in [docs/governance/contributing.md](./docs/governance/contributing.md): scope-defined commits, mandatory diff self-check, evidence-backed test claims.

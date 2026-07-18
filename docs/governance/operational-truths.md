@@ -35,7 +35,7 @@
 
 ## Governance
 
-- **AI-native collaboration**: `AGENTS.md` handles routing and local context, `CLAUDE.md` holds the shared workflow baseline, and `GEMINI.md` adds Gemini / cross-agent guidance. When they drift, prefer current repo truth.
+- **AI-native collaboration**: `AGENTS.md` handles routing and local context, and `CLAUDE.md` holds the shared workflow baseline. When they drift, prefer current repo truth.
 - **Cross-AI audit**: any multi-AI investigation must produce a peer-review and archiving trail (planning + changelog), so a future agent can reconstruct the rationale.
 
 ---

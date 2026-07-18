@@ -39,8 +39,6 @@ Out of scope:
 - Vulnerabilities in upstream dependencies — please report to the upstream
   project first; we will track and rebase once upstream releases a fix
 - DoS via resource exhaustion against a single non-redundant test instance
-- Issues in code under `docs/reviews/_archive/` (historical material;
-  superseded code paths)
 
 ## Coordinated Disclosure
 

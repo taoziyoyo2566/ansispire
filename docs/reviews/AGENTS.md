@@ -36,8 +36,6 @@ Use this file when touching the legacy `docs/reviews/` tree.
   - branch-transition or one-off historical topic evidence
 - `round*.changelog.md`
   - what actually landed in that round
-- `_archive/`
-  - immutable history unless the task is explicitly archival hygiene
 
 Do not add these as new review-topic artifacts:
 

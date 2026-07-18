@@ -21,7 +21,7 @@ Before editing, answer:
     unmigrated evidence in `docs/reviews/`
 - Do not silently change operator workflows documented in `docs/operations/` or `docs/user-guide/` without syncing those docs.
 - Do not treat an investigation document as an implementation mandate unless current plans or TODO entries still point to it.
-- Preserve historical records in `docs/reviews/_archive/` and investigation files.
+- Preserve historical records in investigation files; pre-0.0.1 archived material lives in the upstream `ansispire` repository history.
 
 ## Execution boundaries (remote hosts)
 

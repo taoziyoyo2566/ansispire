@@ -3,8 +3,6 @@
 This directory is the landing point for the "multi-server management control system" control plane in this project.
 Currently it only ships a minimal Semaphore implementation; later rounds will introduce AWX, RBAC, audit, EDA, and more.
 
-> Chinese reference snapshot: `../docs/reference-cn/snapshot-2026-04-14/controller/README.zh.md`
-
 ---
 
 ## Why a Control Plane?
@@ -104,5 +102,4 @@ See [`semaphore/README.md`](./semaphore/README.md) for detailed steps.
 - [Semaphore documentation](https://docs.semaphoreui.com/)
 - [Semaphore REST API](https://docs.semaphoreui.com/administration-guide/api/)
 - [AWX on GitHub](https://github.com/ansible/awx)
-- Round 6 architecture plan: `../docs/reviews/_archive/claude-review-round-6-2026-04-14.md`
-- Round 7 implementation plan: `../docs/reviews/_archive/claude-review-round-7-2026-04-14.md`
+- Round 6/7 planning history: archived in the pre-0.0.1 `ansispire` repository

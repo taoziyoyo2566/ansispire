@@ -16,7 +16,6 @@ secret:
     - ".ansible/**"
     - "node_modules/**"
     # Retired-format reviews; not load-bearing, may contain old example tokens
-    - "docs/reviews/_archive/**"
     # detect-secrets baseline carries hashes (not plaintext) but the
     # filename triggers heuristics
     - ".secrets.baseline"

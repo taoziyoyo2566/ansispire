@@ -3,8 +3,6 @@
 Semaphore is an open-source Ansible UI control plane (Go single-process + SQLite / MySQL / Postgres).
 This directory provides a minimal learning deployment: Docker Compose + SQLite backend, using about **200 MB RAM**.
 
-> Chinese reference snapshot: `../../docs/reference-cn/snapshot-2026-04-14/controller/semaphore/README.zh.md`
-
 ---
 
 ## What's in This Directory

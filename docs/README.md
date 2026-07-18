@@ -11,8 +11,8 @@ docs/
 ├── operations/        # Maintainers — terse command reference
 ├── reference/         # Machine-readable / feature maps / specs / investigations
 ├── governance/        # Project rules — how to contribute, how to test, AI workflow
-├── reviews/           # Project process — plan docs and per-round changelogs
-└── reference-cn/      # 中文翻译镜像
+├── reviews/           # Legacy project process — unmigrated plan-doc topics
+└── workstreams/       # Active time-bounded workstream bundles
 ```
 
 Top-of-repo documents that are NOT under `docs/`:
@@ -25,7 +25,6 @@ Top-of-repo documents that are NOT under `docs/`:
 - [`TODO.md`](../TODO.md) — current task list and branch readiness
 - [`AGENTS.md`](../AGENTS.md) — Codex routing entry and path-local context loading
 - [`CLAUDE.md`](../CLAUDE.md) — shared workflow baseline for repo AI work
-- [`GEMINI.md`](../GEMINI.md) — complementary Gemini / cross-agent guidance
 
 ---
 
@@ -78,8 +77,5 @@ How to contribute, how to test, how to operate as an AI in this repo, and the cr
 Per-task plan docs and per-round changelogs. Inside each `<kind>-<topic>/` directory you will find both the plan and the round changelogs that lived against it.
 
 - Recent topics: `feat-eda-advanced-healing/`, `refactor-docs-enterprise/`, `feat-test-infra/`, `feat-governance-integration/`
-- Older retired-format files live under `_archive/` after the 2026-05-10 docs refactor.
+- Archived and retired-format material remains in the pre-0.0.1 `ansispire` repository history.
 
-## reference-cn/ — 中文镜像
-
-中文翻译版本。最近一次 snapshot：2026-04-14。

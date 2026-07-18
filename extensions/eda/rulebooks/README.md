@@ -1,7 +1,5 @@
 # Event-Driven Ansible (EDA) — Reserved Directory
 
-> Chinese reference snapshot: `../../../docs/reference-cn/snapshot-2026-04-14/extensions/eda/rulebooks/README.zh.md`
-
 ## Overview
 
 Event-Driven Ansible (EDA) is a component that went GA in Ansible Automation Platform 2.4+.

@@ -92,7 +92,6 @@ Do not modify files during bootstrap.
 ## Path-specific Routing
 
 - `docs/AGENTS.md` for `docs/` and workstream-evidence changes.
-- `plugins/AGENTS.md` for `plugins/`.
 - `controller/AGENTS.md` for `controller/`.
 - `roles/AGENTS.md` for `roles/`.
 - `inventory/AGENTS.md` for `inventory/`.

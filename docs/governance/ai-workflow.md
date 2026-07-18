@@ -10,7 +10,6 @@ Ansispire may use several AI guidance layers together:
 
 - `AGENTS.md` and nested `AGENTS.md` — routing, local context loading, and path-specific guidance
 - `CLAUDE.md` — shared workflow baseline (task classification, sync discipline, branch lifecycle)
-- `GEMINI.md` — complementary Gemini / cross-agent guidance (context discipline, peer-audit, codification)
 - repo docs and code — current operational truth
 
 When they conflict or drift, prefer the active architecture, governance docs,
@@ -93,7 +92,7 @@ When an AI completes a task, it must provide:
 ## 3. Core AI Directives (from repo AI governance)
 
 1. **Refactor Globally, Do Not Append**: When adding rules or configs, the AI should rewrite the file to improve its overall structure rather than just appending at the bottom.
-2. **Context Efficiency**: Use routing docs and ignore files (such as `.geminiignore`) to keep the context focused. Do not force broad reads unless they are needed for the task at hand.
+2. **Context Efficiency**: Use routing docs and ignore files to keep the context focused. Do not force broad reads unless they are needed for the task at hand.
 3. **Control vs. Data**: AI must ensure that `controller/` logic remains decoupled from execution `roles/`.
 4. **Reality Check Existing Implementations**: Before adding functionality on top of an existing implementation, verify that the current implementation itself is not already off-pattern or architecturally stale.
 
@@ -145,6 +144,6 @@ wrong.
 
 ---
 
-For repo-level AI governance inputs, see [`AGENTS.md`](../../AGENTS.md), [`CLAUDE.md`](../../CLAUDE.md), and [`GEMINI.md`](../../GEMINI.md).
+For repo-level AI governance inputs, see [`AGENTS.md`](../../AGENTS.md) and [`CLAUDE.md`](../../CLAUDE.md).
 When they conflict or drift from current repo reality, prefer the active
 architecture, governance, feature-map, workstream-evidence, and code truth.

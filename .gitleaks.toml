@@ -15,7 +15,6 @@ paths = [
   '''^\.ansible/''',
   '''^collections/''',
   '''^node_modules/''',
-  '''^docs/reviews/_archive/''',
   '''^\.secrets\.baseline$''',
   # gitignored runtime artefacts — locally present, never tracked
   '''^controller/audit/e2e/\.secrets$''',
