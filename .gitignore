@@ -6,6 +6,7 @@ controller/semaphore/.env
 controller/semaphore/.secrets
 controller/audit/e2e/.env
 controller/audit/e2e/.env.*
+!controller/audit/e2e/.env.example
 controller/audit/e2e/.secrets
 controller/audit/e2e/.secrets.*
 controller/audit/e2e/hosts.*.ini
@@ -21,7 +22,13 @@ controller/rbac/.demo_*.pw
 inventory/**/vault.yml
 
 # ── Ansible runtime ─────────────────────────────────────────────────────
-.ansible/
+# .ansible is runtime cache EXCEPT the deliberately vendored role
+# (docs/governance/vendor-patches.md) — keep the negations so a fresh
+# `git add` in a new clone/export does not silently drop it.
+.ansible/*
+!.ansible/roles/
+.ansible/roles/*
+!.ansible/roles/geerlingguy.docker/
 *.retry
 .facts/
 fact_cache/
