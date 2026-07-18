@@ -1,4 +1,10 @@
-# Ansispire
+# Saberu
+
+> **v0.0.1** — initial import into `saberu-ops/saberu` (2026-07-18). The
+> codebase keeps its previous internal name **Ansispire** until the 0.0.2
+> rename; pre-0.0.1 commit history lives in the archived upstream repository
+> (`github.com/taoziyoyo2566/ansispire`). Migration provenance:
+> [`docs/workstreams/feat-saberu-migration/`](./docs/workstreams/feat-saberu-migration/).
 
 Ansispire is an opinionated control plane on top of Ansible. It turns "scripts + SSH" into a system with a managed control plane (web UI, REST API, RBAC), an append-only audit plane, and an event-driven self-healing loop — without giving up the simplicity of plain Ansible roles for the data plane.
 

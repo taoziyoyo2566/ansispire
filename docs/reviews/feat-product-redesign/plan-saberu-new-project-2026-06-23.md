@@ -4,6 +4,7 @@
 > **Classification**: [L2] Architecture
 > **Deferred**: 2026-06-23 - future blueprint only; not approved for execution. Blocked until Semaphore-native onboard/audit proof, D3 AI scope decision, and a concrete custom thin-layer gap exist.
 > **Updated**: 2026-06-23 - downgraded from current execution plan after D2 closed as Semaphore UI first.
+> **Updated**: 2026-07-18 - partially overridden by user decision: the pruned latest `ansispire` working tree was migrated as `saberu-ops/saberu` v0.0.1 (see `docs/workstreams/feat-saberu-migration/`). The "do not copy the old repository wholesale" premise no longer holds; the thin-layer / domain-model design content remains future reference.
 
 # Blueprint - Future Saberu Thin Layer / New Project
 
