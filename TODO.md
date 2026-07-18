@@ -4,7 +4,7 @@
 >
 > 状态语义：`[ ]` 未启动 / `[~]` 进行中 / `[✓]` 完成 / `[blocked]` 等外部依赖。
 >
-> **这是唯一的任务真相源（task ledger SSOT）**。原 `todo` 分支已于 2026-06-05 退役，历史保留在 tag `archive/todo-ledger-2026-06-05`。
+> **这是唯一的任务真相源（task ledger SSOT）**。原 `todo` 分支已于 2026-06-05 退役；该分支与 0.0.1 之前的已完成任务记录均保留在归档的上游 `ansispire` 仓库历史中。
 
 ---
 
@@ -19,23 +19,16 @@
 
 ---
 
-## 🟢 已完成 (Completed)
-
-| ID | 任务 | 闭环时间 | 闭环报告 |
-|---|---|---|---|
-| TASK-007 | Multi-OS Target Fleet (Debian + RHEL families — 即完整支持集) | 2026-05-19 | [`docs/reviews/feat-multi-os-target-fleet/round1-2026-05-19.changelog.md`](docs/reviews/feat-multi-os-target-fleet/round1-2026-05-19.changelog.md) |
-| TASK-001 | Advanced Self-Healing Scenarios (v2.3 API-driven reactor & IaC) | 2026-05-10 | [`docs/reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md`](docs/reviews/feat-eda-advanced-healing/round4-2026-05-10.changelog.md) |
-| TASK-004 | Robust Bootstrap 2.1 (venv isolation & path consistency) | — | — |
-| TASK-006 | 升级至 Ansible-Core 2.20.5 (2026 LTS) | — | — |
-| — | establish AI-native governance (GEMINI.md / CLAUDE.md hierarchy) | — | — |
-| — | mass quality refactoring (lint clean) | — | — |
-| — | cursor-paginated audit relay with restart recovery (bounded backfill) | — | — |
-| — | lightweight EDA reaction engine core (Round 1–4) | 2026-05-10 | TASK-001 |
-| — | basic Nginx auto-remediation logic (`feat/eda-remediation-nginx`) | — | — |
-
----
-
 ## 🟡 进行中 / 下一轮可立刻启动 (Active / Next-up)
+
+> 0.0.1 之前的已完成任务（TASK-001/004/006/007 等）连同闭环报告保留在归档的
+> 上游 `ansispire` 仓库历史中，本清单只保留活跃与待办条目。
+
+### Saberu Repo Migration — 迁移到 saberu-ops/saberu 0.0.1  ▶️ 进行中
+- **目标**：以当前整合工作树为基线，裁剪后作为 `saberu-ops/saberu` 的 `v0.0.1` 初始导入（无历史）；旧仓库归档。
+- **入口**：[`docs/workstreams/feat-saberu-migration/`](docs/workstreams/feat-saberu-migration/)（execution plan APPROVED 2026-07-18）。
+- **状态**：Phase 1–2 执行中；Phase 4（建仓+推送）前需用户放行；新仓 `master`/`dev` 不接受直接提交，导入走 PR。
+- **0.0.2 后续**：内部 `ansispire`→`saberu` 改名（约 191 文件，L2）；旧仓库转 archive；`/tmp` worktree 清理；被整合分支的收尾。
 
 ### Target Architecture / Saberu MVP — Semaphore-native VPS takeover  ▶️ **P1 主线**
 - **目标**：以 `Semaphore Inventory + Key Store + Task API + Semaphore UI` 作为近期控制面真相；先在当前 `ansispire` 跑通 Saberu MVP 的第一条执行证明链路：audit → onboard → managed-channel audit `0 changed`。owner branch 已移除本地 `vps_manager` 调度层，并把保留的生命周期 playbook 迁到 `playbooks/vps/`。
@@ -141,7 +134,7 @@ Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-202
 
 ## 📌 当前分支状态 (Branch Status)
 
-- **当前分支**：`feat/target-architecture`（owner / planning branch for 回归-Semaphore 方向）
+- **当前分支**：`feat/saberu-migration`（自 `feat/vps-software-catalog` 切出，承载整合工作树 + 0.0.1 裁剪；下述为其父线 `feat/target-architecture` 的状态记录）
 - **合并目标**：**仅 `dev`**（feat→dev，§4 规则）。**永不进 `master`**（2026-06-05 决策）。
 - **同步状态**（2026-06-06 实测）：已 merge `origin/dev`（含 baseline PR #19/#20/#21），CLAUDE.md 冲突已解（merge commit `66e2bb8`）。
 - **本分支已落地**：owner-branch bootstrap（`3cf02fe`）+ Phase 1 IVG 调查 + scope 整理（Alpine 下线 / todo 分支退役 / reference 副本清理 / 文档同步）+ dev 同步 merge + **Phase 2 CF Worker 详细设计 + Q1–Q4 决策关闭（2026-06-06 Round 6）** + **Phase 1 runtime probe closure（2026-06-06 Round 7）** + **Saberu 产品方向 / D2 Semaphore UI first / Jun-10 execution plan approval（2026-06-23 docs round）**。
@@ -160,4 +153,4 @@ Target Architecture 的 Q1–Q4 已于 2026-06-06 全部关闭（见 `design-202
 - **CLAUDE.md 三层**：`~/.claude/CLAUDE.md` / `~/workspace/CLAUDE.md` / `./CLAUDE.md`
 
 ---
-*Last updated: 2026-07-17 (Phase 3 remains proven on u24+d13 and partial on RHEL; composable VPS profile direction is approved and implementation remains child-plan gated).*
+*Last updated: 2026-07-18 (saberu-ops/saberu 0.0.1 migration in progress; completed-task history pruned to the archived ansispire repo; Phase 3 remains proven on u24+d13 and partial on RHEL).*
