@@ -5,7 +5,7 @@
 If you discover a security vulnerability in Ansispire, please report it
 **privately** rather than opening a public GitHub issue.
 
-**Contact**: [claude@taoziyoyo.com](mailto:claude@taoziyoyo.com)
+**Contact**: [sp@saberu.com](mailto:sp@saberu.com)
 
 Please include:
 
